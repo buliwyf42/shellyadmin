@@ -1,0 +1,38 @@
+services:
+  shellyctl:
+    image: shellyctl-go
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8080:8080"
+    volumes:
+      - shellyadmin-data:/data
+    environment:
+      DATA_DIR: /data
+      SHELLYADMIN_PASS_FILE: /run/secrets/shellyadmin_pass
+      SHELLYADMIN_SECRET_FILE: /run/secrets/shellyadmin_secret
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+    secrets:
+      - shellyadmin_pass
+      - shellyadmin_secret
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 256
+    init: true
+    stop_grace_period: 15s
+    restart: unless-stopped
+
+volumes:
+  shellyadmin-data:
+
+secrets:
+  shellyadmin_pass:
+    file: ../secrets/shellyadmin_pass.txt
+  shellyadmin_secret:
+    file: ../secrets/shellyadmin_secret.txt

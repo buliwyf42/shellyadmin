@@ -1,0 +1,326 @@
+package api
+
+import (
+	"crypto/rand"
+	"crypto/subtle"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-gonic/gin"
+
+	"shellyadmin/internal/db"
+	"shellyadmin/internal/models"
+	"shellyadmin/internal/services"
+)
+
+type Handler struct {
+	db      *db.DB
+	cfg     Config
+	service *services.AppService
+}
+
+func NewHandler(database *db.DB, cfg Config) *Handler {
+	handler := &Handler{
+		db:  database,
+		cfg: cfg,
+	}
+	handler.service = services.NewAppService(database, cfg.DataDir, handler.logFn)
+	return handler
+}
+
+func (h *Handler) Health(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+func (h *Handler) Login(c *gin.Context) {
+	var req struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	if err := decodeJSON(c, &req, 4*1024); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	if subtle.ConstantTimeCompare([]byte(req.Username), []byte(h.cfg.User)) != 1 ||
+		subtle.ConstantTimeCompare([]byte(req.Password), []byte(h.cfg.Pass)) != 1 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+		return
+	}
+	session := sessions.Default(c)
+	session.Clear()
+	session.Set("user", req.Username)
+	session.Set("nonce", RandomSecret())
+	_ = session.Save()
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+func (h *Handler) Logout(c *gin.Context) {
+	session := sessions.Default(c)
+	session.Clear()
+	session.Options(sessions.Options{Path: "/", MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: h.cfg.CookieSecure})
+	_ = session.Save()
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+func (h *Handler) GetDevices(c *gin.Context) {
+	devices, err := h.service.GetDevices()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, devices)
+}
+
+func (h *Handler) RefreshDevices(c *gin.Context) {
+	devices, err := h.service.RefreshDevices(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, devices)
+}
+
+func (h *Handler) ForgetDevice(c *gin.Context) {
+	var req struct {
+		Target string `json:"target"`
+	}
+	if err := decodeJSON(c, &req, 4*1024); err != nil || req.Target == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "target required"})
+		return
+	}
+	if err := h.service.ForgetDevice(req.Target); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+func (h *Handler) BulkAction(c *gin.Context) {
+	var req struct {
+		Action  string   `json:"action"`
+		MACs    []string `json:"macs"`
+		Value   string   `json:"value"`
+		Lat     float64  `json:"lat"`
+		Lon     float64  `json:"lon"`
+		Enabled *bool    `json:"enabled"`
+	}
+	if err := decodeJSON(c, &req, 16*1024); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	results, err := h.service.BulkAction(c.Request.Context(), req.Action, req.MACs, req.Value, req.Lat, req.Lon, req.Enabled)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"results": results})
+}
+
+func (h *Handler) ScanStart(c *gin.Context) {
+	if err := h.service.StartScan(); err != nil {
+		status := http.StatusBadRequest
+		if err.Error() == "scan already running" {
+			status = http.StatusOK
+		}
+		c.JSON(status, gin.H{"status": "started", "error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "started"})
+}
+
+func (h *Handler) ScanStatus(c *gin.Context) {
+	status, err := h.service.ScanStatus()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, status)
+}
+
+func (h *Handler) ScanConfirm(c *gin.Context) {
+	var req struct {
+		MACs []string `json:"macs"`
+	}
+	if err := decodeJSON(c, &req, 16*1024); err != nil && !errors.Is(err, io.EOF) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	count, err := h.service.ConfirmScan(req.MACs)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "count": count})
+}
+
+func (h *Handler) FirmwareCheck(c *gin.Context) {
+	total, err := h.service.StartFirmwareCheck(c.DefaultQuery("stage", "stable"))
+	if err != nil && err.Error() != "firmware check already running" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "started", "total": total})
+}
+
+func (h *Handler) FirmwareStatus(c *gin.Context) {
+	status, err := h.service.FirmwareStatus()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, status)
+}
+
+func (h *Handler) FirmwareUpdate(c *gin.Context) {
+	var req struct {
+		MACs  []string `json:"macs"`
+		Stage string   `json:"stage"`
+	}
+	if err := decodeJSON(c, &req, 16*1024); err != nil || len(req.MACs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "macs required"})
+		return
+	}
+	results, err := h.service.FirmwareUpdate(c.Request.Context(), req.MACs, req.Stage)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, results)
+}
+
+func (h *Handler) Provision(c *gin.Context) {
+	var req struct {
+		IPs      []string               `json:"ips"`
+		Template map[string]interface{} `json:"template"`
+	}
+	if err := decodeJSON(c, &req, services.MaxJSONBytes); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	results, err := h.service.Provision(c.Request.Context(), req.IPs, req.Template)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, results)
+}
+
+func (h *Handler) GetSettings(c *gin.Context) {
+	settings, err := h.service.GetSettings()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, settings)
+}
+
+func (h *Handler) SaveSettings(c *gin.Context) {
+	var settings models.AppSettings
+	if err := decodeJSON(c, &settings, 64*1024); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid settings"})
+		return
+	}
+	if err := h.service.SaveSettings(settings); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+func (h *Handler) ListTemplates(c *gin.Context) {
+	names, err := h.service.ListTemplates()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, names)
+}
+
+func (h *Handler) GetTemplate(c *gin.Context) {
+	content, err := h.service.GetTemplate(c.Param("name"))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "template not found"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"name": c.Param("name"), "content": content})
+}
+
+func (h *Handler) SaveTemplate(c *gin.Context) {
+	var req struct {
+		Content string `json:"content"`
+	}
+	if err := decodeJSON(c, &req, services.MaxTemplateBytes+1024); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "content required"})
+		return
+	}
+	if err := h.service.SaveTemplate(c.Param("name"), req.Content); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+func (h *Handler) DeleteTemplate(c *gin.Context) {
+	if err := h.service.DeleteTemplate(c.Param("name")); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+func (h *Handler) GetLogs(c *gin.Context) {
+	entries, err := h.service.GetLogs(c.Query("level"), c.Query("search"))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, entries)
+}
+
+func (h *Handler) GetDebugLogs(c *gin.Context) {
+	lines, err := h.service.GetDebugLogs(c.Query("search"), parseTail(c.DefaultQuery("tail", "200")))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"lines": lines})
+}
+
+func (h *Handler) logFn(level, msg string) {
+	_ = h.db.AddLog(level, services.SanitizeLogMessage(msg))
+}
+
+func RandomSecret() string {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		return "dev-secret-change-me"
+	}
+	return hex.EncodeToString(buf)
+}
+
+func decodeJSON(c *gin.Context, dst any, maxBytes int64) error {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxBytes)
+	decoder := json.NewDecoder(c.Request.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(dst); err != nil {
+		return err
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		if err == nil {
+			return errors.New("unexpected trailing content")
+		}
+		return err
+	}
+	return nil
+}
+
+func parseTail(raw string) int {
+	var tail int
+	_, _ = fmt.Sscanf(raw, "%d", &tail)
+	return tail
+}
