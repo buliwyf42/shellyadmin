@@ -200,10 +200,14 @@ func probeGen1(ctx context.Context, client *http.Client, ip string, dev *models.
 		dev.WiFiSSID = firstString(wifi["ssid"], "")
 	}
 	if update, ok := status["update"].(map[string]any); ok {
-		dev.FW = firstString(update["old_version"], dev.FW)
-		dev.FWAvailableVer = firstString(update["new_version"], "")
-		if anyBool(update["has_update"]) {
+		currentFW := firstString(update["old_version"], dev.FW)
+		availableFW := firstString(update["new_version"], "")
+		dev.FW = currentFW
+		if anyBool(update["has_update"]) && availableFW != "" && availableFW != currentFW {
+			dev.FWAvailableVer = availableFW
 			dev.FWStatus = "update"
+		} else {
+			dev.FWAvailableVer = ""
 		}
 	}
 	if cloud, ok := status["cloud"].(map[string]any); ok {

@@ -78,6 +78,10 @@ func CheckOne(ctx context.Context, d models.Device, stage string, timeout time.D
 	}
 	res.AvailableVer = stringValue(payload["new_version"])
 	res.UpdateAvailable = boolValue(payload["has_update"])
+	if res.AvailableVer == res.CurrentVer {
+		res.UpdateAvailable = false
+		res.AvailableVer = ""
+	}
 	if res.UpdateAvailable {
 		res.Status = "update"
 	} else {

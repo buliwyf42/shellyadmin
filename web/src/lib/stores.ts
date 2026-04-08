@@ -6,7 +6,7 @@ export const deviceColumns = [
   { key: 'name', label: 'Name' },
   { key: 'ip', label: 'IP' },
   { key: 'mac', label: 'MAC' },
-  { key: 'gen', label: 'Support' },
+  { key: 'gen', label: 'Type' },
   { key: 'model', label: 'Model' },
   { key: 'fw', label: 'Firmware' },
   { key: 'online', label: 'Online' },

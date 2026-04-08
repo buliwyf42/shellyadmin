@@ -1,20 +1,27 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { api } from '../lib/api'
-  import type { AppSettings } from '../lib/types'
+  import { devices } from '../lib/stores'
+  import type { AppSettings, Device } from '../lib/types'
+  import ComplianceBadge from '../components/ComplianceBadge.svelte'
 
   let settings: AppSettings = { subnets: [], scan_timeout: 2, scan_concurrency: 64, compliance: {} }
   let saved = ''
 
   async function load() {
     settings = await api.getSettings()
+    $devices = await api.getDevices()
   }
 
   async function save() {
     await api.saveSettings(settings)
+    $devices = await api.getDevices()
     saved = 'Saved'
     setTimeout(() => saved = '', 1500)
   }
+
+  $: compliantDevices = $devices.filter((device: Device) => device.compliant)
+  $: nonCompliantDevices = $devices.filter((device: Device) => !device.compliant)
 
   onMount(() => void load())
 </script>
@@ -41,10 +48,42 @@
   <div class="col-lg-4">
     <div class="card bg-dark border-info">
       <div class="card-body">
-        <h2 class="h6">Notes</h2>
+        <h2 class="h6">Summary</h2>
+        <p class="mb-2"><span class="badge bg-success me-2">{compliantDevices.length}</span> compliant</p>
+        <p class="mb-2"><span class="badge bg-danger me-2">{nonCompliantDevices.length}</span> non-compliant</p>
         <p class="text-secondary mb-2">Use `{device_name}` in Client ID or Topic Prefix values for per-device substitutions during provisioning.</p>
         <p class="text-secondary mb-0">Gen1 devices connected to Shelly Cloud skip MQTT compliance checks.</p>
       </div>
+    </div>
+  </div>
+</div>
+
+<div class="card bg-dark border-secondary mt-3">
+  <div class="card-body">
+    <h2 class="h5">Compliance Results</h2>
+    <div class="table-responsive">
+      <table class="table table-dark table-striped align-middle">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>IP</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Issues</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each $devices as device}
+            <tr>
+              <td>{device.name || device.serial || device.mac}</td>
+              <td><a href={`http://${device.ip}`} target="_blank" rel="noreferrer" class="text-decoration-none">{device.ip}</a></td>
+              <td>Gen {device.gen}</td>
+              <td><ComplianceBadge compliant={device.compliant} issues={device.compliance_issues} /></td>
+              <td>{device.compliance_issues?.join(', ') || 'No issues'}</td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
     </div>
   </div>
 </div>
