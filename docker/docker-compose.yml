@@ -23,6 +23,11 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - SETGID
+      - SETUID
     pids_limit: 256
     init: true
     stop_grace_period: 15s

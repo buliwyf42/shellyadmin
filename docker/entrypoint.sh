@@ -14,8 +14,8 @@ load_secret() {
   unset "$file_var"
 }
 
-mkdir -p /data /tmp /app
-chown -R shelly:shelly /data /tmp /app
+mkdir -p /data /tmp
+chown -R shelly:shelly /data /tmp
 
 load_secret SHELLYADMIN_PASS
 load_secret SHELLYADMIN_SECRET
