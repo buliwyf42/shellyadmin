@@ -36,11 +36,11 @@
     <div class="card bg-dark border-secondary">
       <div class="card-body">
         <h2 class="h5">Scan Settings</h2>
-        <label class="form-label">Subnets (one per line)</label>
-        <textarea class="form-control mb-3" rows="6" value={settings.subnets.join('\n')} on:input={(e) => settings.subnets = (e.currentTarget as HTMLTextAreaElement).value.split('\n').map((v) => v.trim()).filter(Boolean)}></textarea>
+        <label class="form-label" for="settings-subnets">Subnets (one per line)</label>
+        <textarea id="settings-subnets" class="form-control mb-3" rows="6" value={settings.subnets.join('\n')} on:input={(e) => settings.subnets = (e.currentTarget as HTMLTextAreaElement).value.split('\n').map((v) => v.trim()).filter(Boolean)}></textarea>
         <div class="row g-3">
-          <div class="col-md-6"><label class="form-label">Timeout (s)</label><input class="form-control" type="number" bind:value={settings.scan_timeout} /></div>
-          <div class="col-md-6"><label class="form-label">Concurrency</label><input class="form-control" type="number" bind:value={settings.scan_concurrency} /></div>
+          <div class="col-md-6"><label class="form-label" for="settings-scan-timeout">Timeout (s)</label><input id="settings-scan-timeout" class="form-control" type="number" bind:value={settings.scan_timeout} /></div>
+          <div class="col-md-6"><label class="form-label" for="settings-scan-concurrency">Concurrency</label><input id="settings-scan-concurrency" class="form-control" type="number" bind:value={settings.scan_concurrency} /></div>
         </div>
         <button class="btn btn-warning text-dark mt-3" on:click={saveSettings}>Save Settings</button>
       </div>

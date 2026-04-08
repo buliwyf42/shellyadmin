@@ -24,12 +24,12 @@
       <p class="text-secondary">Fleet operations for your Shelly network.</p>
       {#if error}<div class="alert alert-danger py-2">{error}</div>{/if}
       <div class="mb-3">
-        <label class="form-label">Username</label>
-        <input class="form-control" bind:value={username} />
+        <label class="form-label" for="login-username">Username</label>
+        <input id="login-username" class="form-control" bind:value={username} />
       </div>
       <div class="mb-3">
-        <label class="form-label">Password</label>
-        <input class="form-control" type="password" bind:value={password} />
+        <label class="form-label" for="login-password">Password</label>
+        <input id="login-password" class="form-control" type="password" bind:value={password} />
       </div>
       <button class="btn btn-warning text-dark w-100" on:click={submit}>Sign In</button>
     </div>

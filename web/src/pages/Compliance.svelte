@@ -25,13 +25,13 @@
       <div class="card-body">
         <h2 class="h5">Compliance Rules</h2>
         <div class="row g-3">
-          <div class="col-md-6"><label class="form-label">WiFi SSID</label><input class="form-control" bind:value={settings.compliance.wifi_ssid} /></div>
-          <div class="col-md-6"><label class="form-label">MQTT Server</label><input class="form-control" bind:value={settings.compliance.mqtt_server} /></div>
-          <div class="col-md-6"><label class="form-label">MQTT Client ID</label><input class="form-control" bind:value={settings.compliance.mqtt_client_id} /></div>
-          <div class="col-md-6"><label class="form-label">Topic Prefix</label><input class="form-control" bind:value={settings.compliance.mqtt_topic_prefix} /></div>
-          <div class="col-md-4"><label class="form-label">Timezone</label><input class="form-control" bind:value={settings.compliance.tz} /></div>
-          <div class="col-md-4"><label class="form-label">SNTP Server</label><input class="form-control" bind:value={settings.compliance.sntp_server} /></div>
-          <div class="col-md-4"><label class="form-label">Time Format</label><select class="form-select" bind:value={settings.compliance.time_format}><option value="">Ignore</option><option value="24h">24h</option><option value="12h">12h</option></select></div>
+          <div class="col-md-6"><label class="form-label" for="compliance-wifi-ssid">WiFi SSID</label><input id="compliance-wifi-ssid" class="form-control" bind:value={settings.compliance.wifi_ssid} /></div>
+          <div class="col-md-6"><label class="form-label" for="compliance-mqtt-server">MQTT Server</label><input id="compliance-mqtt-server" class="form-control" bind:value={settings.compliance.mqtt_server} /></div>
+          <div class="col-md-6"><label class="form-label" for="compliance-mqtt-client-id">MQTT Client ID</label><input id="compliance-mqtt-client-id" class="form-control" bind:value={settings.compliance.mqtt_client_id} /></div>
+          <div class="col-md-6"><label class="form-label" for="compliance-topic-prefix">Topic Prefix</label><input id="compliance-topic-prefix" class="form-control" bind:value={settings.compliance.mqtt_topic_prefix} /></div>
+          <div class="col-md-4"><label class="form-label" for="compliance-timezone">Timezone</label><input id="compliance-timezone" class="form-control" bind:value={settings.compliance.tz} /></div>
+          <div class="col-md-4"><label class="form-label" for="compliance-sntp-server">SNTP Server</label><input id="compliance-sntp-server" class="form-control" bind:value={settings.compliance.sntp_server} /></div>
+          <div class="col-md-4"><label class="form-label" for="compliance-time-format">Time Format</label><select id="compliance-time-format" class="form-select" bind:value={settings.compliance.time_format}><option value="">Ignore</option><option value="24h">24h</option><option value="12h">12h</option></select></div>
         </div>
         <button class="btn btn-warning text-dark mt-3" on:click={save}>Save Compliance</button>
         {#if saved}<span class="ms-2 text-success">{saved}</span>{/if}
