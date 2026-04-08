@@ -76,7 +76,9 @@ func ProbeDevice(ctx context.Context, ip string, timeout time.Duration, logFn fu
 	var base struct {
 		Gen   int    `json:"gen"`
 		Model string `json:"model"`
+		Type  string `json:"type"`
 		FW    string `json:"fw"`
+		Ver   string `json:"ver"`
 		MAC   string `json:"mac"`
 		Name  string `json:"name"`
 		ID    string `json:"id"`
@@ -87,8 +89,8 @@ func ProbeDevice(ctx context.Context, ip string, timeout time.Duration, logFn fu
 	dev := &models.Device{
 		IP:         ip,
 		MAC:        normalizeMAC(base.MAC),
-		Model:      base.Model,
-		FW:         base.FW,
+		Model:      firstString(base.Model, base.Type),
+		FW:         firstString(base.Ver, base.FW),
 		Gen:        base.Gen,
 		Name:       base.Name,
 		Serial:     base.ID,
@@ -96,6 +98,9 @@ func ProbeDevice(ctx context.Context, ip string, timeout time.Duration, logFn fu
 		LastSeen:   time.Now().UTC().Format(time.RFC3339),
 		FWStatus:   "unknown",
 		TimeFormat: "24h",
+	}
+	if dev.Gen == 0 {
+		dev.Gen = 1
 	}
 	if dev.Gen >= 2 {
 		probeGen2(ctx, client, ip, dev, logFn)
@@ -194,6 +199,13 @@ func probeGen1(ctx context.Context, client *http.Client, ip string, dev *models.
 	if wifi, ok := status["wifi_sta"].(map[string]any); ok {
 		dev.WiFiSSID = firstString(wifi["ssid"], "")
 	}
+	if update, ok := status["update"].(map[string]any); ok {
+		dev.FW = firstString(update["old_version"], dev.FW)
+		dev.FWAvailableVer = firstString(update["new_version"], "")
+		if anyBool(update["has_update"]) {
+			dev.FWStatus = "update"
+		}
+	}
 	if cloud, ok := status["cloud"].(map[string]any); ok {
 		dev.CloudConnected = anyBool(cloud["connected"])
 	}
@@ -202,6 +214,7 @@ func probeGen1(ctx context.Context, client *http.Client, ip string, dev *models.
 		dev.MQTTServer = firstString(mqtt["server"], "")
 	}
 	dev.Name = firstString(settings["name"], dev.Name)
+	dev.FW = firstString(settings["fw"], dev.FW)
 	dev.TZ = firstString(settings["tz"], "")
 	dev.Lat = anyFloatPtr(settings["lat"])
 	dev.Lon = anyFloatPtr(settings["lng"])

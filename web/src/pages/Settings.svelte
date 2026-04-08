@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { api } from '../lib/api'
+  import { colVis, deviceColumns } from '../lib/stores'
   import type { AppSettings } from '../lib/types'
 
   let settings: AppSettings = { subnets: [], scan_timeout: 2, scan_concurrency: 64, compliance: {} }
@@ -28,6 +29,10 @@
     await load()
   }
 
+  function toggleColumn(key: string, checked: boolean) {
+    $colVis = { ...$colVis, [key]: checked }
+  }
+
   onMount(() => void load())
 </script>
 
@@ -43,6 +48,28 @@
           <div class="col-md-6"><label class="form-label" for="settings-scan-concurrency">Concurrency</label><input id="settings-scan-concurrency" class="form-control" type="number" bind:value={settings.scan_concurrency} /></div>
         </div>
         <button class="btn btn-warning text-dark mt-3" on:click={saveSettings}>Save Settings</button>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card bg-dark border-secondary">
+      <div class="card-body">
+        <h2 class="h5">Device Columns</h2>
+        <div class="row g-3 mb-3">
+          {#each deviceColumns as column}
+            <div class="col-md-6">
+              <label class="d-flex align-items-center gap-2">
+                <input
+                  class="form-check-input"
+                  type="checkbox"
+                  checked={$colVis[column.key] ?? false}
+                  on:change={(e) => toggleColumn(column.key, (e.currentTarget as HTMLInputElement).checked)}
+                />
+                <span>{column.label}</span>
+              </label>
+            </div>
+          {/each}
+        </div>
       </div>
     </div>
   </div>
