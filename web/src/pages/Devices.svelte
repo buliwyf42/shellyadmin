@@ -8,14 +8,21 @@
   let filter = ''
   let selected = new Set<string>()
   let loading = false
+  let error = ''
   let bulkAction = 'set_24h'
   let bulkValue = ''
   let bulkEnabled = true
 
   async function load(refresh = false) {
     loading = true
-    $devices = refresh ? await api.refreshDevices() : await api.getDevices()
-    loading = false
+    error = ''
+    try {
+      $devices = refresh ? await api.refreshDevices() : await api.getDevices()
+    } catch (err) {
+      error = (err as Error).message
+    } finally {
+      loading = false
+    }
   }
 
   async function applyBulk() {
@@ -67,6 +74,10 @@
   </div>
 </div>
 
+{#if error}
+  <div class="alert alert-danger">{error}</div>
+{/if}
+
 <div class="table-responsive">
   <table class="table table-dark table-striped align-middle">
     <thead>
@@ -105,3 +116,7 @@
     </tbody>
   </table>
 </div>
+
+{#if !loading && !error && filtered.length === 0}
+  <div class="alert alert-secondary mt-3 mb-0">No devices loaded yet. Start a scan or refresh this page.</div>
+{/if}

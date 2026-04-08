@@ -298,6 +298,7 @@ func (s *AppService) ConfirmScan(macs []string) (int, error) {
 	}
 	result, _ := ParseScanResult(job.Result)
 	selected := make([]models.Device, 0, len(result.Pending))
+	remaining := make([]models.Device, 0, len(result.Pending))
 	if len(macs) == 0 {
 		selected = result.Pending
 	} else {
@@ -308,11 +309,19 @@ func (s *AppService) ConfirmScan(macs []string) (int, error) {
 		for _, device := range result.Pending {
 			if wanted[device.MAC] {
 				selected = append(selected, device)
+			} else {
+				remaining = append(remaining, device)
 			}
 		}
 	}
 	if err := s.db.UpsertDevices(selected); err != nil {
 		return 0, err
+	}
+	if len(macs) == 0 {
+		remaining = []models.Device{}
+	}
+	if body, err := json.Marshal(ScanJobResult{Pending: remaining}); err == nil {
+		_ = s.db.UpdateJobProgress(job.ID, job.Done, job.Total, string(body))
 	}
 	return len(selected), nil
 }
