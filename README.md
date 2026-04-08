@@ -55,12 +55,12 @@ docs                 Product and deployment documentation
 
 Requirements:
 
-- Go 1.23+
+- Go 1.24+
 
 Run:
 
 ```bash
-SHELLYADMIN_PASS=dev-secret go run ./cmd/shellyctl
+make dev-backend
 ```
 
 ### Frontend
@@ -75,6 +75,34 @@ Run:
 cd web
 npm install
 npm run dev
+```
+
+The Vite dev server proxies `/api`, `/login`, `/logout`, and `/health` to the backend on `127.0.0.1:8080`.
+
+Recommended native workflow:
+
+1. Run the backend:
+
+```bash
+make dev-backend
+```
+
+2. In a second terminal, run the frontend:
+
+```bash
+cd web
+npm install
+npm run dev
+```
+
+3. Open the app through the Vite dev server on `http://<host>:5173`
+
+If you want to run the Go app with embedded static assets instead, build and sync the frontend first:
+
+```bash
+make frontend
+make backend
+./bin/shellyctl
 ```
 
 ## Docker

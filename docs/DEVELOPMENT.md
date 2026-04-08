@@ -4,7 +4,7 @@
 
 Backend:
 
-- Go 1.23+
+- Go 1.24+
 
 Frontend:
 
@@ -15,7 +15,7 @@ Frontend:
 ### Backend
 
 ```bash
-SHELLYADMIN_PASS=dev-secret go run ./cmd/shellyctl
+make dev-backend
 ```
 
 ### Frontend
@@ -26,10 +26,37 @@ npm install
 npm run dev
 ```
 
+The Vite dev server listens on `5173` and proxies backend requests to `127.0.0.1:8080`:
+
+- `/api`
+- `/login`
+- `/logout`
+- `/health`
+
+Use the Vite URL for interactive frontend work:
+
+```bash
+http://<dev-host>:5173
+```
+
+Use the Go app directly on `8080` when testing embedded production assets.
+
 ## Production Build
 
 ```bash
 make build
+```
+
+To rebuild only the frontend bundle that the Go app embeds:
+
+```bash
+make frontend
+```
+
+To sync frontend assets without reinstalling dependencies:
+
+```bash
+make frontend-sync
 ```
 
 ## Development Mode
