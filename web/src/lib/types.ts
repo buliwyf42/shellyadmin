@@ -32,7 +32,7 @@ export interface Device {
   serial: string
   is_new?: boolean
   compliant: boolean
-  compliance_issues: string[]
+  compliance_issues: string[] | null
 }
 
 export interface ComplianceRules {
