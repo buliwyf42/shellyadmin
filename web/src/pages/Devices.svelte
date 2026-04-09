@@ -97,8 +97,23 @@
     return `${device.lat.toFixed(5)}, ${device.lon.toFixed(5)}`
   }
 
-  function formatDate(value: string): string {
-    return value ? new Date(value).toLocaleString() : 'n/a'
+  function supportsWebSocket(device: Device): boolean {
+    return device.gen >= 2
+  }
+
+  function formatDateIntl(value: string): string {
+    if (!value) return 'n/a'
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return value
+    return new Intl.DateTimeFormat('sv-SE', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).format(date)
   }
 
   function compare(a: Device, b: Device, key: string): number {
@@ -283,7 +298,15 @@
           {#if $colVis.mqtt_client_id}<td>{mqttManagedByCloud(device) ? 'cloud-managed' : device.mqtt_client_id || 'n/a'}</td>{/if}
           {#if $colVis.mqtt_topic_prefix}<td>{mqttManagedByCloud(device) ? 'cloud-managed' : device.mqtt_topic_prefix || 'n/a'}</td>{/if}
           {#if $colVis.cloud_connected}<td><span class={`badge ${statusBadgeClass(device.cloud_connected)}`}>{statusText(device.cloud_connected, 'Connected', 'Off')}</span></td>{/if}
-          {#if $colVis.ws_connected}<td><span class={`badge ${statusBadgeClass(device.ws_connected)}`}>{statusText(device.ws_connected, 'Connected', 'Off')}</span></td>{/if}
+          {#if $colVis.ws_connected}
+            <td>
+              {#if supportsWebSocket(device)}
+                <span class={`badge ${statusBadgeClass(device.ws_connected)}`}>{statusText(device.ws_connected, 'Connected', 'Off')}</span>
+              {:else}
+                <span class="badge bg-secondary">n/a</span>
+              {/if}
+            </td>
+          {/if}
           {#if $colVis.tz}<td>{device.tz || 'n/a'}</td>{/if}
           {#if $colVis.time_format}<td>{device.time_format || 'n/a'}</td>{/if}
           {#if $colVis.sntp_server}<td>{device.sntp_server || 'n/a'}</td>{/if}
@@ -293,8 +316,8 @@
           {#if $colVis.coords}<td>{formatCoords(device)}</td>{/if}
           {#if $colVis.eco_mode}<td><span class={`badge ${statusBadgeClass(device.eco_mode)}`}>{statusText(device.eco_mode)}</span></td>{/if}
           {#if $colVis.discoverable}<td><span class={`badge ${statusBadgeClass(device.discoverable)}`}>{statusText(device.discoverable)}</span></td>{/if}
-          {#if $colVis.first_seen}<td>{formatDate(device.first_seen)}</td>{/if}
-          {#if $colVis.last_seen}<td>{formatDate(device.last_seen)}</td>{/if}
+          {#if $colVis.first_seen}<td>{formatDateIntl(device.first_seen)}</td>{/if}
+          {#if $colVis.last_seen}<td>{formatDateIntl(device.last_seen)}</td>{/if}
           {#if $colVis.compliance}<td><ComplianceBadge compliant={device.compliant} issues={device.compliance_issues} /></td>{/if}
         </tr>
       {/each}

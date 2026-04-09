@@ -60,7 +60,9 @@ func Evaluate(dev models.Device, rules models.ComplianceRules) (bool, []string) 
 		compareString(rules.WSServer, dev.WSServer, "ws_server")
 		compareBoolPtr(rules.BLEGWEnabled, dev.BLEGWEnabled, "ble_gw_enabled")
 	}
-	compareString(rules.TZ, dev.TZ, "tz")
+	if !(dev.Gen <= 1 && strings.TrimSpace(dev.TZ) == "") {
+		compareString(rules.TZ, dev.TZ, "tz")
+	}
 	compareString(rules.SNTPServer, dev.SNTPServer, "sntp_server")
 	compareFloat(rules.Lat, dev.Lat, "lat")
 	compareFloat(rules.Lon, dev.Lon, "lon")

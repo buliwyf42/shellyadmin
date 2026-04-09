@@ -223,7 +223,16 @@ func probeGen1(ctx context.Context, client *http.Client, ip string, dev *models.
 	}
 	dev.Name = firstString(settings["name"], dev.Name)
 	dev.FW = firstString(settings["fw"], dev.FW)
-	dev.TZ = firstString(settings["tz"], "")
+	dev.TZ = firstString(
+		settings["timezone"],
+		firstString(
+			settings["tz"],
+			firstString(
+				status["timezone"],
+				firstString(status["tz"], ""),
+			),
+		),
+	)
 	dev.Lat = anyFloatPtr(settings["lat"])
 	dev.Lon = anyFloatPtr(settings["lng"])
 	switch int(anyFloat(settings["clock_mode"])) {
