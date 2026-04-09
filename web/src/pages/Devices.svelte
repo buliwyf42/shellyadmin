@@ -230,7 +230,7 @@
 {/if}
 
 <div class="table-responsive">
-  <table class="table table-dark table-striped align-middle">
+  <table class="table table-dark table-striped align-middle table-nowrap">
     <thead>
       <tr>
         <th></th>

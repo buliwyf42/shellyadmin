@@ -183,6 +183,9 @@ pre { white-space: pre-wrap; word-break: break-word; }
   border-bottom: 1px solid rgba(255,255,255,0.05);
   text-align: left;
 }
+.table-nowrap th, .table-nowrap td {
+  white-space: nowrap;
+}
 .table thead th {
   color: var(--muted);
   font-weight: 600;

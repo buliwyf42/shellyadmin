@@ -72,7 +72,7 @@
         <h2 class="h6">Summary</h2>
         <p class="mb-2"><span class="badge bg-success me-2">{compliantDevices.length}</span> compliant</p>
         <p class="mb-2"><span class="badge bg-danger me-2">{nonCompliantDevices.length}</span> non-compliant</p>
-        <p class="text-secondary mb-2">Use `{device_name}` in Client ID or Topic Prefix values for per-device substitutions during provisioning.</p>
+        <p class="text-secondary mb-2">Use <code class="font-monospace">{'{device_name}'}</code> in Client ID or Topic Prefix values for per-device substitutions during provisioning.</p>
         <p class="text-secondary mb-0">Gen1 devices connected to Shelly Cloud skip MQTT compliance checks.</p>
       </div>
     </div>
