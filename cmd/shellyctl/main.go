@@ -33,7 +33,7 @@ func main() {
 	}
 	dataDir := getenv("DATA_DIR", "./data")
 	port := getenv("PORT", "8080")
-	cookieSecure := getenv("COOKIE_SECURE", "false") == "true"
+	cookieSecure := getenv("COOKIE_SECURE", "true") == "true"
 
 	if err := os.MkdirAll(dataDir, 0o755); err != nil {
 		panic(err)

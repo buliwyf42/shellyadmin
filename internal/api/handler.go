@@ -54,9 +54,11 @@ func (h *Handler) Login(c *gin.Context) {
 	session := sessions.Default(c)
 	session.Clear()
 	session.Set("user", req.Username)
-	session.Set("nonce", RandomSecret())
+	nonce := RandomSecret()
+	session.Set("nonce", nonce)
 	_ = session.Save()
-	c.JSON(http.StatusOK, gin.H{"ok": true})
+	c.Header("X-CSRF-Token", nonce)
+	c.JSON(http.StatusOK, gin.H{"ok": true, "csrf_token": nonce})
 }
 
 func (h *Handler) Logout(c *gin.Context) {
@@ -74,6 +76,17 @@ func (h *Handler) GetDevices(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, devices)
+}
+
+func (h *Handler) CSRFToken(c *gin.Context) {
+	session := sessions.Default(c)
+	nonce, _ := session.Get("nonce").(string)
+	if nonce == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing session nonce"})
+		return
+	}
+	c.Header("X-CSRF-Token", nonce)
+	c.JSON(http.StatusOK, gin.H{"csrf_token": nonce})
 }
 
 func (h *Handler) RefreshDevices(c *gin.Context) {
@@ -175,7 +188,14 @@ func (h *Handler) ScanConfirm(c *gin.Context) {
 }
 
 func (h *Handler) FirmwareCheck(c *gin.Context) {
-	total, err := h.service.StartFirmwareCheck(c.DefaultQuery("stage", "stable"))
+	var req struct {
+		Stage string `json:"stage"`
+	}
+	if err := decodeJSON(c, &req, 4*1024); err != nil && !errors.Is(err, io.EOF) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	total, err := h.service.StartFirmwareCheck(req.Stage)
 	if err != nil && err.Error() != "firmware check already running" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

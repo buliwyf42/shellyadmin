@@ -17,14 +17,14 @@ import (
 )
 
 type Config struct {
-	User       string
-	Pass       string
-	Secret     string
+	User         string
+	Pass         string
+	Secret       string
 	CookieSecure bool
-	DataDir    string
-	StaticFS   embed.FS
-	HasStatic  bool
-	DevStatic  string
+	DataDir      string
+	StaticFS     embed.FS
+	HasStatic    bool
+	DevStatic    string
 }
 
 func NewRouter(database *db.DB, cfg Config) *gin.Engine {
@@ -52,19 +52,22 @@ func NewRouter(database *db.DB, cfg Config) *gin.Engine {
 		serveSPA(c, cfg)
 	})
 	r.POST("/login", middleware.LoginRateLimit(), h.Login)
-	r.POST("/logout", h.Logout)
+	r.POST("/logout", middleware.RequireAuth(), middleware.RequireCSRF(), h.Logout)
 
 	auth := r.Group("/")
 	auth.Use(middleware.RequireAuth())
+	auth.Use(middleware.APIRateLimit())
+	auth.Use(middleware.RequireCSRF())
+	auth.GET("/api/csrf-token", h.CSRFToken)
 	auth.GET("/api/devices", h.GetDevices)
-	auth.GET("/api/devices/refresh", h.RefreshDevices)
+	auth.POST("/api/devices/refresh", h.RefreshDevices)
 	auth.POST("/api/devices/refresh-one", h.RefreshDevice)
 	auth.POST("/api/devices/forget", h.ForgetDevice)
 	auth.POST("/api/bulk", h.BulkAction)
-	auth.GET("/api/scan/start", h.ScanStart)
+	auth.POST("/api/scan/start", h.ScanStart)
 	auth.GET("/api/scan/status", h.ScanStatus)
 	auth.POST("/api/scan/confirm", h.ScanConfirm)
-	auth.GET("/api/firmware/check", h.FirmwareCheck)
+	auth.POST("/api/firmware/check", h.FirmwareCheck)
 	auth.GET("/api/firmware/status", h.FirmwareStatus)
 	auth.POST("/api/firmware/update", h.FirmwareUpdate)
 	auth.POST("/api/provision", h.Provision)

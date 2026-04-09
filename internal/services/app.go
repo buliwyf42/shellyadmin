@@ -1,8 +1,8 @@
 package services
 
 import (
-	"context"
 	"bufio"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -32,8 +32,8 @@ const (
 )
 
 type AppService struct {
-	db   *db.DB
-	logf func(level, msg string)
+	db      *db.DB
+	logf    func(level, msg string)
 	dataDir string
 }
 
@@ -136,10 +136,7 @@ func (s *AppService) runRefreshJob(ctx context.Context, jobID int64, done chan<-
 				refreshed = append(refreshed, *found)
 				mu.Unlock()
 			}
-			job, err := s.db.GetJob(jobID)
-			if err == nil {
-				_ = s.db.UpdateJobProgress(jobID, job.Done+1, len(devices), job.Result)
-			}
+			_ = s.db.IncrementJobDone(jobID)
 		}()
 	}
 	wg.Wait()
@@ -294,10 +291,7 @@ func (s *AppService) runScanJob(jobID int64, settings models.AppSettings) {
 	settings.Normalize()
 	timeout := time.Duration(settings.ScanTimeout * float64(time.Second))
 	results := scanner.ScanSubnets(context.Background(), settings.Subnets, boundedConcurrency(settings.ScanConcurrency), timeout, s.Log, func() {
-		job, err := s.db.GetJob(jobID)
-		if err == nil {
-			_ = s.db.UpdateJobProgress(jobID, job.Done+1, job.Total, job.Result)
-		}
+		_ = s.db.IncrementJobDone(jobID)
 	})
 	body, _ := json.Marshal(ScanJobResult{Pending: results})
 	job, err := s.db.GetJob(jobID)
@@ -374,7 +368,7 @@ func (s *AppService) StartFirmwareCheck(stage string) (int, error) {
 	if stage == "" {
 		stage = "stable"
 	}
-	if latest, err := s.db.GetLatestJob("firmware"); err == nil && latest.Status == "running" {
+	if latest, err := s.db.GetLatestJob("firmware_check"); err == nil && latest.Status == "running" {
 		return latest.Total, errors.New("firmware check already running")
 	}
 	devices, err := s.db.ListDevices()

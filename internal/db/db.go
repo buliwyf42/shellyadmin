@@ -265,6 +265,13 @@ func (db *DB) UpdateJobProgress(id int64, done, total int, result string) error 
 	return err
 }
 
+func (db *DB) IncrementJobDone(id int64) error {
+	_, err := db.sql.Exec(`UPDATE jobs
+		SET done = done + 1, updated_at = ?
+		WHERE id = ? AND status = 'running'`, now(), id)
+	return err
+}
+
 func (db *DB) CompleteJob(id int64, status, result, errText string, done, total int) error {
 	_, err := db.sql.Exec(`UPDATE jobs
 		SET status = ?, result = ?, error = ?, done = ?, total = ?, updated_at = ?

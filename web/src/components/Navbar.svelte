@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { api } from '../lib/api'
   import { currentPath } from '../lib/stores'
 
   const links = [
@@ -12,7 +13,7 @@
   ] as const
 
   async function logout() {
-    await fetch('/logout', { method: 'POST', credentials: 'same-origin' })
+    await api.logout()
     window.location.href = '/login'
   }
 </script>

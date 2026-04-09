@@ -12,7 +12,7 @@ services:
       DATA_DIR: /data
       SHELLYADMIN_PASS_FILE: /run/secrets/shellyadmin_pass
       SHELLYADMIN_SECRET_FILE: /run/secrets/shellyadmin_secret
-      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
     secrets:
       - shellyadmin_pass
       - shellyadmin_secret
