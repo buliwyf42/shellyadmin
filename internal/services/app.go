@@ -157,6 +157,50 @@ func (s *AppService) ForgetDevice(target string) error {
 	return s.db.ForgetDevice(target)
 }
 
+func (s *AppService) RefreshDevice(ctx context.Context, target string) ([]models.Device, error) {
+	devices, err := s.db.ListDevices()
+	if err != nil {
+		return nil, err
+	}
+
+	var current *models.Device
+	for i := range devices {
+		if devices[i].MAC == target || devices[i].IP == target {
+			current = &devices[i]
+			break
+		}
+	}
+	if current == nil {
+		return nil, fmt.Errorf("device not found")
+	}
+
+	settings, err := s.db.GetSettings()
+	if err != nil {
+		return nil, err
+	}
+	timeout := time.Duration(settings.ScanTimeout * float64(time.Second))
+	probed := scanner.ProbeDevice(ctx, current.IP, timeout, s.Log)
+	if probed == nil {
+		current.ConsecutiveMisses++
+		if current.ConsecutiveMisses >= 2 {
+			current.Online = false
+		}
+		if err := s.db.UpsertDevice(*current); err != nil {
+			return nil, err
+		}
+		return s.GetDevices()
+	}
+
+	probed.DeviceNum = current.DeviceNum
+	probed.FirstSeen = current.FirstSeen
+	probed.ConsecutiveMisses = 0
+	probed.Online = true
+	if err := s.db.UpsertDevice(*probed); err != nil {
+		return nil, err
+	}
+	return s.GetDevices()
+}
+
 func (s *AppService) BulkAction(ctx context.Context, action string, macs []string, value string, lat, lon float64, enabled *bool) ([]map[string]string, error) {
 	if len(macs) == 0 {
 		return nil, errors.New("at least one device is required")

@@ -58,6 +58,7 @@ func NewRouter(database *db.DB, cfg Config) *gin.Engine {
 	auth.Use(middleware.RequireAuth())
 	auth.GET("/api/devices", h.GetDevices)
 	auth.GET("/api/devices/refresh", h.RefreshDevices)
+	auth.POST("/api/devices/refresh-one", h.RefreshDevice)
 	auth.POST("/api/devices/forget", h.ForgetDevice)
 	auth.POST("/api/bulk", h.BulkAction)
 	auth.GET("/api/scan/start", h.ScanStart)

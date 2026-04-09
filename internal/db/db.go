@@ -212,6 +212,10 @@ func (db *DB) ForgetDevice(target string) error {
 	return err
 }
 
+func (db *DB) UpsertDevice(device models.Device) error {
+	return db.upsertDevice(device)
+}
+
 func (db *DB) GetSettings() (models.AppSettings, error) {
 	var raw string
 	err := db.sql.QueryRow(`SELECT value FROM settings WHERE key='app'`).Scan(&raw)

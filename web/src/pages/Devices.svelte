@@ -12,6 +12,7 @@
   let sortKey = 'device_num'
   let sortDir: 'asc' | 'desc' = 'asc'
   let autoRefreshTimer: ReturnType<typeof setInterval> | null = null
+  let rowBusy: Record<string, { refresh: boolean; remove: boolean }> = {}
 
   async function load(refresh = false) {
     loading = true
@@ -41,6 +42,33 @@
   function sortLabel(label: string, key: string): string {
     if (sortKey !== key) return label
     return `${label} ${sortDir === 'asc' ? '▲' : '▼'}`
+  }
+
+  async function refreshOne(device: Device) {
+    error = ''
+    rowBusy = { ...rowBusy, [device.mac]: { ...(rowBusy[device.mac] || { refresh: false, remove: false }), refresh: true } }
+    try {
+      $devices = await api.refreshDevice(device.mac)
+    } catch (err) {
+      error = (err as Error).message
+    } finally {
+      rowBusy = { ...rowBusy, [device.mac]: { ...(rowBusy[device.mac] || { refresh: false, remove: false }), refresh: false } }
+    }
+  }
+
+  async function removeOne(device: Device) {
+    const label = device.name || device.ip || device.mac
+    if (!confirm(`Delete device "${label}"?`)) return
+    error = ''
+    rowBusy = { ...rowBusy, [device.mac]: { ...(rowBusy[device.mac] || { refresh: false, remove: false }), remove: true } }
+    try {
+      await api.forgetDevice(device.mac)
+      await load()
+    } catch (err) {
+      error = (err as Error).message
+    } finally {
+      rowBusy = { ...rowBusy, [device.mac]: { ...(rowBusy[device.mac] || { refresh: false, remove: false }), remove: false } }
+    }
   }
 
   function generationLabel(device: Device): string {
@@ -285,6 +313,7 @@
         {#if $colVis.first_seen}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('first_seen')}>{sortLabel('First Seen', 'first_seen')}</button></th>{/if}
         {#if $colVis.last_seen}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('last_seen')}>{sortLabel('Last Seen', 'last_seen')}</button></th>{/if}
         {#if $colVis.compliance}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('compliance')}>{sortLabel('Compliance', 'compliance')}</button></th>{/if}
+        <th class="text-end">Actions</th>
       </tr>
     </thead>
     <tbody>
@@ -332,6 +361,22 @@
           {#if $colVis.first_seen}<td title={formatDateIntl(device.first_seen)}>{formatSeen(device.first_seen)}</td>{/if}
           {#if $colVis.last_seen}<td title={formatDateIntl(device.last_seen)}>{formatSeen(device.last_seen)}</td>{/if}
           {#if $colVis.compliance}<td><ComplianceBadge compliant={device.compliant} issues={device.compliance_issues} /></td>{/if}
+          <td class="text-end">
+            <div class="d-flex justify-content-end gap-2">
+              <button
+                class="btn btn-sm btn-outline-light row-action-btn"
+                title="Refresh this device now"
+                on:click={() => refreshOne(device)}
+                disabled={rowBusy[device.mac]?.refresh || rowBusy[device.mac]?.remove}
+              >↻</button>
+              <button
+                class="btn btn-sm btn-outline-danger row-action-btn"
+                title="Delete this device"
+                on:click={() => removeOne(device)}
+                disabled={rowBusy[device.mac]?.refresh || rowBusy[device.mac]?.remove}
+              >🗑</button>
+            </div>
+          </td>
         </tr>
       {/each}
     </tbody>

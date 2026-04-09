@@ -18,6 +18,7 @@ export const api = {
   login: (username: string, password: string) => req<{ ok: true }>('POST', '/login', { username, password }),
   getDevices: () => req<Device[]>('GET', '/api/devices'),
   refreshDevices: () => req<Device[]>('GET', '/api/devices/refresh'),
+  refreshDevice: (target: string) => req<Device[]>('POST', '/api/devices/refresh-one', { target }),
   forgetDevice: (target: string) => req<{ ok: true }>('POST', '/api/devices/forget', { target }),
   bulk: (payload: unknown) => req<{ results: Array<{ mac: string; ip: string; status: string }> }>('POST', '/api/bulk', payload),
   scanStart: () => req<{ status: string }>('GET', '/api/scan/start'),

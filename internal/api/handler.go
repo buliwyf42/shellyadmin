@@ -85,6 +85,22 @@ func (h *Handler) RefreshDevices(c *gin.Context) {
 	c.JSON(http.StatusOK, devices)
 }
 
+func (h *Handler) RefreshDevice(c *gin.Context) {
+	var req struct {
+		Target string `json:"target"`
+	}
+	if err := decodeJSON(c, &req, 4*1024); err != nil || req.Target == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "target required"})
+		return
+	}
+	devices, err := h.service.RefreshDevice(c.Request.Context(), req.Target)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, devices)
+}
+
 func (h *Handler) ForgetDevice(c *gin.Context) {
 	var req struct {
 		Target string `json:"target"`
