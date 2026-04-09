@@ -36,17 +36,11 @@ It is not designed for:
 
 ## Logging
 
-Two log classes are intended:
+Operator-facing logging is audit events in SQLite:
 
-1. Audit events
-   - stored in SQLite
-   - operator-facing
-   - meaningful actions only
-
-2. Debug logs
-   - stored in rotating file logs
-   - lower-level diagnostic traces
-   - not mixed into audit history
+- stored in SQLite
+- meaningful actions only
+- intended as the in-app log surface
 
 Secrets should never be written to logs in raw form.
 
@@ -55,10 +49,12 @@ Secrets should never be written to logs in raw form.
 Current product decision:
 
 - templates may contain real secrets
+- auth groups may contain real secrets (`password` and/or `ha1`)
 
 Required safeguards:
 
 - secret-bearing templates should be clearly marked in the UI
+- secret-bearing auth groups should be clearly marked in the UI
 - exports should redact secret values by default
 - password-derived device auth material should remain ephemeral during execution
 

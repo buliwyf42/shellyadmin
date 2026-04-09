@@ -16,7 +16,7 @@ Core principles:
 - manual, previewed operations
 - guided provisioning first
 - advanced provisioning available via JSON mode
-- separate audit and debug logs
+- audit logs as the operator-facing log surface
 - advisory compliance model
 - manual-first risky operations
 
@@ -47,6 +47,9 @@ Primary tables:
 - `devices`
 - `settings`
 - `templates`
+- `credentials`
+- `credential_groups`
+- `device_credential_groups`
 - `jobs`
 - `audit_log`
 
@@ -83,7 +86,7 @@ Provisioning safety constraints:
 ## Logging
 
 - audit events in SQLite
-- debug/probe traces in rotating file logs
+- UI exposes audit logs only
 
 ## Runtime Concurrency
 
@@ -108,3 +111,6 @@ Optional:
   - auto refresh
   - per-row refresh/delete actions
 - Per-device compliance details are shown via the compliance badge hover in Devices.
+- Provision, Auth Groups, and Compliance follow a shared two-column layout:
+  - left: settings/rules/groups
+  - right: device list

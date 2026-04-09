@@ -10,11 +10,14 @@ The project needs lightweight, product-level backup/restore behavior aligned wit
 ## Decision
 
 - Provide built-in export/import flows.
-- Initial backup scope is:
+- Backup scope is:
   - settings
   - templates
+  - auth groups
+  - device-group assignments
 - Export format is JSON.
 - Restore flow requires dry-run first, then explicit operator decision.
+- Current backup payload version is `2`, with backward compatibility for `1`.
 - Secrets policy for export:
   - default export is redacted
   - plaintext secret export is allowed only through an explicit extra confirmation step

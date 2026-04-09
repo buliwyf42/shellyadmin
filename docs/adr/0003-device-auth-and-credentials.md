@@ -12,13 +12,14 @@ Current probing is largely unauthenticated, but future device-level authenticati
 - Add future support for authenticated device operations.
 - Persist `auth_required` state per device in inventory.
 - Persist an auth error reason per device (for example `401`, `timeout`).
-- Credential ownership model is per template/group.
+- Credential ownership model is per template and auth group.
 - Template binding uses exactly one primary credential reference.
-- Credential object minimum fields:
+- Auth group credential fields:
   - `name`
   - `username`
   - `password` and/or `ha1`
   - optional tags
+- Group assignments map device `mac -> group_name`.
 - Precheck behavior for mixed targets:
   - skip obviously incompatible devices using known criteria (generation/model/auth state)
   - do not require active preflight probing for every target
@@ -29,5 +30,5 @@ Current probing is largely unauthenticated, but future device-level authenticati
 ## Consequences
 
 - The system can surface auth mismatch state without turning unreachable/auth failures into generic offline noise.
-- Credential references can be reused cleanly across templates/groups.
+- Group-contained credentials avoid extra indirection when assigning auth behavior by device set.
 - Section-level tolerance preserves partial progress while still exposing failure detail.

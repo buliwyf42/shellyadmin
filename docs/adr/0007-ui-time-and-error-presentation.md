@@ -9,7 +9,7 @@ Operators need diagnostics that stay readable while still exposing technical det
 
 ## Decision
 
-- Time rendering should be user-switchable between locale display and UTC-style display.
+- Time rendering should use locale display in the UI.
 - Error presentation for partial failures should be:
   - concise summary by default
   - expandable technical details on demand

@@ -10,11 +10,12 @@ It is designed as a single-container deployment with:
 - compliance checks against configured rules
 - guided provisioning for normal use
 - advanced provisioning mode for expert use
-- separate audit and debug logging
+- audit logging in-app
 
 ## Status
 
 This repository is under active development.
+Current UI/API baseline is `v0.0.2`.
 
 The target architecture is documented in [docs/ARCHITECTURE.md](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/docs/ARCHITECTURE.md).
 
@@ -37,9 +38,17 @@ The target architecture is documented in [docs/ARCHITECTURE.md](/Users/buliwyf/D
 - Gen-aware rendering for unsupported fields (for example WebSocket on Gen1)
 - Manual firmware check and update flow
 - Guided provisioning form plus JSON mode
+- Auth Groups page:
+  - groups contain their own auth credentials (`username`, `password`/`ha1`, tags)
+  - device-to-group assignment for future auth-required workflows
 - Provisioning target validation (local/private/link-local IPs only)
 - Compliance rule editor (including `{device_name}` token matching)
-- Separate audit events and debug logs views
+- Backup/export/import with dry-run and apply:
+  - settings
+  - templates
+  - auth groups
+  - device-group assignments
+- Audit logs view (debug log mode removed)
 
 ## Planned / In Progress
 
