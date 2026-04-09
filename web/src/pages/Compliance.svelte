@@ -195,6 +195,19 @@
 
   $: compliantDevices = $devices.filter((device: Device) => device.compliant)
   $: nonCompliantDevices = $devices.filter((device: Device) => !device.compliant)
+
+  function complianceBadgeClass(device: Device): string {
+    return device.compliant ? 'bg-success' : 'bg-danger'
+  }
+
+  function complianceText(device: Device): string {
+    if (device.compliant) return 'Compliant'
+    if (device.compliance_issues && device.compliance_issues.length > 0) {
+      return device.compliance_issues[0]
+    }
+    return 'Non-compliant'
+  }
+
   onMount(() => void load())
 </script>
 
@@ -360,8 +373,28 @@
         {:else if $devices.length === 0}
           <div class="alert alert-secondary mb-0">No enrolled devices available yet.</div>
         {:else}
-          <p class="text-secondary mb-2">Per-device compliance is now shown directly on the Devices page in the Compliance column.</p>
-          <p class="text-secondary mb-0">Hover the badge on a device row to see whether it is compliant or why it is non-compliant.</p>
+          <div class="table-responsive device-list-scroll">
+            <table class="table table-dark table-striped table-nowrap mb-0">
+              <thead>
+                <tr>
+                  <th>Device</th>
+                  <th>IP</th>
+                  <th>Gen</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each $devices as device}
+                  <tr>
+                    <td>{device.name || device.serial || device.mac}</td>
+                    <td>{device.ip}</td>
+                    <td>{device.gen <= 1 ? 'Gen1' : `Gen${device.gen}`}</td>
+                    <td><span class={`badge ${complianceBadgeClass(device)}`}>{complianceText(device)}</span></td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
         {/if}
       </div>
     </div>

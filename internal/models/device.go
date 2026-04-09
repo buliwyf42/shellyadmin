@@ -32,6 +32,8 @@ type Device struct {
 	MatterEnabled     *bool    `json:"matter_enabled"`
 	EcoMode           *bool    `json:"eco_mode"`
 	Discoverable      *bool    `json:"discoverable"`
+	AuthRequired      bool     `json:"auth_required"`
+	AuthError         string   `json:"auth_error"`
 	FWStatus          string   `json:"fw_status"`
 	FWAvailableVer    string   `json:"fw_available_ver"`
 	Serial            string   `json:"serial"`

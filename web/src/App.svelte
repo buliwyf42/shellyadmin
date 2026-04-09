@@ -6,6 +6,7 @@
   import ScanPage from './pages/Scan.svelte'
   import FirmwarePage from './pages/Firmware.svelte'
   import ProvisionPage from './pages/Provision.svelte'
+  import GroupsPage from './pages/Groups.svelte'
   import CompliancePage from './pages/Compliance.svelte'
   import SettingsPage from './pages/Settings.svelte'
   import LogsPage from './pages/Logs.svelte'
@@ -17,9 +18,10 @@
     '/scan': ScanPage,
     '/firmware': FirmwarePage,
     '/provision': ProvisionPage,
+    '/groups': GroupsPage,
     '/compliance': CompliancePage,
-    '/settings': SettingsPage,
     '/logs': LogsPage,
+    '/settings': SettingsPage,
     '/about': AboutPage,
   } as const
 

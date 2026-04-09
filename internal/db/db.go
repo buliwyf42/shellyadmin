@@ -104,7 +104,7 @@ func (db *DB) ListDevices() ([]models.Device, error) {
 	rows, err := db.sql.Query(`SELECT mac, ip, name, model, fw, gen, online, last_seen, first_seen, device_num,
 		consecutive_misses, mqtt_enabled, mqtt_server, mqtt_client_id, mqtt_topic_prefix, mqtt_flags_na,
 		lat, lon, tz, ws_enabled, ws_server, ble_gw_enabled, wifi_ssid, fw_status, fw_available_ver,
-		cloud_enabled, cloud_connected, ws_connected, matter_enabled, time_format, sntp_server, serial,
+		cloud_enabled, cloud_connected, ws_connected, matter_enabled, time_format, sntp_server, serial, auth_required, auth_error,
 		eco_mode, discoverable, raw_config, raw_status
 		FROM devices ORDER BY device_num ASC`)
 	if err != nil {
@@ -114,17 +114,18 @@ func (db *DB) ListDevices() ([]models.Device, error) {
 	var out []models.Device
 	for rows.Next() {
 		var d models.Device
-		var online, cloudConnected, wsConnected int
+		var online, cloudConnected, wsConnected, authRequired int
 		if err := rows.Scan(&d.MAC, &d.IP, &d.Name, &d.Model, &d.FW, &d.Gen, &online, &d.LastSeen, &d.FirstSeen, &d.DeviceNum,
 			&d.ConsecutiveMisses, &d.MQTTEnabled, &d.MQTTServer, &d.MQTTClientID, &d.MQTTTopicPrefix, &d.MQTTFlagsNA,
 			&d.Lat, &d.Lon, &d.TZ, &d.WSEnabled, &d.WSServer, &d.BLEGWEnabled, &d.WiFiSSID, &d.FWStatus, &d.FWAvailableVer,
-			&d.CloudEnabled, &cloudConnected, &wsConnected, &d.MatterEnabled, &d.TimeFormat, &d.SNTPServer, &d.Serial,
+			&d.CloudEnabled, &cloudConnected, &wsConnected, &d.MatterEnabled, &d.TimeFormat, &d.SNTPServer, &d.Serial, &authRequired, &d.AuthError,
 			&d.EcoMode, &d.Discoverable, &d.RawConfig, &d.RawStatus); err != nil {
 			return nil, err
 		}
 		d.Online = online == 1
 		d.CloudConnected = cloudConnected == 1
 		d.WSConnected = wsConnected == 1
+		d.AuthRequired = authRequired == 1
 		out = append(out, d)
 	}
 	return out, rows.Err()
@@ -183,9 +184,9 @@ func (db *DB) upsertDevice(d models.Device) error {
 	_, err := db.sql.Exec(`INSERT INTO devices (
 		mac, ip, name, model, fw, gen, online, last_seen, first_seen, device_num, consecutive_misses,
 		mqtt_enabled, mqtt_server, mqtt_client_id, mqtt_topic_prefix, mqtt_flags_na, lat, lon, tz,
-		ws_enabled, ws_server, ble_gw_enabled, wifi_ssid, fw_status, fw_available_ver, cloud_enabled,
+		ws_enabled, ws_server, ble_gw_enabled, wifi_ssid, fw_status, fw_available_ver, cloud_enabled, auth_required, auth_error,
 		cloud_connected, ws_connected, matter_enabled, time_format, sntp_server, serial, eco_mode, discoverable, raw_config, raw_status
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	ON CONFLICT(mac) DO UPDATE SET
 		ip=excluded.ip, name=excluded.name, model=excluded.model, fw=excluded.fw, gen=excluded.gen,
 		online=excluded.online, last_seen=excluded.last_seen, first_seen=excluded.first_seen,
@@ -195,6 +196,7 @@ func (db *DB) upsertDevice(d models.Device) error {
 		mqtt_flags_na=excluded.mqtt_flags_na, lat=excluded.lat, lon=excluded.lon, tz=excluded.tz,
 		ws_enabled=excluded.ws_enabled, ws_server=excluded.ws_server, ble_gw_enabled=excluded.ble_gw_enabled,
 		wifi_ssid=excluded.wifi_ssid, fw_status=excluded.fw_status, fw_available_ver=excluded.fw_available_ver,
+		auth_required=excluded.auth_required, auth_error=excluded.auth_error,
 		cloud_enabled=excluded.cloud_enabled, cloud_connected=excluded.cloud_connected,
 		ws_connected=excluded.ws_connected, matter_enabled=excluded.matter_enabled,
 		time_format=excluded.time_format, sntp_server=excluded.sntp_server, serial=excluded.serial,
@@ -202,7 +204,7 @@ func (db *DB) upsertDevice(d models.Device) error {
 		raw_config=excluded.raw_config, raw_status=excluded.raw_status`,
 		d.MAC, d.IP, d.Name, d.Model, d.FW, d.Gen, boolToInt(d.Online), d.LastSeen, d.FirstSeen, d.DeviceNum, d.ConsecutiveMisses,
 		d.MQTTEnabled, d.MQTTServer, d.MQTTClientID, d.MQTTTopicPrefix, d.MQTTFlagsNA, d.Lat, d.Lon, d.TZ,
-		d.WSEnabled, d.WSServer, d.BLEGWEnabled, d.WiFiSSID, d.FWStatus, d.FWAvailableVer, d.CloudEnabled,
+		d.WSEnabled, d.WSServer, d.BLEGWEnabled, d.WiFiSSID, d.FWStatus, d.FWAvailableVer, d.CloudEnabled, boolToInt(d.AuthRequired), d.AuthError,
 		boolToInt(d.CloudConnected), boolToInt(d.WSConnected), d.MatterEnabled, d.TimeFormat, d.SNTPServer, d.Serial, d.EcoMode, d.Discoverable, d.RawConfig, d.RawStatus)
 	return err
 }
@@ -328,21 +330,204 @@ func (db *DB) ListTemplateNames() ([]string, error) {
 	return out, rows.Err()
 }
 
-func (db *DB) GetTemplate(name string) (string, error) {
-	var content string
-	err := db.sql.QueryRow(`SELECT content FROM templates WHERE name = ?`, name).Scan(&content)
-	return content, err
+func (db *DB) ListTemplates() (map[string]string, error) {
+	rows, err := db.sql.Query(`SELECT name, content FROM templates ORDER BY name ASC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make(map[string]string)
+	for rows.Next() {
+		var name, content string
+		if err := rows.Scan(&name, &content); err != nil {
+			return nil, err
+		}
+		out[name] = content
+	}
+	return out, rows.Err()
 }
 
-func (db *DB) SaveTemplate(name, content string) error {
-	_, err := db.sql.Exec(`INSERT INTO templates(name, content, created_at) VALUES (?, ?, ?)
-		ON CONFLICT(name) DO UPDATE SET content=excluded.content`, name, content, now())
+func (db *DB) GetTemplate(name string) (string, string, error) {
+	var content, credentialRef string
+	err := db.sql.QueryRow(`SELECT content, credential_ref FROM templates WHERE name = ?`, name).Scan(&content, &credentialRef)
+	return content, credentialRef, err
+}
+
+func (db *DB) SaveTemplate(name, content, credentialRef string) error {
+	_, err := db.sql.Exec(`INSERT INTO templates(name, content, credential_ref, created_at) VALUES (?, ?, ?, ?)
+		ON CONFLICT(name) DO UPDATE SET content=excluded.content, credential_ref=excluded.credential_ref`, name, content, credentialRef, now())
 	return err
 }
 
 func (db *DB) DeleteTemplate(name string) error {
 	_, err := db.sql.Exec(`DELETE FROM templates WHERE name = ?`, name)
 	return err
+}
+
+func (db *DB) ListCredentials() ([]models.Credential, error) {
+	rows, err := db.sql.Query(`SELECT name, username, password, ha1, tags FROM credentials ORDER BY name ASC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []models.Credential{}
+	for rows.Next() {
+		var c models.Credential
+		var tagsRaw string
+		if err := rows.Scan(&c.Name, &c.Username, &c.Password, &c.HA1, &tagsRaw); err != nil {
+			return nil, err
+		}
+		_ = json.Unmarshal([]byte(tagsRaw), &c.Tags)
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+func (db *DB) GetCredential(name string) (models.Credential, error) {
+	var c models.Credential
+	var tagsRaw string
+	err := db.sql.QueryRow(`SELECT name, username, password, ha1, tags FROM credentials WHERE name = ?`, name).Scan(&c.Name, &c.Username, &c.Password, &c.HA1, &tagsRaw)
+	if err != nil {
+		return models.Credential{}, err
+	}
+	_ = json.Unmarshal([]byte(tagsRaw), &c.Tags)
+	return c, nil
+}
+
+func (db *DB) SaveCredential(c models.Credential) error {
+	tagsBody, err := json.Marshal(c.Tags)
+	if err != nil {
+		return err
+	}
+	_, err = db.sql.Exec(`INSERT INTO credentials(name, username, password, ha1, tags, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(name) DO UPDATE SET
+			username=excluded.username,
+			password=excluded.password,
+			ha1=excluded.ha1,
+			tags=excluded.tags,
+			updated_at=excluded.updated_at`,
+		c.Name, c.Username, c.Password, c.HA1, string(tagsBody), now(), now())
+	return err
+}
+
+func (db *DB) DeleteCredential(name string) error {
+	_, err := db.sql.Exec(`DELETE FROM credentials WHERE name = ?`, name)
+	return err
+}
+
+func (db *DB) ListCredentialGroups() ([]models.CredentialGroup, error) {
+	rows, err := db.sql.Query(`SELECT name, username, password, ha1, tags FROM credential_groups ORDER BY name ASC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []models.CredentialGroup{}
+	for rows.Next() {
+		var g models.CredentialGroup
+		var tagsRaw string
+		if err := rows.Scan(&g.Name, &g.Username, &g.Password, &g.HA1, &tagsRaw); err != nil {
+			return nil, err
+		}
+		_ = json.Unmarshal([]byte(tagsRaw), &g.Tags)
+		out = append(out, g)
+	}
+	return out, rows.Err()
+}
+
+func (db *DB) SaveCredentialGroup(group models.CredentialGroup) error {
+	tagsBody, err := json.Marshal(group.Tags)
+	if err != nil {
+		return err
+	}
+	_, err = db.sql.Exec(`INSERT INTO credential_groups(name, credential_ref, username, password, ha1, tags, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(name) DO UPDATE SET
+			credential_ref=excluded.credential_ref,
+			username=excluded.username,
+			password=excluded.password,
+			ha1=excluded.ha1,
+			tags=excluded.tags,
+			updated_at=excluded.updated_at`,
+		group.Name, group.Name, group.Username, group.Password, group.HA1, string(tagsBody), now(), now())
+	return err
+}
+
+func (db *DB) DeleteCredentialGroup(name string) error {
+	tx, err := db.sql.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`DELETE FROM device_credential_groups WHERE group_name = ?`, name); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM credential_groups WHERE name = ?`, name); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (db *DB) ListDeviceCredentialGroupAssignments() ([]models.DeviceCredentialGroupAssignment, error) {
+	rows, err := db.sql.Query(`SELECT mac, group_name FROM device_credential_groups ORDER BY mac ASC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []models.DeviceCredentialGroupAssignment{}
+	for rows.Next() {
+		var a models.DeviceCredentialGroupAssignment
+		if err := rows.Scan(&a.MAC, &a.GroupName); err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
+func (db *DB) SaveDeviceCredentialGroupAssignments(macs []string, groupName string) error {
+	tx, err := db.sql.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	for _, mac := range macs {
+		if strings.TrimSpace(groupName) == "" {
+			if _, err := tx.Exec(`DELETE FROM device_credential_groups WHERE mac = ?`, mac); err != nil {
+				return err
+			}
+			continue
+		}
+		if _, err := tx.Exec(`INSERT INTO device_credential_groups(mac, group_name, updated_at)
+			VALUES (?, ?, ?)
+			ON CONFLICT(mac) DO UPDATE SET
+				group_name=excluded.group_name,
+				updated_at=excluded.updated_at`,
+			mac, groupName, now()); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
+
+func (db *DB) ReplaceDeviceCredentialGroupAssignments(assignments map[string]string) error {
+	tx, err := db.sql.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`DELETE FROM device_credential_groups`); err != nil {
+		return err
+	}
+	for mac, groupName := range assignments {
+		if strings.TrimSpace(mac) == "" || strings.TrimSpace(groupName) == "" {
+			continue
+		}
+		if _, err := tx.Exec(`INSERT INTO device_credential_groups(mac, group_name, updated_at) VALUES (?, ?, ?)`, mac, groupName, now()); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 func (db *DB) AddLog(level, message string) error {

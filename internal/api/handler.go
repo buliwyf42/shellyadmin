@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 
@@ -238,14 +237,15 @@ func (h *Handler) FirmwareUpdate(c *gin.Context) {
 
 func (h *Handler) Provision(c *gin.Context) {
 	var req struct {
-		IPs      []string               `json:"ips"`
-		Template map[string]interface{} `json:"template"`
+		IPs           []string               `json:"ips"`
+		Template      map[string]interface{} `json:"template"`
+		CredentialRef string                 `json:"credential_ref"`
 	}
 	if err := decodeJSON(c, &req, services.MaxJSONBytes); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 		return
 	}
-	results, err := h.service.Provision(c.Request.Context(), req.IPs, req.Template)
+	results, err := h.service.Provision(c.Request.Context(), req.IPs, req.Template, req.CredentialRef)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -285,23 +285,24 @@ func (h *Handler) ListTemplates(c *gin.Context) {
 }
 
 func (h *Handler) GetTemplate(c *gin.Context) {
-	content, err := h.service.GetTemplate(c.Param("name"))
+	record, err := h.service.GetTemplate(c.Param("name"))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "template not found"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"name": c.Param("name"), "content": content})
+	c.JSON(http.StatusOK, record)
 }
 
 func (h *Handler) SaveTemplate(c *gin.Context) {
 	var req struct {
-		Content string `json:"content"`
+		Content       string `json:"content"`
+		CredentialRef string `json:"credential_ref"`
 	}
 	if err := decodeJSON(c, &req, services.MaxTemplateBytes+1024); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "content required"})
 		return
 	}
-	if err := h.service.SaveTemplate(c.Param("name"), req.Content); err != nil {
+	if err := h.service.SaveTemplate(c.Param("name"), req.Content, req.CredentialRef); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -325,13 +326,120 @@ func (h *Handler) GetLogs(c *gin.Context) {
 	c.JSON(http.StatusOK, entries)
 }
 
-func (h *Handler) GetDebugLogs(c *gin.Context) {
-	lines, err := h.service.GetDebugLogs(c.Query("search"), parseTail(c.DefaultQuery("tail", "200")))
+func (h *Handler) ListCredentials(c *gin.Context) {
+	credentials, err := h.service.ListCredentials()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"lines": lines})
+	c.JSON(http.StatusOK, credentials)
+}
+
+func (h *Handler) SaveCredential(c *gin.Context) {
+	var req models.Credential
+	if err := decodeJSON(c, &req, 64*1024); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid credential"})
+		return
+	}
+	if err := h.service.SaveCredential(req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+func (h *Handler) DeleteCredential(c *gin.Context) {
+	if err := h.service.DeleteCredential(c.Param("name")); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+func (h *Handler) ListCredentialGroups(c *gin.Context) {
+	groups, err := h.service.ListCredentialGroups()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, groups)
+}
+
+func (h *Handler) SaveCredentialGroup(c *gin.Context) {
+	var req models.CredentialGroup
+	if err := decodeJSON(c, &req, 32*1024); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid group"})
+		return
+	}
+	if err := h.service.SaveCredentialGroup(req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+func (h *Handler) DeleteCredentialGroup(c *gin.Context) {
+	if err := h.service.DeleteCredentialGroup(c.Param("name")); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+func (h *Handler) GetCredentialGroupAssignments(c *gin.Context) {
+	assignments, err := h.service.ListCredentialGroupAssignments()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"assignments": assignments})
+}
+
+func (h *Handler) SaveCredentialGroupAssignments(c *gin.Context) {
+	var req struct {
+		MACs      []string `json:"macs"`
+		GroupName string   `json:"group_name"`
+	}
+	if err := decodeJSON(c, &req, 128*1024); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid assignment request"})
+		return
+	}
+	if err := h.service.SaveCredentialGroupAssignments(req.MACs, req.GroupName); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+func (h *Handler) ExportBackup(c *gin.Context) {
+	includeSecrets := c.Query("include_secrets") == "true"
+	if includeSecrets && c.Query("confirm") != "export-plaintext-secrets" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "plaintext secret export requires confirm=export-plaintext-secrets"})
+		return
+	}
+	body, err := h.service.ExportBackup(includeSecrets)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, body)
+}
+
+func (h *Handler) ImportBackup(c *gin.Context) {
+	var req struct {
+		Apply bool                  `json:"apply"`
+		Data  services.BackupExport `json:"data"`
+	}
+	if err := decodeJSON(c, &req, services.MaxJSONBytes); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	report, err := h.service.ImportBackup(req.Data, req.Apply)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, report)
 }
 
 func (h *Handler) logFn(level, msg string) {
@@ -360,10 +468,4 @@ func decodeJSON(c *gin.Context, dst any, maxBytes int64) error {
 		return err
 	}
 	return nil
-}
-
-func parseTail(raw string) int {
-	var tail int
-	_, _ = fmt.Sscanf(raw, "%d", &tail)
-	return tail
 }

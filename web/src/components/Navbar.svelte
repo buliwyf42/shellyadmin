@@ -8,9 +8,10 @@
     { path: '/scan', label: 'Scan', icon: 'search' },
     { path: '/firmware', label: 'Firmware', icon: 'chip' },
     { path: '/provision', label: 'Provision', icon: 'upload' },
-    { path: '/settings', label: 'Settings', icon: 'gear' },
+    { path: '/groups', label: 'Auth Groups', icon: 'layers' },
     { path: '/compliance', label: 'Compliance', icon: 'shield' },
     { path: '/logs', label: 'Logs', icon: 'list' },
+    { path: '/settings', label: 'Settings', icon: 'gear' },
     { path: '/about', label: 'About', icon: 'info' },
   ] as const
 
@@ -24,6 +25,8 @@
         return 'M8 4h8v2H8V4zm-3 3h14v10H5V7zm2 2v6h10V9H7zm1 10h8v2H8v-2zM4 8h2v8H4V8zm14 0h2v8h-2V8z'
       case 'upload':
         return 'M12 3l4 4h-3v6h-2V7H8l4-4zm-7 10h2v5h10v-5h2v7H5v-7z'
+      case 'layers':
+        return 'M12 3l9 5-9 5-9-5 9-5zm0 7.2l8.1-4.5m-16.2 0L12 10.2m9 3.8l-9 5-9-5'
       case 'gear':
         return 'M11 2h2l.4 2.1a7.7 7.7 0 011.7.7l1.8-1.2 1.4 1.4-1.2 1.8c.3.5.6 1.1.7 1.7L21 11v2l-2.1.4c-.2.6-.4 1.2-.7 1.7l1.2 1.8-1.4 1.4-1.8-1.2c-.5.3-1.1.6-1.7.7L13 22h-2l-.4-2.1c-.6-.2-1.2-.4-1.7-.7l-1.8 1.2-1.4-1.4 1.2-1.8a7.7 7.7 0 01-.7-1.7L3 13v-2l2.1-.4c.2-.6.4-1.2.7-1.7L4.6 7.1 6 5.7l1.8 1.2c.5-.3 1.1-.6 1.7-.7L11 2zm1 6a4 4 0 100 8 4 4 0 000-8z'
       case 'shield':

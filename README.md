@@ -37,6 +37,7 @@ The target architecture is documented in [docs/ARCHITECTURE.md](/Users/buliwyf/D
 - Gen-aware rendering for unsupported fields (for example WebSocket on Gen1)
 - Manual firmware check and update flow
 - Guided provisioning form plus JSON mode
+- Provisioning target validation (local/private/link-local IPs only)
 - Compliance rule editor (including `{device_name}` token matching)
 - Separate audit events and debug logs views
 
@@ -134,6 +135,7 @@ See [docs/SECURITY.md](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shel
 The current agreed architecture is documented in:
 
 - [docs/ARCHITECTURE.md](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/docs/ARCHITECTURE.md)
+- [docs/adr/README.md](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/docs/adr/README.md)
 
 ## Contributing
 

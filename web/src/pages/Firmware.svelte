@@ -1,25 +1,50 @@
 <script lang="ts">
-  import { api } from '../lib/api'
+  import { APIError, api } from '../lib/api'
   import type { FirmwareStatus } from '../lib/types'
+  import ErrorNotice from '../components/ErrorNotice.svelte'
 
   let stage = 'stable'
   let status: FirmwareStatus = { running: false, done: 0, total: 0, results: [] }
   let selected = new Set<string>()
   let timer: number | undefined
+  let error = ''
+  let errorDetails = ''
+
+  function captureError(err: unknown) {
+    if (err instanceof APIError) {
+      error = err.message
+      errorDetails = `${err.method} ${err.path} -> ${err.status}\n${JSON.stringify(err.detail ?? {}, null, 2)}`
+      return
+    }
+    error = (err as Error).message
+    errorDetails = String(err)
+  }
 
   async function start() {
-    await api.firmwareCheck(stage)
-    timer = window.setInterval(async () => {
-      status = await api.firmwareStatus()
-      if (!status.running && timer) {
-        clearInterval(timer)
-        timer = undefined
-      }
-    }, 2000)
+    error = ''
+    errorDetails = ''
+    try {
+      await api.firmwareCheck(stage)
+      timer = window.setInterval(async () => {
+        status = await api.firmwareStatus()
+        if (!status.running && timer) {
+          clearInterval(timer)
+          timer = undefined
+        }
+      }, 2000)
+    } catch (err) {
+      captureError(err)
+    }
   }
 
   async function updateSelected() {
-    await api.firmwareUpdate([...selected], stage)
+    error = ''
+    errorDetails = ''
+    try {
+      await api.firmwareUpdate([...selected], stage)
+    } catch (err) {
+      captureError(err)
+    }
   }
 </script>
 
@@ -31,6 +56,8 @@
   <button class="btn btn-warning text-dark" on:click={start}>Check Firmware</button>
   <button class="btn btn-outline-light" on:click={updateSelected} disabled={selected.size === 0}>Update {selected.size}</button>
 </div>
+
+<ErrorNotice summary={error} details={errorDetails} />
 
 <div class="progress mb-3"><div class="progress-bar" style={`width:${status.total ? (status.done / status.total) * 100 : 0}%`}>{status.done}/{status.total}</div></div>
 

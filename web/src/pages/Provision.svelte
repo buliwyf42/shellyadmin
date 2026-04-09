@@ -1,18 +1,27 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import { api } from '../lib/api'
-  import type { Device } from '../lib/types'
+  import { APIError, api } from '../lib/api'
+  import type { Credential, CredentialGroup, Device } from '../lib/types'
+  import ErrorNotice from '../components/ErrorNotice.svelte'
 
   type ProvisionResult = { info: unknown; results: unknown[] }
+  type TemplateGenPolicy = { hasGen1Only: boolean; hasGen2Only: boolean; hasDual: boolean }
+  type PrecheckIssue = { ip: string; label: string; reason: string; category: 'auth' | 'generation' | 'other' }
 
   let devices: Device[] = []
   let selected = new Set<string>()
   let loading = false
   let running = false
   let error = ''
+  let errorDetails = ''
   let results: ProvisionResult[] = []
   let templateNames: string[] = []
+  let credentials: Credential[] = []
+  let credentialGroups: CredentialGroup[] = []
+  let deviceGroupAssignments: Record<string, string> = {}
   let selectedTemplate = ''
+  let selectedTemplateCredentialRef = ''
+  let autoSelectedCredentialRef = ''
   let templateName = ''
   let viewMode: 'form' | 'json' = 'form'
   let jsonText = '{}'
@@ -109,6 +118,17 @@
   let otaOpen = false
   let authOpen = false
   let wifiOpen = false
+  let copiedSkipped = false
+
+  function captureError(err: unknown) {
+    if (err instanceof APIError) {
+      error = err.message
+      errorDetails = `${err.method} ${err.path} -> ${err.status}\n${JSON.stringify(err.detail ?? {}, null, 2)}`
+      return
+    }
+    error = (err as Error).message
+    errorDetails = String(err)
+  }
 
   $: sysExpanded = sysEnabled || sysNameEnabled || sysTZEnabled || sysLatEnabled || sysLonEnabled || sysSNTPEnabled || sysTimeFormatEnabled || sysEcoEnabled || sysDiscoverableEnabled
   $: mqttExpanded = mqttEnabled || mqttEnableField || mqttServerEnabled || mqttClientIDEnabled || mqttTopicPrefixEnabled || mqttUserEnabled || mqttPassEnabled || mqttSSLCAEnabled || mqttRPCNtfEnabled || mqttStatusNtfEnabled || mqttEnableRPCEnabled || mqttEnableControlEnabled || mqttUseClientCertEnabled
@@ -133,14 +153,19 @@
     loading = true
     error = ''
     try {
-      const [loadedDevices, loadedTemplates] = await Promise.all([
+      const [loadedDevices, loadedTemplates, loadedCredentialGroups, loadedGroupAssignments] = await Promise.all([
         api.getDevices(),
         api.listTemplates(),
+        api.listCredentialGroups(),
+        api.getCredentialGroupAssignments(),
       ])
       devices = loadedDevices
       templateNames = loadedTemplates
+      credentials = await api.listCredentials()
+      credentialGroups = loadedCredentialGroups
+      deviceGroupAssignments = loadedGroupAssignments.assignments
     } catch (err) {
-      error = (err as Error).message
+      captureError(err)
     } finally {
       loading = false
     }
@@ -165,6 +190,58 @@
     return devices.filter((d) => selected.has(d.mac))
   }
 
+  function templateForPrecheck(): Record<string, unknown> | null {
+    if (viewMode !== 'json') return buildTemplate()
+    try {
+      return JSON.parse(jsonText) as Record<string, unknown>
+    } catch {
+      return null
+    }
+  }
+
+  function deriveTemplateGenPolicy(template: Record<string, unknown>): TemplateGenPolicy {
+    const policy: TemplateGenPolicy = { hasGen1Only: false, hasGen2Only: false, hasDual: false }
+    for (const rawSection of Object.keys(template)) {
+      const section = rawSection.trim().toLowerCase()
+      switch (section) {
+        case 'gen1_http':
+          policy.hasGen1Only = true
+          break
+        case 'mqtt':
+        case 'sys':
+          policy.hasDual = true
+          break
+        case 'gen2_rpc':
+        case 'ws':
+        case 'ble':
+        case 'matter':
+        case 'cloud':
+        case 'wifi':
+        case 'kvs':
+        case 'ota':
+        case 'auth':
+          policy.hasGen2Only = true
+          break
+        default:
+          policy.hasGen2Only = true
+      }
+    }
+    return policy
+  }
+
+  function genIncompatibleReason(device: Device, policy: TemplateGenPolicy): string {
+    if (device.gen <= 1) {
+      if (policy.hasGen2Only && !policy.hasGen1Only && !policy.hasDual) {
+        return 'template targets gen2+ sections while device is gen1'
+      }
+      return ''
+    }
+    if (policy.hasGen1Only && !policy.hasGen2Only && !policy.hasDual) {
+      return 'template targets gen1-only sections while device is gen2+'
+    }
+    return ''
+  }
+
   function selectedGenLabel() {
     const picked = selectedDevices()
     if (picked.length === 0) return 'none'
@@ -173,6 +250,127 @@
     if (hasGen1 && hasGen2) return 'mixed'
     return hasGen1 ? 'gen1' : 'gen2+'
   }
+
+  function reasonBadgeClass(category: PrecheckIssue['category']): string {
+    switch (category) {
+      case 'auth':
+        return 'bg-warning text-dark'
+      case 'generation':
+        return 'bg-info text-dark'
+      default:
+        return 'bg-secondary'
+    }
+  }
+
+  function reasonBadgeText(category: PrecheckIssue['category']): string {
+    switch (category) {
+      case 'auth':
+        return 'auth'
+      case 'generation':
+        return 'generation'
+      default:
+        return 'other'
+    }
+  }
+
+  function selectOnlyEligible() {
+    if (!precheckTemplate || precheckTemplateError) return
+    const skippedIPs = new Set(precheckIssues.map((issue) => issue.ip))
+    selected = new Set(selectedDevices().filter((device) => !skippedIPs.has(device.ip)).map((device) => device.mac))
+  }
+
+  async function copySkippedIPs() {
+    const ips = [...new Set(precheckIssues.map((issue) => issue.ip))]
+    if (ips.length === 0) return
+    try {
+      await navigator.clipboard.writeText(ips.join('\n'))
+      copiedSkipped = true
+      setTimeout(() => {
+        copiedSkipped = false
+      }, 1500)
+    } catch {
+      copiedSkipped = false
+    }
+  }
+
+  $: precheckTemplate = templateForPrecheck()
+  $: precheckTemplateError = viewMode === 'json' && precheckTemplate === null ? 'JSON is invalid; precheck is disabled until JSON is valid.' : ''
+  $: precheckPolicy = precheckTemplate ? deriveTemplateGenPolicy(precheckTemplate) : { hasGen1Only: false, hasGen2Only: false, hasDual: false }
+  $: groupCredentialByName = Object.fromEntries(credentialGroups.map((group) => [group.name, group.name]))
+  $: groupResolution = (() => {
+    const chosenDevices = selectedDevices()
+    let unresolved = 0
+    const credentials = new Set<string>()
+    for (const device of chosenDevices) {
+      const groupName = deviceGroupAssignments[device.mac]
+      if (!groupName) {
+        unresolved++
+        continue
+      }
+      const credentialRef = groupCredentialByName[groupName]
+      if (!credentialRef) {
+        unresolved++
+        continue
+      }
+      credentials.add(credentialRef)
+    }
+    return {
+      total: chosenDevices.length,
+      unresolved,
+      credentialRefs: [...credentials],
+    }
+  })()
+  $: groupCredentialHint = (() => {
+    if (groupResolution.total === 0) return ''
+    if (groupResolution.credentialRefs.length === 1 && groupResolution.unresolved === 0) {
+      return `Credential defaulted from device groups: ${groupResolution.credentialRefs[0]}`
+    }
+    if (groupResolution.credentialRefs.length > 1) {
+      return 'Selected devices resolve to multiple group credentials. Choose a credential manually.'
+    }
+    if (groupResolution.unresolved > 0) {
+      return `${groupResolution.unresolved} selected device(s) have no resolvable credential group.`
+    }
+    return ''
+  })()
+  $: resolvedGroupCredentialRef = groupResolution.credentialRefs.length === 1 && groupResolution.unresolved === 0
+    ? groupResolution.credentialRefs[0]
+    : ''
+  $: if (resolvedGroupCredentialRef) {
+    if (!selectedTemplateCredentialRef || selectedTemplateCredentialRef === autoSelectedCredentialRef) {
+      selectedTemplateCredentialRef = resolvedGroupCredentialRef
+      autoSelectedCredentialRef = resolvedGroupCredentialRef
+    }
+  } else if (autoSelectedCredentialRef && selectedTemplateCredentialRef === autoSelectedCredentialRef) {
+    selectedTemplateCredentialRef = ''
+    autoSelectedCredentialRef = ''
+  }
+  $: precheckIssues = selectedDevices().flatMap((device): PrecheckIssue[] => {
+    if (!precheckTemplate) return []
+    if (device.auth_required && !selectedTemplateCredentialRef.trim()) {
+      return [{
+        ip: device.ip,
+        label: device.name || device.serial || device.mac,
+        reason: 'auth required but no credential ref selected',
+        category: 'auth',
+      }]
+    }
+    const genReason = genIncompatibleReason(device, precheckPolicy)
+    if (genReason) {
+      return [{
+        ip: device.ip,
+        label: device.name || device.serial || device.mac,
+        reason: genReason,
+        category: 'generation',
+      }]
+    }
+    return []
+  })
+  $: precheckEligibleCount = Math.max(0, selectedDevices().length - precheckIssues.length)
+  $: precheckReasonCounts = precheckIssues.reduce((acc, issue) => {
+    acc[issue.category] = (acc[issue.category] || 0) + 1
+    return acc
+  }, {} as Record<string, number>)
 
   function maybeNum(raw: string): number | undefined {
     if (raw.trim() === '') return undefined
@@ -310,12 +508,13 @@
     }
     try {
       const body = viewMode === 'json' ? jsonText : JSON.stringify(buildTemplate(), null, 2)
-      await api.saveTemplate(templateName.trim(), body)
+      await api.saveTemplate(templateName.trim(), body, selectedTemplateCredentialRef)
       templateNames = await api.listTemplates()
       selectedTemplate = templateName.trim()
       error = ''
+      errorDetails = ''
     } catch (err) {
-      error = (err as Error).message
+      captureError(err)
     }
   }
 
@@ -324,33 +523,84 @@
     try {
       const loaded = await api.getTemplate(selectedTemplate)
       jsonText = loaded.content
+      selectedTemplateCredentialRef = loaded.credential_ref || ''
       viewMode = 'json'
       templateName = selectedTemplate
       error = ''
+      errorDetails = ''
     } catch (err) {
-      error = (err as Error).message
+      captureError(err)
     }
   }
 
   async function runProvision() {
     running = true
     error = ''
+    errorDetails = ''
     try {
       const template = viewMode === 'json' ? JSON.parse(jsonText) : buildTemplate()
       results = await api.provision(
         selectedDevices().map((device) => device.ip),
         template,
+        selectedTemplateCredentialRef,
       )
     } catch (err) {
-      error = (err as Error).message
+      captureError(err)
     } finally {
       running = false
     }
   }
 </script>
 
+<ErrorNotice summary={error} details={errorDetails} />
+
 <div class="row g-3">
-  <div class="col-lg-5">
+  <div class="col-lg-6 provision-devices-col">
+    {#if selected.size > 0}
+      <div class="card bg-dark border-secondary">
+        <div class="card-body">
+          <h2 class="h6">Precheck Summary</h2>
+          {#if precheckTemplateError}
+            <div class="alert alert-warning py-2 mb-2">{precheckTemplateError}</div>
+          {/if}
+          <p class="mb-2"><span class="badge bg-success me-2">{precheckEligibleCount}</span> eligible</p>
+          <p class="mb-2"><span class="badge bg-warning text-dark me-2">{precheckIssues.length}</span> predicted to be skipped</p>
+          <div class="d-flex gap-2 flex-wrap mb-2">
+            <button class="btn btn-sm btn-outline-light" on:click={selectOnlyEligible} disabled={precheckIssues.length === 0 || Boolean(precheckTemplateError)}>Select Only Eligible</button>
+            <button class="btn btn-sm btn-outline-light" on:click={copySkippedIPs} disabled={precheckIssues.length === 0}>Copy Skipped IPs</button>
+            {#if copiedSkipped}
+              <span class="badge bg-success">copied</span>
+            {/if}
+            {#if precheckReasonCounts.auth}
+              <span class="badge bg-warning text-dark">auth: {precheckReasonCounts.auth}</span>
+            {/if}
+            {#if precheckReasonCounts.generation}
+              <span class="badge bg-info text-dark">generation: {precheckReasonCounts.generation}</span>
+            {/if}
+          </div>
+          {#if precheckIssues.length > 0}
+            <div class="table-responsive">
+              <table class="table table-dark table-striped table-sm mb-0">
+                <thead>
+                  <tr><th>IP</th><th>Device</th><th>Type</th><th>Reason</th></tr>
+                </thead>
+                <tbody>
+                  {#each precheckIssues as issue}
+                    <tr>
+                      <td>{issue.ip}</td>
+                      <td>{issue.label}</td>
+                      <td><span class={`badge ${reasonBadgeClass(issue.category)}`}>{reasonBadgeText(issue.category)}</span></td>
+                      <td>{issue.reason}</td>
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+            </div>
+          {/if}
+        </div>
+      </div>
+    {/if}
+
     <div class="card bg-dark border-secondary">
       <div class="card-header d-flex justify-content-between align-items-center">
         <span>Select Devices</span>
@@ -365,7 +615,7 @@
         {:else if devices.length === 0}
           <div class="p-2 text-secondary">No devices enrolled yet.</div>
         {:else}
-          <div class="table-responsive" style="max-height: 78vh">
+          <div class="table-responsive device-list-scroll">
             <table class="table table-dark table-striped align-middle table-nowrap mb-0">
               <thead>
                 <tr>
@@ -393,7 +643,7 @@
     </div>
   </div>
 
-  <div class="col-lg-7">
+  <div class="col-lg-6 provision-settings-col">
     <div class="card bg-dark border-secondary">
       <div class="card-header d-flex justify-content-between align-items-center gap-2 flex-wrap">
         <div class="d-flex gap-2 align-items-center flex-wrap">
@@ -405,8 +655,17 @@
           </select>
           <button class="btn btn-sm btn-outline-light" on:click={loadCurrentTemplate} disabled={!selectedTemplate}>Load</button>
           <input class="form-control" style="width: 12rem" placeholder="template name" bind:value={templateName} />
+          <select class="form-select" bind:value={selectedTemplateCredentialRef} style="width: 12rem">
+            <option value="">credential: none</option>
+            {#each credentials as credential}
+              <option value={credential.name}>{credential.name}</option>
+            {/each}
+          </select>
           <button class="btn btn-sm btn-outline-light" on:click={saveCurrentTemplate}>Save</button>
         </div>
+        {#if groupCredentialHint}
+          <span class="text-secondary">{groupCredentialHint}</span>
+        {/if}
         <div class="d-flex gap-2">
           <button class={`btn btn-sm ${viewMode === 'form' ? 'btn-warning text-dark' : 'btn-outline-light'}`} on:click={() => setView('form')}>Form</button>
           <button class={`btn btn-sm ${viewMode === 'json' ? 'btn-warning text-dark' : 'btn-outline-light'}`} on:click={() => setView('json')}>JSON</button>
@@ -578,10 +837,6 @@
     </div>
   </div>
 </div>
-
-{#if error}
-  <div class="alert alert-danger mt-3">{error}</div>
-{/if}
 
 {#if results.length}
   <div class="card bg-dark border-secondary mt-3">

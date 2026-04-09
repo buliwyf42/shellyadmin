@@ -66,6 +66,13 @@ Required safeguards:
 
 - scans may target any user-entered CIDR
 - subnet-size and operational safeguards should still exist
+- provisioning targets are validated as IP addresses and restricted to local/private/link-local ranges
+- loopback, unspecified, and multicast targets are rejected for provisioning
+
+## Operational Safety
+
+- scan and refresh workflows use bounded worker pools
+- concurrency limits cap active probes instead of spawning one goroutine per target
 
 ## Container Security
 

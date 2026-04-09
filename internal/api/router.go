@@ -80,8 +80,17 @@ func NewRouter(database *db.DB, cfg Config) *gin.Engine {
 	auth.GET("/api/templates/:name", h.GetTemplate)
 	auth.POST("/api/templates/:name", h.SaveTemplate)
 	auth.DELETE("/api/templates/:name", h.DeleteTemplate)
+	auth.GET("/api/credentials", h.ListCredentials)
+	auth.POST("/api/credentials", h.SaveCredential)
+	auth.DELETE("/api/credentials/:name", h.DeleteCredential)
+	auth.GET("/api/credential-groups", h.ListCredentialGroups)
+	auth.POST("/api/credential-groups", h.SaveCredentialGroup)
+	auth.DELETE("/api/credential-groups/:name", h.DeleteCredentialGroup)
+	auth.GET("/api/credential-groups/assignments", h.GetCredentialGroupAssignments)
+	auth.POST("/api/credential-groups/assignments", h.SaveCredentialGroupAssignments)
 	auth.GET("/api/logs", h.GetLogs)
-	auth.GET("/api/debug-logs", h.GetDebugLogs)
+	auth.GET("/api/backup/export", h.ExportBackup)
+	auth.POST("/api/backup/import", h.ImportBackup)
 	registerAppRoutes(auth, cfg)
 
 	r.NoRoute(func(c *gin.Context) {
@@ -100,7 +109,7 @@ func NewRouter(database *db.DB, cfg Config) *gin.Engine {
 }
 
 func registerAppRoutes(auth *gin.RouterGroup, cfg Config) {
-	for _, path := range []string{"/", "/scan", "/firmware", "/provision", "/compliance", "/settings", "/logs", "/about"} {
+	for _, path := range []string{"/", "/scan", "/firmware", "/provision", "/groups", "/compliance", "/logs", "/settings", "/about"} {
 		auth.GET(path, func(c *gin.Context) {
 			serveSPA(c, cfg)
 		})

@@ -27,6 +27,8 @@ export interface Device {
   matter_enabled: boolean | null
   eco_mode: boolean | null
   discoverable: boolean | null
+  auth_required: boolean
+  auth_error: string
   fw_status: string
   fw_available_ver: string
   serial: string
@@ -112,11 +114,50 @@ export interface LogEntry {
   message: string
 }
 
-export interface DebugLogResponse {
-  lines: string[]
-}
-
 export interface VersionInfo {
   backend_version: string
   commit: string
+}
+
+export interface BackupExport {
+  version: number
+  settings: AppSettings
+  templates: Record<string, string>
+  credential_groups?: CredentialGroup[]
+  device_group_assignments?: Record<string, string>
+}
+
+export interface ImportReport {
+  dry_run: boolean
+  settings_will_apply: boolean
+  templates_create: string[]
+  templates_update: string[]
+  groups_create: string[]
+  groups_update: string[]
+  groups_delete: string[]
+  assignments_create: number
+  assignments_update: number
+  assignments_delete: number
+}
+
+export interface TemplateRecord {
+  name: string
+  content: string
+  credential_ref: string
+}
+
+export interface Credential {
+  name: string
+  username: string
+  password: string
+  ha1: string
+  tags: string[]
+}
+
+export interface CredentialGroup {
+  name: string
+  username: string
+  password: string
+  ha1: string
+  tags: string[]
 }

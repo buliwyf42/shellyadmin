@@ -1,26 +1,39 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import { api } from '../lib/api'
+  import { APIError, api } from '../lib/api'
   import { colVis, deviceColumns, devices, refreshInterval } from '../lib/stores'
   import type { Device } from '../lib/types'
   import ComplianceBadge from '../components/ComplianceBadge.svelte'
+  import ErrorNotice from '../components/ErrorNotice.svelte'
 
   let filter = ''
   let loading = false
   let error = ''
+  let errorDetails = ''
   let showColumns = false
   let sortKey = 'device_num'
   let sortDir: 'asc' | 'desc' = 'asc'
   let autoRefreshTimer: ReturnType<typeof setInterval> | null = null
   let rowBusy: Record<string, { refresh: boolean; remove: boolean }> = {}
 
+  function captureError(err: unknown) {
+    if (err instanceof APIError) {
+      error = err.message
+      errorDetails = `${err.method} ${err.path} -> ${err.status}\n${JSON.stringify(err.detail ?? {}, null, 2)}`
+      return
+    }
+    error = (err as Error).message
+    errorDetails = String(err)
+  }
+
   async function load(refresh = false) {
     loading = true
     error = ''
+    errorDetails = ''
     try {
       $devices = refresh ? await api.refreshDevices() : await api.getDevices()
     } catch (err) {
-      error = (err as Error).message
+      captureError(err)
     } finally {
       loading = false
     }
@@ -46,11 +59,12 @@
 
   async function refreshOne(device: Device) {
     error = ''
+    errorDetails = ''
     rowBusy = { ...rowBusy, [device.mac]: { ...(rowBusy[device.mac] || { refresh: false, remove: false }), refresh: true } }
     try {
       $devices = await api.refreshDevice(device.mac)
     } catch (err) {
-      error = (err as Error).message
+      captureError(err)
     } finally {
       rowBusy = { ...rowBusy, [device.mac]: { ...(rowBusy[device.mac] || { refresh: false, remove: false }), refresh: false } }
     }
@@ -60,12 +74,13 @@
     const label = device.name || device.ip || device.mac
     if (!confirm(`Delete device "${label}"?`)) return
     error = ''
+    errorDetails = ''
     rowBusy = { ...rowBusy, [device.mac]: { ...(rowBusy[device.mac] || { refresh: false, remove: false }), remove: true } }
     try {
       await api.forgetDevice(device.mac)
       await load()
     } catch (err) {
-      error = (err as Error).message
+      captureError(err)
     } finally {
       rowBusy = { ...rowBusy, [device.mac]: { ...(rowBusy[device.mac] || { refresh: false, remove: false }), remove: false } }
     }
@@ -115,7 +130,7 @@
     if (!value) return 'n/a'
     const date = new Date(value)
     if (Number.isNaN(date.getTime())) return value
-    return new Intl.DateTimeFormat('sv-SE', {
+    return new Intl.DateTimeFormat(undefined, {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
@@ -244,7 +259,7 @@
 <div class="d-flex justify-content-between align-items-center mb-3 gap-3 flex-wrap">
   <div class="d-flex gap-2 flex-wrap">
     <button class="btn btn-warning text-dark" on:click={() => load(true)} disabled={loading}>Refresh</button>
-    <select class="form-select" bind:value={$refreshInterval} style="width: 12rem">
+    <select class="form-select" bind:value={$refreshInterval} style="width: 15rem">
       <option value={0}>Auto refresh: Off</option>
       <option value={30000}>Auto refresh: 30 sec</option>
       <option value={60000}>Auto refresh: 1 min</option>
@@ -278,9 +293,7 @@
   </div>
 {/if}
 
-{#if error}
-  <div class="alert alert-danger">{error}</div>
-{/if}
+<ErrorNotice summary={error} details={errorDetails} />
 
 <div class="table-responsive">
   <table class="table table-dark table-striped align-middle table-nowrap">

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"embed"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -57,7 +58,11 @@ func main() {
 
 	database, err := db.Open(dataDir)
 	if err != nil {
-		panic(err)
+		backupPath, backupErr := db.BackupDatabaseFile(dataDir)
+		if backupErr != nil {
+			panic(fmt.Sprintf("database open failed: %v (backup attempt failed: %v)", err, backupErr))
+		}
+		panic(fmt.Sprintf("database open failed: %v (backup created at %s)", err, backupPath))
 	}
 	defer database.Close()
 	_ = database.MarkRunningJobsInterrupted()

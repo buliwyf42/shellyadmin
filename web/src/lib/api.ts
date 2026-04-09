@@ -1,8 +1,23 @@
-import type { AppSettings, DebugLogResponse, Device, FirmwareStatus, LogEntry, ScanStatus, VersionInfo } from './types'
+import type { AppSettings, BackupExport, Credential, CredentialGroup, Device, FirmwareStatus, ImportReport, LogEntry, ScanStatus, TemplateRecord, VersionInfo } from './types'
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 let csrfToken = ''
 let csrfFetchInFlight: Promise<void> | null = null
+
+export class APIError extends Error {
+  method: string
+  path: string
+  status: number
+  detail?: unknown
+
+  constructor(method: string, path: string, status: number, message: string, detail?: unknown) {
+    super(message)
+    this.method = method
+    this.path = path
+    this.status = status
+    this.detail = detail
+  }
+}
 
 function updateCSRFToken(res: Response) {
   const token = res.headers.get('X-CSRF-Token')
@@ -55,7 +70,8 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
   updateCSRFToken(res)
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }))
-    throw new Error(err.error || res.statusText)
+    const message = (err as { error?: string }).error || res.statusText
+    throw new APIError(method, path, res.status, message, err)
   }
   return res.json()
 }
@@ -75,13 +91,22 @@ export const api = {
   firmwareCheck: (stage: string) => req<{ status: string; total: number }>('POST', '/api/firmware/check', { stage }),
   firmwareStatus: () => req<FirmwareStatus>('GET', '/api/firmware/status'),
   firmwareUpdate: (macs: string[], stage: string) => req<Array<{ ip: string; status: string; detail: string }>>('POST', '/api/firmware/update', { macs, stage }),
-  provision: (ips: string[], template: object) => req<Array<{ info: unknown; results: unknown[] }>>('POST', '/api/provision', { ips, template }),
+  provision: (ips: string[], template: object, credentialRef = '') => req<Array<{ info: unknown; results: unknown[] }>>('POST', '/api/provision', { ips, template, credential_ref: credentialRef }),
   getSettings: () => req<AppSettings>('GET', '/api/settings'),
   saveSettings: (settings: AppSettings) => req<{ ok: true }>('POST', '/api/settings', settings),
   listTemplates: () => req<string[]>('GET', '/api/templates'),
-  getTemplate: (name: string) => req<{ name: string; content: string }>('GET', `/api/templates/${encodeURIComponent(name)}`),
-  saveTemplate: (name: string, content: string) => req<{ ok: true }>('POST', `/api/templates/${encodeURIComponent(name)}`, { content }),
+  getTemplate: (name: string) => req<TemplateRecord>('GET', `/api/templates/${encodeURIComponent(name)}`),
+  saveTemplate: (name: string, content: string, credentialRef = '') => req<{ ok: true }>('POST', `/api/templates/${encodeURIComponent(name)}`, { content, credential_ref: credentialRef }),
   deleteTemplate: (name: string) => req<{ ok: true }>('DELETE', `/api/templates/${encodeURIComponent(name)}`),
+  listCredentials: () => req<Credential[]>('GET', '/api/credentials'),
+  saveCredential: (credential: Credential) => req<{ ok: true }>('POST', '/api/credentials', credential),
+  deleteCredential: (name: string) => req<{ ok: true }>('DELETE', `/api/credentials/${encodeURIComponent(name)}`),
+  listCredentialGroups: () => req<CredentialGroup[]>('GET', '/api/credential-groups'),
+  saveCredentialGroup: (group: CredentialGroup) => req<{ ok: true }>('POST', '/api/credential-groups', group),
+  deleteCredentialGroup: (name: string) => req<{ ok: true }>('DELETE', `/api/credential-groups/${encodeURIComponent(name)}`),
+  getCredentialGroupAssignments: () => req<{ assignments: Record<string, string> }>('GET', '/api/credential-groups/assignments'),
+  saveCredentialGroupAssignments: (macs: string[], groupName: string) => req<{ ok: true }>('POST', '/api/credential-groups/assignments', { macs, group_name: groupName }),
   getLogs: (level = '', search = '') => req<LogEntry[]>('GET', `/api/logs?level=${encodeURIComponent(level)}&search=${encodeURIComponent(search)}`),
-  getDebugLogs: (search = '', tail = 200) => req<DebugLogResponse>('GET', `/api/debug-logs?search=${encodeURIComponent(search)}&tail=${tail}`),
+  exportBackup: (includeSecrets = false, confirm = '') => req<BackupExport>('GET', `/api/backup/export?include_secrets=${includeSecrets ? 'true' : 'false'}&confirm=${encodeURIComponent(confirm)}`),
+  importBackup: (data: BackupExport, apply: boolean) => req<ImportReport>('POST', '/api/backup/import', { data, apply }),
 }
