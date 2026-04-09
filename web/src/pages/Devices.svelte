@@ -290,7 +290,7 @@
     <tbody>
       {#each sorted as device}
         <tr>
-          {#if $colVis.device_num}<td>{String(device.device_num).padStart(3, '0')}</td>{/if}
+          {#if $colVis.device_num}<td>{String(device.device_num).padStart(2, '0')}</td>{/if}
           {#if $colVis.name}<td>{device.name || device.serial || device.mac}</td>{/if}
           {#if $colVis.ip}<td><a href={`http://${device.ip}`} target="_blank" rel="noreferrer" class="text-decoration-none">{device.ip}</a></td>{/if}
           {#if $colVis.mac}<td class="font-monospace">{device.mac}</td>{/if}
