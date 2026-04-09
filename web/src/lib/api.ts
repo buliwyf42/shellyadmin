@@ -1,4 +1,4 @@
-import type { AppSettings, DebugLogResponse, Device, FirmwareStatus, LogEntry, ScanStatus } from './types'
+import type { AppSettings, DebugLogResponse, Device, FirmwareStatus, LogEntry, ScanStatus, VersionInfo } from './types'
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 let csrfToken = ''
@@ -70,6 +70,7 @@ export const api = {
   bulk: (payload: unknown) => req<{ results: Array<{ mac: string; ip: string; status: string }> }>('POST', '/api/bulk', payload),
   scanStart: () => req<{ status: string }>('POST', '/api/scan/start', {}),
   scanStatus: () => req<ScanStatus>('GET', '/api/scan/status'),
+  getVersion: () => req<VersionInfo>('GET', '/api/version'),
   scanConfirm: (macs?: string[]) => req<{ ok: true; count: number }>('POST', '/api/scan/confirm', macs ? { macs } : {}),
   firmwareCheck: (stage: string) => req<{ status: string; total: number }>('POST', '/api/firmware/check', { stage }),
   firmwareStatus: () => req<FirmwareStatus>('GET', '/api/firmware/status'),

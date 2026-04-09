@@ -115,3 +115,8 @@ export interface LogEntry {
 export interface DebugLogResponse {
   lines: string[]
 }
+
+export interface VersionInfo {
+  backend_version: string
+  commit: string
+}

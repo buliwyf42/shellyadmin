@@ -8,6 +8,8 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime/debug"
+	"strings"
 	"syscall"
 	"time"
 
@@ -20,6 +22,11 @@ import (
 
 //go:embed all:dist
 var staticFiles embed.FS
+
+var (
+	AppVersion = "dev"
+	CommitHash = "unknown"
+)
 
 func main() {
 	user := getenv("SHELLYADMIN_USER", "admin")
@@ -34,6 +41,8 @@ func main() {
 	dataDir := getenv("DATA_DIR", "./data")
 	port := getenv("PORT", "8080")
 	cookieSecure := getenv("COOKIE_SECURE", "true") == "true"
+	backendVersion := resolveBackendVersion()
+	backendCommit := resolveBackendCommit()
 
 	if err := os.MkdirAll(dataDir, 0o755); err != nil {
 		panic(err)
@@ -53,13 +62,15 @@ func main() {
 	_ = database.MarkRunningJobsInterrupted()
 
 	router := api.NewRouter(database, api.Config{
-		User:         user,
-		Pass:         pass,
-		Secret:       secret,
-		CookieSecure: cookieSecure,
-		DataDir:      dataDir,
-		StaticFS:     staticFiles,
-		HasStatic:    true,
+		User:           user,
+		Pass:           pass,
+		Secret:         secret,
+		CookieSecure:   cookieSecure,
+		DataDir:        dataDir,
+		BackendVersion: backendVersion,
+		BackendCommit:  backendCommit,
+		StaticFS:       staticFiles,
+		HasStatic:      true,
 	})
 	service := services.NewAppService(database, dataDir, func(level, msg string) {
 		_ = database.AddLog(level, services.SanitizeLogMessage(msg))
@@ -93,4 +104,54 @@ func getenv(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func resolveBackendVersion() string {
+	if AppVersion != "" && AppVersion != "dev" {
+		return AppVersion
+	}
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return "dev"
+	}
+	if info.Main.Version != "" && info.Main.Version != "(devel)" {
+		return info.Main.Version
+	}
+	return "dev"
+}
+
+func resolveBackendCommit() string {
+	if CommitHash != "" && CommitHash != "unknown" {
+		return trimCommit(CommitHash)
+	}
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return "unknown"
+	}
+	revision := "unknown"
+	dirty := false
+	for _, setting := range info.Settings {
+		switch setting.Key {
+		case "vcs.revision":
+			revision = setting.Value
+		case "vcs.modified":
+			dirty = setting.Value == "true"
+		}
+	}
+	revision = trimCommit(revision)
+	if dirty && revision != "unknown" {
+		return revision + "-dirty"
+	}
+	return revision
+}
+
+func trimCommit(value string) string {
+	commit := strings.TrimSpace(value)
+	if commit == "" {
+		return "unknown"
+	}
+	if len(commit) > 12 {
+		return commit[:12]
+	}
+	return commit
 }

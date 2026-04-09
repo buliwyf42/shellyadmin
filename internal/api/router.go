@@ -17,14 +17,16 @@ import (
 )
 
 type Config struct {
-	User         string
-	Pass         string
-	Secret       string
-	CookieSecure bool
-	DataDir      string
-	StaticFS     embed.FS
-	HasStatic    bool
-	DevStatic    string
+	User           string
+	Pass           string
+	Secret         string
+	CookieSecure   bool
+	DataDir        string
+	BackendVersion string
+	BackendCommit  string
+	StaticFS       embed.FS
+	HasStatic      bool
+	DevStatic      string
 }
 
 func NewRouter(database *db.DB, cfg Config) *gin.Engine {
@@ -59,6 +61,7 @@ func NewRouter(database *db.DB, cfg Config) *gin.Engine {
 	auth.Use(middleware.APIRateLimit())
 	auth.Use(middleware.RequireCSRF())
 	auth.GET("/api/csrf-token", h.CSRFToken)
+	auth.GET("/api/version", h.Version)
 	auth.GET("/api/devices", h.GetDevices)
 	auth.POST("/api/devices/refresh", h.RefreshDevices)
 	auth.POST("/api/devices/refresh-one", h.RefreshDevice)

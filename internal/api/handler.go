@@ -89,6 +89,13 @@ func (h *Handler) CSRFToken(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"csrf_token": nonce})
 }
 
+func (h *Handler) Version(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"backend_version": h.cfg.BackendVersion,
+		"commit":          h.cfg.BackendCommit,
+	})
+}
+
 func (h *Handler) RefreshDevices(c *gin.Context) {
 	devices, err := h.service.RefreshDevices(c.Request.Context())
 	if err != nil {
