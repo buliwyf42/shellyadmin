@@ -100,6 +100,16 @@
   let wifiPassEnabled = false
   let wifiPass = ''
 
+  $: sysExpanded = sysEnabled || sysNameEnabled || sysTZEnabled || sysLatEnabled || sysLonEnabled || sysSNTPEnabled || sysTimeFormatEnabled || sysEcoEnabled || sysDiscoverableEnabled
+  $: mqttExpanded = mqttEnabled || mqttEnableField || mqttServerEnabled || mqttClientIDEnabled || mqttTopicPrefixEnabled || mqttUserEnabled || mqttPassEnabled || mqttSSLCAEnabled || mqttRPCNtfEnabled || mqttStatusNtfEnabled || mqttEnableRPCEnabled || mqttEnableControlEnabled || mqttUseClientCertEnabled
+  $: wsExpanded = wsEnabled || wsEnableField || wsServerEnabled || wsSSLCAEnabled
+  $: bleExpanded = bleEnabled || bleEnableField || bleRPCEnabledField || bleObserverEnabledField
+  $: matterExpanded = matterEnabled || matterEnableField
+  $: cloudExpanded = cloudEnabled || cloudEnableField
+  $: otaExpanded = otaEnabled || otaStageEnabled
+  $: authExpanded = authEnabled || authPassEnabled
+  $: wifiExpanded = wifiEnabled || wifiSTAEnabled || wifiSSIDEnabled || wifiPassEnabled
+
   onMount(async () => {
     loading = true
     error = ''
@@ -392,46 +402,125 @@
             <div class="card bg-black border-secondary">
               <div class="card-body">
                 <label class="d-flex align-items-center gap-2 mb-3"><input type="checkbox" class="form-check-input" bind:checked={sysEnabled} /> <strong>sys</strong> - System & Location</label>
-                <div class="row g-2">
-                  <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysNameEnabled} disabled={!sysEnabled} />Device Name</label><input class="form-control" bind:value={sysName} disabled={!sysEnabled || !sysNameEnabled} /></div>
-                  <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysTZEnabled} disabled={!sysEnabled} />Timezone</label><input class="form-control" bind:value={sysTZ} disabled={!sysEnabled || !sysTZEnabled} /></div>
-                  <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysLatEnabled} disabled={!sysEnabled} />Latitude</label><input class="form-control" bind:value={sysLat} disabled={!sysEnabled || !sysLatEnabled} /></div>
-                  <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysLonEnabled} disabled={!sysEnabled} />Longitude</label><input class="form-control" bind:value={sysLon} disabled={!sysEnabled || !sysLonEnabled} /></div>
-                  <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysSNTPEnabled} disabled={!sysEnabled} />SNTP Server</label><input class="form-control" bind:value={sysSNTP} disabled={!sysEnabled || !sysSNTPEnabled} /></div>
-                  <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysTimeFormatEnabled} disabled={!sysEnabled} />Time Format</label><select class="form-select" bind:value={sysTimeFormat} disabled={!sysEnabled || !sysTimeFormatEnabled}><option value="24h">24h</option><option value="12h">12h</option></select></div>
-                  <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysEcoEnabled} disabled={!sysEnabled} />Eco Mode</label><select class="form-select" bind:value={sysEco} disabled={!sysEnabled || !sysEcoEnabled}><option value={true}>On</option><option value={false}>Off</option></select></div>
-                  <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysDiscoverableEnabled} disabled={!sysEnabled} />Discoverable</label><select class="form-select" bind:value={sysDiscoverable} disabled={!sysEnabled || !sysDiscoverableEnabled}><option value={true}>On</option><option value={false}>Off</option></select></div>
-                </div>
+                {#if sysExpanded}
+                  <div class="row g-2">
+                    <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysNameEnabled} disabled={!sysEnabled} />Device Name</label><input class="form-control" bind:value={sysName} disabled={!sysEnabled || !sysNameEnabled} /></div>
+                    <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysTZEnabled} disabled={!sysEnabled} />Timezone</label><input class="form-control" bind:value={sysTZ} disabled={!sysEnabled || !sysTZEnabled} /></div>
+                    <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysLatEnabled} disabled={!sysEnabled} />Latitude</label><input class="form-control" bind:value={sysLat} disabled={!sysEnabled || !sysLatEnabled} /></div>
+                    <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysLonEnabled} disabled={!sysEnabled} />Longitude</label><input class="form-control" bind:value={sysLon} disabled={!sysEnabled || !sysLonEnabled} /></div>
+                    <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysSNTPEnabled} disabled={!sysEnabled} />SNTP Server</label><input class="form-control" bind:value={sysSNTP} disabled={!sysEnabled || !sysSNTPEnabled} /></div>
+                    <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysTimeFormatEnabled} disabled={!sysEnabled} />Time Format</label><select class="form-select" bind:value={sysTimeFormat} disabled={!sysEnabled || !sysTimeFormatEnabled}><option value="24h">24h</option><option value="12h">12h</option></select></div>
+                    <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysEcoEnabled} disabled={!sysEnabled} />Eco Mode</label><select class="form-select" bind:value={sysEco} disabled={!sysEnabled || !sysEcoEnabled}><option value={true}>On</option><option value={false}>Off</option></select></div>
+                    <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysDiscoverableEnabled} disabled={!sysEnabled} />Discoverable</label><select class="form-select" bind:value={sysDiscoverable} disabled={!sysEnabled || !sysDiscoverableEnabled}><option value={true}>On</option><option value={false}>Off</option></select></div>
+                  </div>
+                {/if}
               </div>
             </div>
 
             <div class="card bg-black border-secondary">
               <div class="card-body">
                 <label class="d-flex align-items-center gap-2 mb-3"><input type="checkbox" class="form-check-input" bind:checked={mqttEnabled} /> <strong>mqtt</strong> - MQTT Broker</label>
-                <div class="row g-2">
-                  <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttEnableField} disabled={!mqttEnabled} />Enable MQTT</label><select class="form-select" bind:value={mqttEnable} disabled={!mqttEnabled || !mqttEnableField}><option value={true}>On</option><option value={false}>Off</option></select></div>
-                  <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttServerEnabled} disabled={!mqttEnabled} />Broker</label><input class="form-control" bind:value={mqttServer} disabled={!mqttEnabled || !mqttServerEnabled} /></div>
-                  <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttClientIDEnabled} disabled={!mqttEnabled} />Client ID</label><input class="form-control" bind:value={mqttClientID} disabled={!mqttEnabled || !mqttClientIDEnabled} /></div>
-                  <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttTopicPrefixEnabled} disabled={!mqttEnabled} />Topic Prefix</label><input class="form-control" bind:value={mqttTopicPrefix} disabled={!mqttEnabled || !mqttTopicPrefixEnabled} /></div>
-                  <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttUserEnabled} disabled={!mqttEnabled} />Username</label><input class="form-control" bind:value={mqttUser} disabled={!mqttEnabled || !mqttUserEnabled} /></div>
-                  <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttPassEnabled} disabled={!mqttEnabled} />Password</label><input class="form-control" type="password" bind:value={mqttPass} disabled={!mqttEnabled || !mqttPassEnabled} /></div>
-                  <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttSSLCAEnabled} disabled={!mqttEnabled} />SSL CA</label><input class="form-control" bind:value={mqttSSLCA} disabled={!mqttEnabled || !mqttSSLCAEnabled} /></div>
-                  <div class="col-md-3"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttRPCNtfEnabled} disabled={!mqttEnabled} />RPC notifications</label><select class="form-select" bind:value={mqttRPCNtf} disabled={!mqttEnabled || !mqttRPCNtfEnabled}><option value={true}>On</option><option value={false}>Off</option></select></div>
-                  <div class="col-md-3"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttStatusNtfEnabled} disabled={!mqttEnabled} />Status updates</label><select class="form-select" bind:value={mqttStatusNtf} disabled={!mqttEnabled || !mqttStatusNtfEnabled}><option value={true}>On</option><option value={false}>Off</option></select></div>
-                  <div class="col-md-3"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttEnableRPCEnabled} disabled={!mqttEnabled} />Enable RPC</label><select class="form-select" bind:value={mqttEnableRPC} disabled={!mqttEnabled || !mqttEnableRPCEnabled}><option value={true}>On</option><option value={false}>Off</option></select></div>
-                  <div class="col-md-3"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttEnableControlEnabled} disabled={!mqttEnabled} />Enable control</label><select class="form-select" bind:value={mqttEnableControl} disabled={!mqttEnabled || !mqttEnableControlEnabled}><option value={true}>On</option><option value={false}>Off</option></select></div>
-                  <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttUseClientCertEnabled} disabled={!mqttEnabled} />Use Client Certificate</label><select class="form-select" bind:value={mqttUseClientCert} disabled={!mqttEnabled || !mqttUseClientCertEnabled}><option value={true}>On</option><option value={false}>Off</option></select></div>
-                </div>
+                {#if mqttExpanded}
+                  <div class="row g-2">
+                    <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttEnableField} disabled={!mqttEnabled} />Enable MQTT</label><select class="form-select" bind:value={mqttEnable} disabled={!mqttEnabled || !mqttEnableField}><option value={true}>On</option><option value={false}>Off</option></select></div>
+                    <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttServerEnabled} disabled={!mqttEnabled} />Broker</label><input class="form-control" bind:value={mqttServer} disabled={!mqttEnabled || !mqttServerEnabled} /></div>
+                    <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttClientIDEnabled} disabled={!mqttEnabled} />Client ID</label><input class="form-control" bind:value={mqttClientID} disabled={!mqttEnabled || !mqttClientIDEnabled} /></div>
+                    <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttTopicPrefixEnabled} disabled={!mqttEnabled} />Topic Prefix</label><input class="form-control" bind:value={mqttTopicPrefix} disabled={!mqttEnabled || !mqttTopicPrefixEnabled} /></div>
+                    <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttUserEnabled} disabled={!mqttEnabled} />Username</label><input class="form-control" bind:value={mqttUser} disabled={!mqttEnabled || !mqttUserEnabled} /></div>
+                    <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttPassEnabled} disabled={!mqttEnabled} />Password</label><input class="form-control" type="password" bind:value={mqttPass} disabled={!mqttEnabled || !mqttPassEnabled} /></div>
+                    <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttSSLCAEnabled} disabled={!mqttEnabled} />SSL CA</label><input class="form-control" bind:value={mqttSSLCA} disabled={!mqttEnabled || !mqttSSLCAEnabled} /></div>
+                    <div class="col-md-3"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttRPCNtfEnabled} disabled={!mqttEnabled} />RPC notifications</label><select class="form-select" bind:value={mqttRPCNtf} disabled={!mqttEnabled || !mqttRPCNtfEnabled}><option value={true}>On</option><option value={false}>Off</option></select></div>
+                    <div class="col-md-3"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttStatusNtfEnabled} disabled={!mqttEnabled} />Status updates</label><select class="form-select" bind:value={mqttStatusNtf} disabled={!mqttEnabled || !mqttStatusNtfEnabled}><option value={true}>On</option><option value={false}>Off</option></select></div>
+                    <div class="col-md-3"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttEnableRPCEnabled} disabled={!mqttEnabled} />Enable RPC</label><select class="form-select" bind:value={mqttEnableRPC} disabled={!mqttEnabled || !mqttEnableRPCEnabled}><option value={true}>On</option><option value={false}>Off</option></select></div>
+                    <div class="col-md-3"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttEnableControlEnabled} disabled={!mqttEnabled} />Enable control</label><select class="form-select" bind:value={mqttEnableControl} disabled={!mqttEnabled || !mqttEnableControlEnabled}><option value={true}>On</option><option value={false}>Off</option></select></div>
+                    <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttUseClientCertEnabled} disabled={!mqttEnabled} />Use Client Certificate</label><select class="form-select" bind:value={mqttUseClientCert} disabled={!mqttEnabled || !mqttUseClientCertEnabled}><option value={true}>On</option><option value={false}>Off</option></select></div>
+                  </div>
+                {/if}
               </div>
             </div>
 
-            <div class="card bg-black border-secondary"><div class="card-body"><label class="d-flex align-items-center gap-2 mb-3"><input type="checkbox" class="form-check-input" bind:checked={wsEnabled} /> <strong>ws</strong> - WebSocket (Gen 2+)</label><div class="row g-2"><div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={wsEnableField} disabled={!wsEnabled} />Enable WebSocket</label><select class="form-select" bind:value={wsEnable} disabled={!wsEnabled || !wsEnableField}><option value={true}>On</option><option value={false}>Off</option></select></div><div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={wsServerEnabled} disabled={!wsEnabled} />Server URL</label><input class="form-control" bind:value={wsServer} disabled={!wsEnabled || !wsServerEnabled} /></div><div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={wsSSLCAEnabled} disabled={!wsEnabled} />SSL CA</label><input class="form-control" bind:value={wsSSLCA} disabled={!wsEnabled || !wsSSLCAEnabled} /></div></div></div></div>
-            <div class="card bg-black border-secondary"><div class="card-body"><label class="d-flex align-items-center gap-2 mb-3"><input type="checkbox" class="form-check-input" bind:checked={bleEnabled} /> <strong>ble</strong> - Bluetooth (Gen 2+)</label><div class="row g-2"><div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={bleEnableField} disabled={!bleEnabled} />Enable BLE</label><select class="form-select" bind:value={bleEnable} disabled={!bleEnabled || !bleEnableField}><option value={true}>On</option><option value={false}>Off</option></select></div><div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={bleRPCEnabledField} disabled={!bleEnabled} />Enable RPC over BLE</label><select class="form-select" bind:value={bleRPCEnabled} disabled={!bleEnabled || !bleRPCEnabledField}><option value={true}>On</option><option value={false}>Off</option></select></div><div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={bleObserverEnabledField} disabled={!bleEnabled} />Observer Mode</label><select class="form-select" bind:value={bleObserverEnabled} disabled={!bleEnabled || !bleObserverEnabledField}><option value={true}>On</option><option value={false}>Off</option></select></div></div></div></div>
-            <div class="card bg-black border-secondary"><div class="card-body"><label class="d-flex align-items-center gap-2 mb-3"><input type="checkbox" class="form-check-input" bind:checked={matterEnabled} /> <strong>matter</strong> - Matter (Gen 2+)</label><div class="row g-2"><div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={matterEnableField} disabled={!matterEnabled} />Enable Matter</label><select class="form-select" bind:value={matterEnable} disabled={!matterEnabled || !matterEnableField}><option value={true}>On</option><option value={false}>Off</option></select></div></div></div></div>
-            <div class="card bg-black border-secondary"><div class="card-body"><label class="d-flex align-items-center gap-2 mb-3"><input type="checkbox" class="form-check-input" bind:checked={cloudEnabled} /> <strong>cloud</strong> - Shelly Cloud</label><div class="row g-2"><div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={cloudEnableField} disabled={!cloudEnabled} />Enable Cloud</label><select class="form-select" bind:value={cloudEnable} disabled={!cloudEnabled || !cloudEnableField}><option value={true}>On</option><option value={false}>Off</option></select></div></div></div></div>
-            <div class="card bg-black border-secondary"><div class="card-body"><label class="d-flex align-items-center gap-2 mb-3"><input type="checkbox" class="form-check-input" bind:checked={otaEnabled} /> <strong>ota</strong> - Firmware Update</label><div class="row g-2"><div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={otaStageEnabled} disabled={!otaEnabled} />Stage</label><select class="form-select" bind:value={otaStage} disabled={!otaEnabled || !otaStageEnabled}><option value="stable">Stable</option><option value="beta">Beta</option></select></div></div></div></div>
-            <div class="card bg-black border-secondary"><div class="card-body"><label class="d-flex align-items-center gap-2 mb-3"><input type="checkbox" class="form-check-input" bind:checked={authEnabled} /> <strong>auth</strong> - Set Device Password (Gen 2+)</label><div class="row g-2"><div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={authPassEnabled} disabled={!authEnabled} />Password</label><input class="form-control" type="password" bind:value={authPass} disabled={!authEnabled || !authPassEnabled} /></div></div></div></div>
-            <div class="card bg-black border-secondary"><div class="card-body"><label class="d-flex align-items-center gap-2 mb-3"><input type="checkbox" class="form-check-input" bind:checked={wifiEnabled} /> <strong>wifi</strong> - WiFi STA</label><div class="row g-2"><div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={wifiSTAEnabled} disabled={!wifiEnabled} />Enable STA</label><div class="text-secondary">On when section selected</div></div><div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={wifiSSIDEnabled} disabled={!wifiEnabled} />SSID</label><input class="form-control" bind:value={wifiSSID} disabled={!wifiEnabled || !wifiSSIDEnabled} /></div><div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={wifiPassEnabled} disabled={!wifiEnabled} />Password</label><input class="form-control" type="password" bind:value={wifiPass} disabled={!wifiEnabled || !wifiPassEnabled} /></div></div></div></div>
+            <div class="card bg-black border-secondary">
+              <div class="card-body">
+                <label class="d-flex align-items-center gap-2 mb-3"><input type="checkbox" class="form-check-input" bind:checked={wsEnabled} /> <strong>ws</strong> - WebSocket (Gen 2+)</label>
+                {#if wsExpanded}
+                  <div class="row g-2">
+                    <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={wsEnableField} disabled={!wsEnabled} />Enable WebSocket</label><select class="form-select" bind:value={wsEnable} disabled={!wsEnabled || !wsEnableField}><option value={true}>On</option><option value={false}>Off</option></select></div>
+                    <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={wsServerEnabled} disabled={!wsEnabled} />Server URL</label><input class="form-control" bind:value={wsServer} disabled={!wsEnabled || !wsServerEnabled} /></div>
+                    <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={wsSSLCAEnabled} disabled={!wsEnabled} />SSL CA</label><input class="form-control" bind:value={wsSSLCA} disabled={!wsEnabled || !wsSSLCAEnabled} /></div>
+                  </div>
+                {/if}
+              </div>
+            </div>
+
+            <div class="card bg-black border-secondary">
+              <div class="card-body">
+                <label class="d-flex align-items-center gap-2 mb-3"><input type="checkbox" class="form-check-input" bind:checked={bleEnabled} /> <strong>ble</strong> - Bluetooth (Gen 2+)</label>
+                {#if bleExpanded}
+                  <div class="row g-2">
+                    <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={bleEnableField} disabled={!bleEnabled} />Enable BLE</label><select class="form-select" bind:value={bleEnable} disabled={!bleEnabled || !bleEnableField}><option value={true}>On</option><option value={false}>Off</option></select></div>
+                    <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={bleRPCEnabledField} disabled={!bleEnabled} />Enable RPC over BLE</label><select class="form-select" bind:value={bleRPCEnabled} disabled={!bleEnabled || !bleRPCEnabledField}><option value={true}>On</option><option value={false}>Off</option></select></div>
+                    <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={bleObserverEnabledField} disabled={!bleEnabled} />Observer Mode</label><select class="form-select" bind:value={bleObserverEnabled} disabled={!bleEnabled || !bleObserverEnabledField}><option value={true}>On</option><option value={false}>Off</option></select></div>
+                  </div>
+                {/if}
+              </div>
+            </div>
+
+            <div class="card bg-black border-secondary">
+              <div class="card-body">
+                <label class="d-flex align-items-center gap-2 mb-3"><input type="checkbox" class="form-check-input" bind:checked={matterEnabled} /> <strong>matter</strong> - Matter (Gen 2+)</label>
+                {#if matterExpanded}
+                  <div class="row g-2">
+                    <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={matterEnableField} disabled={!matterEnabled} />Enable Matter</label><select class="form-select" bind:value={matterEnable} disabled={!matterEnabled || !matterEnableField}><option value={true}>On</option><option value={false}>Off</option></select></div>
+                  </div>
+                {/if}
+              </div>
+            </div>
+
+            <div class="card bg-black border-secondary">
+              <div class="card-body">
+                <label class="d-flex align-items-center gap-2 mb-3"><input type="checkbox" class="form-check-input" bind:checked={cloudEnabled} /> <strong>cloud</strong> - Shelly Cloud</label>
+                {#if cloudExpanded}
+                  <div class="row g-2">
+                    <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={cloudEnableField} disabled={!cloudEnabled} />Enable Cloud</label><select class="form-select" bind:value={cloudEnable} disabled={!cloudEnabled || !cloudEnableField}><option value={true}>On</option><option value={false}>Off</option></select></div>
+                  </div>
+                {/if}
+              </div>
+            </div>
+
+            <div class="card bg-black border-secondary">
+              <div class="card-body">
+                <label class="d-flex align-items-center gap-2 mb-3"><input type="checkbox" class="form-check-input" bind:checked={otaEnabled} /> <strong>ota</strong> - Firmware Update</label>
+                {#if otaExpanded}
+                  <div class="row g-2">
+                    <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={otaStageEnabled} disabled={!otaEnabled} />Stage</label><select class="form-select" bind:value={otaStage} disabled={!otaEnabled || !otaStageEnabled}><option value="stable">Stable</option><option value="beta">Beta</option></select></div>
+                  </div>
+                {/if}
+              </div>
+            </div>
+
+            <div class="card bg-black border-secondary">
+              <div class="card-body">
+                <label class="d-flex align-items-center gap-2 mb-3"><input type="checkbox" class="form-check-input" bind:checked={authEnabled} /> <strong>auth</strong> - Set Device Password (Gen 2+)</label>
+                {#if authExpanded}
+                  <div class="row g-2">
+                    <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={authPassEnabled} disabled={!authEnabled} />Password</label><input class="form-control" type="password" bind:value={authPass} disabled={!authEnabled || !authPassEnabled} /></div>
+                  </div>
+                {/if}
+              </div>
+            </div>
+
+            <div class="card bg-black border-secondary">
+              <div class="card-body">
+                <label class="d-flex align-items-center gap-2 mb-3"><input type="checkbox" class="form-check-input" bind:checked={wifiEnabled} /> <strong>wifi</strong> - WiFi STA</label>
+                {#if wifiExpanded}
+                  <div class="row g-2">
+                    <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={wifiSTAEnabled} disabled={!wifiEnabled} />Enable STA</label><div class="text-secondary">On when section selected</div></div>
+                    <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={wifiSSIDEnabled} disabled={!wifiEnabled} />SSID</label><input class="form-control" bind:value={wifiSSID} disabled={!wifiEnabled || !wifiSSIDEnabled} /></div>
+                    <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={wifiPassEnabled} disabled={!wifiEnabled} />Password</label><input class="form-control" type="password" bind:value={wifiPass} disabled={!wifiEnabled || !wifiPassEnabled} /></div>
+                  </div>
+                {/if}
+              </div>
+            </div>
           </div>
         {/if}
 
