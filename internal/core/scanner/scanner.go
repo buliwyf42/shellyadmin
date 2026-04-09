@@ -27,32 +27,45 @@ func ScanSubnets(ctx context.Context, subnets []string, concurrency int, timeout
 		}
 		ips = append(ips, expanded...)
 	}
-	sem := make(chan struct{}, concurrency)
+	if concurrency > len(ips) {
+		concurrency = len(ips)
+	}
+	if concurrency < 1 {
+		concurrency = 1
+	}
+	work := make(chan string)
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	results := make([]models.Device, 0)
 
-	for _, ip := range ips {
-		ip := ip
+	for i := 0; i < concurrency; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			select {
-			case <-ctx.Done():
-				return
-			case sem <- struct{}{}:
-			}
-			defer func() { <-sem }()
-			if d := ProbeDevice(ctx, ip, timeout, logFn); d != nil {
-				mu.Lock()
-				results = append(results, *d)
-				mu.Unlock()
-			}
-			if progressFn != nil {
-				progressFn()
+			for ip := range work {
+				select {
+				case <-ctx.Done():
+					if progressFn != nil {
+						progressFn()
+					}
+					continue
+				default:
+				}
+				if d := ProbeDevice(ctx, ip, timeout, logFn); d != nil {
+					mu.Lock()
+					results = append(results, *d)
+					mu.Unlock()
+				}
+				if progressFn != nil {
+					progressFn()
+				}
 			}
 		}()
 	}
+	for _, ip := range ips {
+		work <- ip
+	}
+	close(work)
 	wg.Wait()
 	return results
 }

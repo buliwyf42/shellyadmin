@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -115,30 +116,42 @@ func (s *AppService) runRefreshJob(ctx context.Context, jobID int64, done chan<-
 	settings.Normalize()
 	timeout := time.Duration(settings.ScanTimeout * float64(time.Second))
 	limit := boundedConcurrency(settings.ScanConcurrency)
-	sem := make(chan struct{}, limit)
+	if limit > len(devices) {
+		limit = len(devices)
+	}
+	if limit < 1 {
+		limit = 1
+	}
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	refreshed := make([]models.Device, 0, len(devices))
+	work := make(chan models.Device)
 	_ = s.db.UpdateJobProgress(jobID, 0, len(devices), "")
-	for _, device := range devices {
-		device := device
+
+	for i := 0; i < limit; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			select {
-			case <-ctx.Done():
-				return
-			case sem <- struct{}{}:
-			}
-			defer func() { <-sem }()
-			if found := scanner.ProbeDevice(ctx, device.IP, timeout, s.Log); found != nil {
-				mu.Lock()
-				refreshed = append(refreshed, *found)
-				mu.Unlock()
-			}
-			_ = s.db.IncrementJobDone(jobID)
+			for device := range work {
+				select {
+				case <-ctx.Done():
+					_ = s.db.IncrementJobDone(jobID)
+					continue
+				default:
+				}
+				if found := scanner.ProbeDevice(ctx, device.IP, timeout, s.Log); found != nil {
+					mu.Lock()
+					refreshed = append(refreshed, *found)
+					mu.Unlock()
+				}
+					_ = s.db.IncrementJobDone(jobID)
+				}
 		}()
 	}
+	for _, device := range devices {
+		work <- device
+	}
+	close(work)
 	wg.Wait()
 	if err := s.db.UpsertDevices(refreshed); err != nil {
 		_ = s.db.CompleteJob(jobID, "failed", "", err.Error(), len(devices), len(devices))
@@ -484,6 +497,15 @@ func (s *AppService) Provision(ctx context.Context, ips []string, template map[s
 	if len(ips) > maxProvisionIPs {
 		return nil, fmt.Errorf("too many devices requested")
 	}
+	for _, raw := range ips {
+		addr, err := netip.ParseAddr(strings.TrimSpace(raw))
+		if err != nil {
+			return nil, fmt.Errorf("invalid ip: %q", raw)
+		}
+		if !isProvisionTargetAllowed(addr) {
+			return nil, fmt.Errorf("provision target %q is not in an allowed local range", raw)
+		}
+	}
 	if err := ValidateTemplate(template); err != nil {
 		return nil, err
 	}
@@ -496,6 +518,15 @@ func (s *AppService) Provision(ctx context.Context, ips []string, template map[s
 		out = append(out, raw)
 	}
 	return out, nil
+}
+
+func isProvisionTargetAllowed(addr netip.Addr) bool {
+	// Block clearly unsafe destinations for server-side network calls.
+	if addr.IsLoopback() || addr.IsMulticast() || addr.IsUnspecified() {
+		return false
+	}
+	// Allow only local network targets (RFC1918/ULA and link-local).
+	return addr.IsPrivate() || addr.IsLinkLocalUnicast()
 }
 
 func (s *AppService) GetSettings() (models.AppSettings, error) {
