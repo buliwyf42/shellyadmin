@@ -29,8 +29,6 @@ npm run dev
 The Vite dev server listens on `5173` and proxies backend requests to `127.0.0.1:8080`:
 
 - `/api`
-- `/login`
-- `/logout`
 - `/health`
 
 Use the Vite URL for interactive frontend work:

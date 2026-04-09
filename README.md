@@ -99,7 +99,7 @@ npm install
 npm run dev
 ```
 
-The Vite dev server proxies `/api`, `/login`, `/logout`, and `/health` to the backend on `127.0.0.1:8080`.
+The Vite dev server proxies `/api` and `/health` to the backend on `127.0.0.1:8080`.
 
 Recommended native workflow:
 
