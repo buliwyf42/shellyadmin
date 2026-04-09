@@ -14,9 +14,11 @@ import (
 func Evaluate(dev models.Device, rules models.ComplianceRules) (bool, []string) {
 	var issues []string
 	skipMQTT := dev.Gen == 1 && dev.CloudConnected
+	deviceName := effectiveDeviceName(dev)
 
 	compareString := func(rule, got, label string) {
-		if rule != "" && rule != got {
+		expected := substituteTokens(rule, deviceName)
+		if expected != "" && expected != got {
 			issues = append(issues, fmt.Sprintf("%s mismatch", label))
 		}
 	}
@@ -69,12 +71,12 @@ func Evaluate(dev models.Device, rules models.ComplianceRules) (bool, []string) 
 	compareString(rules.TimeFormat, dev.TimeFormat, "time_format")
 	compareBoolPtr(rules.EcoMode, dev.EcoMode, "eco_mode")
 	compareBoolPtr(rules.Discoverable, dev.Discoverable, "discoverable")
-	evaluateCustomRules(&issues, dev, rules.CustomRules)
+	evaluateCustomRules(&issues, dev, rules.CustomRules, deviceName)
 
 	return len(issues) == 0, issues
 }
 
-func evaluateCustomRules(issues *[]string, dev models.Device, rules []models.CustomRule) {
+func evaluateCustomRules(issues *[]string, dev models.Device, rules []models.CustomRule, deviceName string) {
 	if len(rules) == 0 {
 		return
 	}
@@ -99,7 +101,8 @@ func evaluateCustomRules(issues *[]string, dev models.Device, rules []models.Cus
 			op = "eq"
 		}
 		value, found := lookupValue(source, dev, config, status, rule.Path)
-		if !checkOp(op, found, value, rule.Value) {
+		expected := substituteTokens(rule.Value, deviceName)
+		if !checkOp(op, found, value, expected) {
 			label := strings.TrimSpace(rule.Label)
 			if label == "" {
 				label = rule.Path
@@ -266,4 +269,18 @@ func hasMQTTFlag(flagsCSV, flagName string) bool {
 		}
 	}
 	return false
+}
+
+func substituteTokens(value, deviceName string) string {
+	return strings.ReplaceAll(value, "{device_name}", deviceName)
+}
+
+func effectiveDeviceName(dev models.Device) string {
+	if strings.TrimSpace(dev.Name) != "" {
+		return dev.Name
+	}
+	if strings.TrimSpace(dev.Serial) != "" {
+		return dev.Serial
+	}
+	return dev.MAC
 }
