@@ -25,15 +25,27 @@ The target architecture is documented in [docs/ARCHITECTURE.md](/Users/buliwyf/D
 - Supports both Gen1 and Gen2+ Shelly devices
 - Keeps risky actions manual and previewed
 
-## Planned Feature Set
+## Current Feature Set
 
-- Network scan and staging area for discovered devices
-- Device inventory and refresh
-- Compliance checking
-- Manual firmware check and update
-- Guided provisioning templates
-- Advanced raw provisioning mode
-- Export support for devices, logs, templates, and jobs
+- Scan with staging and explicit add-to-inventory
+- Device inventory table with sortable columns and per-user column visibility
+- Auto-refresh in Devices view (30s, 1m, 5m)
+- Per-device row actions in Devices view:
+  - immediate refresh
+  - delete/forget
+- Compliance status in Devices view with hover details
+- Gen-aware rendering for unsupported fields (for example WebSocket on Gen1)
+- Manual firmware check and update flow
+- Guided provisioning form plus JSON mode
+- Compliance rule editor (including `{device_name}` token matching)
+- Separate audit events and debug logs views
+
+## Planned / In Progress
+
+- Export flows for devices, logs, templates, and jobs
+- Stronger preview/validation flows for all risky actions
+- Advanced-mode gating in UI settings
+- Additional Docker network guidance surfaced in UI
 
 ## Project Structure
 

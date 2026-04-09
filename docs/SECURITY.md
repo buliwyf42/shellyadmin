@@ -29,9 +29,10 @@ It is not designed for:
 
 ## Request Handling
 
-- request size limits should be enforced on JSON endpoints
-- mutating operations should require explicit confirmation
-- risky operations should show a preview before execution
+- request size limits are enforced on JSON endpoints
+- mutating operations require authenticated session access
+- delete actions require explicit confirmation in UI
+- preview coverage for risky actions is still being expanded
 
 ## Logging
 
@@ -57,7 +58,7 @@ Current product decision:
 
 Required safeguards:
 
-- secret-bearing templates should be marked in the UI
+- secret-bearing templates should be clearly marked in the UI
 - exports should redact secret values by default
 - password-derived device auth material should remain ephemeral during execution
 

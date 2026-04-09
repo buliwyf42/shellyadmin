@@ -13,7 +13,7 @@ Core principles:
 - current observed state only
 - manual, previewed operations
 - guided provisioning first
-- advanced provisioning behind an explicit enablement step
+- advanced provisioning available via JSON mode
 - separate audit and debug logs
 
 ## Layers
@@ -56,7 +56,7 @@ Two modes:
 1. Guided mode
 2. Advanced mode
 
-Advanced mode must be opt-in and clearly marked.
+Current implementation exposes both modes directly in the Provision view.
 
 ## Logging
 
@@ -72,3 +72,12 @@ Primary target:
 Optional:
 
 - reverse proxy with TLS termination
+
+## UI Notes (Current)
+
+- Devices is the primary operational surface:
+  - sortable table
+  - configurable columns
+  - auto refresh
+  - per-row refresh/delete actions
+- Per-device compliance details are shown via the compliance badge hover in Devices.

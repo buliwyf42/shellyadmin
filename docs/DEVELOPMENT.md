@@ -81,8 +81,7 @@ Production should use:
 
 The architecture is documented, but some product-facing pieces are still in progress:
 
-- guided provisioning UX
-- advanced mode gating
-- export flows
-- Docker network guidance in the UI
-- richer preview flows for risky operations
+- export flows (devices, logs, templates, jobs)
+- advanced mode gating in settings
+- Docker networking guidance surfaced in UI
+- richer preview/dry-run flows for risky operations
