@@ -107,6 +107,7 @@ export const api = {
   getCredentialGroupAssignments: () => req<{ assignments: Record<string, string> }>('GET', '/api/credential-groups/assignments'),
   saveCredentialGroupAssignments: (macs: string[], groupName: string) => req<{ ok: true }>('POST', '/api/credential-groups/assignments', { macs, group_name: groupName }),
   getLogs: (level = '', search = '') => req<LogEntry[]>('GET', `/api/logs?level=${encodeURIComponent(level)}&search=${encodeURIComponent(search)}`),
+  clearLogs: () => req<{ ok: true; deleted: number }>('DELETE', '/api/logs'),
   exportBackup: (includeSecrets = false, confirm = '') => req<BackupExport>('GET', `/api/backup/export?include_secrets=${includeSecrets ? 'true' : 'false'}&confirm=${encodeURIComponent(confirm)}`),
   importBackup: (data: BackupExport, apply: boolean) => req<ImportReport>('POST', '/api/backup/import', { data, apply }),
 }

@@ -563,6 +563,18 @@ func (db *DB) GetLogs(level, search string) ([]LogEntry, error) {
 	return out, rows.Err()
 }
 
+func (db *DB) ClearLogs() (int64, error) {
+	res, err := db.sql.Exec(`DELETE FROM audit_log`)
+	if err != nil {
+		return 0, err
+	}
+	count, err := res.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 func now() string {
 	return time.Now().UTC().Format(time.RFC3339)
 }

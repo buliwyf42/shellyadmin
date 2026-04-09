@@ -6,9 +6,30 @@
   let level = ''
   let search = ''
   let logs: LogEntry[] = []
+  let busy = false
+  let notice = ''
+  let error = ''
 
   async function load() {
+    error = ''
     logs = await api.getLogs(level, search)
+  }
+
+  async function clearAll() {
+    const confirmed = window.confirm('Delete all logs? This cannot be undone.')
+    if (!confirmed) return
+    busy = true
+    error = ''
+    notice = ''
+    try {
+      const result = await api.clearLogs()
+      notice = `Deleted ${result.deleted} log entries.`
+      await load()
+    } catch (err) {
+      error = (err as Error).message
+    } finally {
+      busy = false
+    }
   }
 
   onMount(() => void load())
@@ -23,7 +44,15 @@
   </select>
   <input class="form-control" placeholder="Search logs" bind:value={search} />
   <button class="btn btn-warning text-dark" on:click={load}>Load</button>
+  <button class="btn btn-outline-danger" on:click={clearAll} disabled={busy}>Delete All Logs</button>
 </div>
+
+{#if notice}
+  <div class="alert alert-success py-2">{notice}</div>
+{/if}
+{#if error}
+  <div class="alert alert-danger py-2">{error}</div>
+{/if}
 
 <table class="table table-dark table-striped">
   <thead><tr><th>Timestamp</th><th>Level</th><th>Message</th></tr></thead>

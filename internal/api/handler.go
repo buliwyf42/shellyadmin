@@ -326,6 +326,15 @@ func (h *Handler) GetLogs(c *gin.Context) {
 	c.JSON(http.StatusOK, entries)
 }
 
+func (h *Handler) DeleteLogs(c *gin.Context) {
+	count, err := h.service.ClearLogs()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true, "deleted": count})
+}
+
 func (h *Handler) ListCredentials(c *gin.Context) {
 	credentials, err := h.service.ListCredentials()
 	if err != nil {

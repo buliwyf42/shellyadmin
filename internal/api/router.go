@@ -91,6 +91,7 @@ func NewRouter(database *db.DB, cfg Config) *gin.Engine {
 	auth.GET("/api/credential-groups/assignments", h.GetCredentialGroupAssignments)
 	auth.POST("/api/credential-groups/assignments", h.SaveCredentialGroupAssignments)
 	auth.GET("/api/logs", h.GetLogs)
+	auth.DELETE("/api/logs", h.DeleteLogs)
 	auth.GET("/api/backup/export", h.ExportBackup)
 	auth.POST("/api/backup/import", h.ImportBackup)
 	registerAppRoutes(auth, cfg)

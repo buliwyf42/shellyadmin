@@ -1192,6 +1192,10 @@ func (s *AppService) GetLogs(level, search string) ([]db.LogEntry, error) {
 	return s.db.GetLogs(level, search)
 }
 
+func (s *AppService) ClearLogs() (int64, error) {
+	return s.db.ClearLogs()
+}
+
 func (s *AppService) Log(level, msg string) {
 	s.logf(level, SanitizeLogMessage(msg))
 }
