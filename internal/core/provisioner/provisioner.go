@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -65,14 +66,44 @@ func identify(ctx context.Context, client *http.Client, ip string) (DeviceInfo, 
 func applySection(ctx context.Context, client *http.Client, ip string, gen int, serial, section string, raw interface{}) SectionResult {
 	payload, _ := raw.(map[string]interface{})
 	switch strings.ToLower(section) {
+	case "gen2_rpc":
+		if gen == 1 {
+			return SectionResult{Section: section, Status: "skipped", Detail: "gen2+ only"}
+		}
+		for method, item := range payload {
+			methodPayload, ok := item.(map[string]interface{})
+			if !ok {
+				return SectionResult{Section: section, Status: "failed", Detail: "method payload must be object"}
+			}
+			result := rpcSection(ctx, client, ip, method, methodPayload, section)
+			if result.Status != "ok" {
+				return result
+			}
+		}
+		return SectionResult{Section: section, Status: "ok", Detail: "gen2 methods applied"}
+	case "gen1_http":
+		if gen != 1 {
+			return SectionResult{Section: section, Status: "skipped", Detail: "gen1 only"}
+		}
+		for endpoint, item := range payload {
+			params, ok := item.(map[string]interface{})
+			if !ok {
+				return SectionResult{Section: section, Status: "failed", Detail: "endpoint params must be object"}
+			}
+			result := gen1HTTPSection(ctx, client, ip, endpoint, params, section)
+			if result.Status != "ok" {
+				return result
+			}
+		}
+		return SectionResult{Section: section, Status: "ok", Detail: "gen1 endpoints applied"}
 	case "mqtt":
 		if gen == 1 {
-			return SectionResult{Section: section, Status: "skipped", Detail: "gen1 mqtt templating not fully supported"}
+			return gen1HTTPSection(ctx, client, ip, "settings/mqtt", payload, section)
 		}
 		return rpcSection(ctx, client, ip, "MQTT.SetConfig", payload, section)
 	case "sys":
 		if gen == 1 {
-			return SectionResult{Section: section, Status: "skipped", Detail: "gen1 sys templating limited to setters"}
+			return gen1HTTPSection(ctx, client, ip, "settings", payload, section)
 		}
 		return rpcSection(ctx, client, ip, "Sys.SetConfig", payload, section)
 	case "ws":
@@ -135,6 +166,43 @@ func applySection(ctx context.Context, client *http.Client, ip string, gen int, 
 		}
 		method := strings.ToUpper(section[:1]) + section[1:] + ".SetConfig"
 		return rpcSection(ctx, client, ip, method, payload, section)
+	}
+}
+
+func gen1HTTPSection(ctx context.Context, client *http.Client, ip, endpoint string, payload map[string]interface{}, section string) SectionResult {
+	values := url.Values{}
+	for key, raw := range payload {
+		values.Set(key, gen1Value(raw))
+	}
+	target := "http://" + ip + "/" + strings.TrimPrefix(endpoint, "/")
+	if encoded := values.Encode(); encoded != "" {
+		target += "?" + encoded
+	}
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+	resp, err := client.Do(req)
+	if err != nil {
+		return SectionResult{Section: section, Status: "failed", Detail: err.Error()}
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		return SectionResult{Section: section, Status: "failed", Detail: resp.Status}
+	}
+	return SectionResult{Section: section, Status: "ok", Detail: endpoint}
+}
+
+func gen1Value(v interface{}) string {
+	switch value := v.(type) {
+	case bool:
+		if value {
+			return "true"
+		}
+		return "false"
+	case string:
+		return value
+	case float64:
+		return strings.TrimRight(strings.TrimRight(fmt.Sprintf("%.6f", value), "0"), ".")
+	default:
+		return fmt.Sprint(value)
 	}
 }
 

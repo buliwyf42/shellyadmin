@@ -105,7 +105,7 @@ func (db *DB) ListDevices() ([]models.Device, error) {
 		consecutive_misses, mqtt_enabled, mqtt_server, mqtt_client_id, mqtt_topic_prefix, mqtt_flags_na,
 		lat, lon, tz, ws_enabled, ws_server, ble_gw_enabled, wifi_ssid, fw_status, fw_available_ver,
 		cloud_enabled, cloud_connected, ws_connected, matter_enabled, time_format, sntp_server, serial,
-		eco_mode, discoverable
+		eco_mode, discoverable, raw_config, raw_status
 		FROM devices ORDER BY device_num ASC`)
 	if err != nil {
 		return nil, err
@@ -119,7 +119,7 @@ func (db *DB) ListDevices() ([]models.Device, error) {
 			&d.ConsecutiveMisses, &d.MQTTEnabled, &d.MQTTServer, &d.MQTTClientID, &d.MQTTTopicPrefix, &d.MQTTFlagsNA,
 			&d.Lat, &d.Lon, &d.TZ, &d.WSEnabled, &d.WSServer, &d.BLEGWEnabled, &d.WiFiSSID, &d.FWStatus, &d.FWAvailableVer,
 			&d.CloudEnabled, &cloudConnected, &wsConnected, &d.MatterEnabled, &d.TimeFormat, &d.SNTPServer, &d.Serial,
-			&d.EcoMode, &d.Discoverable); err != nil {
+			&d.EcoMode, &d.Discoverable, &d.RawConfig, &d.RawStatus); err != nil {
 			return nil, err
 		}
 		d.Online = online == 1
@@ -184,8 +184,8 @@ func (db *DB) upsertDevice(d models.Device) error {
 		mac, ip, name, model, fw, gen, online, last_seen, first_seen, device_num, consecutive_misses,
 		mqtt_enabled, mqtt_server, mqtt_client_id, mqtt_topic_prefix, mqtt_flags_na, lat, lon, tz,
 		ws_enabled, ws_server, ble_gw_enabled, wifi_ssid, fw_status, fw_available_ver, cloud_enabled,
-		cloud_connected, ws_connected, matter_enabled, time_format, sntp_server, serial, eco_mode, discoverable
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		cloud_connected, ws_connected, matter_enabled, time_format, sntp_server, serial, eco_mode, discoverable, raw_config, raw_status
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	ON CONFLICT(mac) DO UPDATE SET
 		ip=excluded.ip, name=excluded.name, model=excluded.model, fw=excluded.fw, gen=excluded.gen,
 		online=excluded.online, last_seen=excluded.last_seen, first_seen=excluded.first_seen,
@@ -198,11 +198,12 @@ func (db *DB) upsertDevice(d models.Device) error {
 		cloud_enabled=excluded.cloud_enabled, cloud_connected=excluded.cloud_connected,
 		ws_connected=excluded.ws_connected, matter_enabled=excluded.matter_enabled,
 		time_format=excluded.time_format, sntp_server=excluded.sntp_server, serial=excluded.serial,
-		eco_mode=excluded.eco_mode, discoverable=excluded.discoverable`,
+		eco_mode=excluded.eco_mode, discoverable=excluded.discoverable,
+		raw_config=excluded.raw_config, raw_status=excluded.raw_status`,
 		d.MAC, d.IP, d.Name, d.Model, d.FW, d.Gen, boolToInt(d.Online), d.LastSeen, d.FirstSeen, d.DeviceNum, d.ConsecutiveMisses,
 		d.MQTTEnabled, d.MQTTServer, d.MQTTClientID, d.MQTTTopicPrefix, d.MQTTFlagsNA, d.Lat, d.Lon, d.TZ,
 		d.WSEnabled, d.WSServer, d.BLEGWEnabled, d.WiFiSSID, d.FWStatus, d.FWAvailableVer, d.CloudEnabled,
-		boolToInt(d.CloudConnected), boolToInt(d.WSConnected), d.MatterEnabled, d.TimeFormat, d.SNTPServer, d.Serial, d.EcoMode, d.Discoverable)
+		boolToInt(d.CloudConnected), boolToInt(d.WSConnected), d.MatterEnabled, d.TimeFormat, d.SNTPServer, d.Serial, d.EcoMode, d.Discoverable, d.RawConfig, d.RawStatus)
 	return err
 }
 

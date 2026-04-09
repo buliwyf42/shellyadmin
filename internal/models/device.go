@@ -37,4 +37,6 @@ type Device struct {
 	Serial            string   `json:"serial"`
 	Compliant         bool     `json:"compliant"`
 	ComplianceIssues  []string `json:"compliance_issues"`
+	RawConfig         string   `json:"-"`
+	RawStatus         string   `json:"-"`
 }

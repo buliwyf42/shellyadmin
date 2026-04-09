@@ -134,6 +134,8 @@ func probeGen2(ctx context.Context, client *http.Client, ip string, dev *models.
 	config := rpcCall(ctx, client, ip, "Shelly.GetConfig", nil)
 	status := rpcCall(ctx, client, ip, "Shelly.GetStatus", nil)
 	kvs := rpcCall(ctx, client, ip, "KVS.Get", map[string]any{"key": "units"})
+	dev.RawConfig = marshalMap(config)
+	dev.RawStatus = marshalMap(status)
 
 	if sys, ok := config["sys"].(map[string]any); ok {
 		if device, ok := sys["device"].(map[string]any); ok {
@@ -196,6 +198,8 @@ func probeGen2(ctx context.Context, client *http.Client, ip string, dev *models.
 func probeGen1(ctx context.Context, client *http.Client, ip string, dev *models.Device, logFn func(level, msg string)) {
 	status, _ := getJSONMap(ctx, client, "http://"+ip+"/status")
 	settings, _ := getJSONMap(ctx, client, "http://"+ip+"/settings")
+	dev.RawConfig = marshalMap(settings)
+	dev.RawStatus = marshalMap(status)
 	if wifi, ok := status["wifi_sta"].(map[string]any); ok {
 		dev.WiFiSSID = firstString(wifi["ssid"], "")
 	}
@@ -266,6 +270,17 @@ func getJSONMap(ctx context.Context, client *http.Client, url string) (map[strin
 	var out map[string]any
 	err = json.NewDecoder(resp.Body).Decode(&out)
 	return out, err
+}
+
+func marshalMap(data map[string]any) string {
+	if len(data) == 0 {
+		return ""
+	}
+	encoded, err := json.Marshal(data)
+	if err != nil {
+		return ""
+	}
+	return string(encoded)
 }
 
 func normalizeMAC(raw string) string {

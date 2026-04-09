@@ -59,6 +59,17 @@ export interface ComplianceRules {
   time_format?: string
   eco_mode?: boolean | null
   discoverable?: boolean | null
+  custom_rules?: CustomRule[]
+}
+
+export interface CustomRule {
+  label: string
+  source: 'device' | 'config' | 'status'
+  path: string
+  op: 'eq' | 'ne' | 'contains' | 'regex' | 'exists'
+  value: string
+  gen_min: number
+  gen_max: number
 }
 
 export interface AppSettings {
