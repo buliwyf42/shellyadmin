@@ -202,7 +202,7 @@
 </script>
 
 <div class="row g-3">
-  <div class="col-lg-8">
+  <div class="col-lg-6">
     <div class="card bg-dark border-secondary">
       <div class="card-body">
         <h2 class="h5">Compliance Rules</h2>
@@ -344,7 +344,7 @@
     </div>
   </div>
 
-  <div class="col-lg-4">
+  <div class="col-lg-6">
     <div class="card bg-dark border-info">
       <div class="card-body">
         <h2 class="h6">Summary</h2>
@@ -354,45 +354,45 @@
         <p class="text-secondary mb-0">Gen1 cloud-connected devices skip MQTT checks by design.</p>
       </div>
     </div>
+
+    <div class="card bg-dark border-secondary mt-3">
+      <div class="card-body">
+        <h2 class="h5">Compliance Results</h2>
+        {#if loading}
+          <div class="text-secondary">Loading compliance results...</div>
+        {:else if sortedDevices.length === 0}
+          <div class="alert alert-secondary mb-0">No enrolled devices available for compliance checks yet.</div>
+        {:else}
+          <div class="table-responsive">
+            <table class="table table-dark table-striped align-middle table-nowrap">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>IP</th>
+                  <th>Type</th>
+                  <th>Status</th>
+                  <th>Issues</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each sortedDevices as device}
+                  <tr>
+                    <td>{device.name || device.serial || device.mac}</td>
+                    <td><a href={`http://${device.ip}`} target="_blank" rel="noreferrer" class="text-decoration-none">{device.ip}</a></td>
+                    <td>{device.gen <= 1 ? 'Gen 1.x' : `Gen ${device.gen}.x`}</td>
+                    <td><ComplianceBadge compliant={device.compliant} issues={device.compliance_issues} /></td>
+                    <td>{device.compliance_issues?.join(', ') || 'No issues'}</td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+        {/if}
+      </div>
+    </div>
   </div>
 </div>
 
 {#if error}
   <div class="alert alert-danger mt-3">{error}</div>
 {/if}
-
-<div class="card bg-dark border-secondary mt-3">
-  <div class="card-body">
-    <h2 class="h5">Compliance Results</h2>
-    {#if loading}
-      <div class="text-secondary">Loading compliance results...</div>
-    {:else if sortedDevices.length === 0}
-      <div class="alert alert-secondary mb-0">No enrolled devices available for compliance checks yet.</div>
-    {:else}
-      <div class="table-responsive">
-        <table class="table table-dark table-striped align-middle table-nowrap">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>IP</th>
-              <th>Type</th>
-              <th>Status</th>
-              <th>Issues</th>
-            </tr>
-          </thead>
-          <tbody>
-            {#each sortedDevices as device}
-              <tr>
-                <td>{device.name || device.serial || device.mac}</td>
-                <td><a href={`http://${device.ip}`} target="_blank" rel="noreferrer" class="text-decoration-none">{device.ip}</a></td>
-                <td>{device.gen <= 1 ? 'Gen 1.x' : `Gen ${device.gen}.x`}</td>
-                <td><ComplianceBadge compliant={device.compliant} issues={device.compliance_issues} /></td>
-                <td>{device.compliance_issues?.join(', ') || 'No issues'}</td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
-    {/if}
-  </div>
-</div>
