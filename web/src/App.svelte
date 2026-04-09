@@ -9,6 +9,7 @@
   import CompliancePage from './pages/Compliance.svelte'
   import SettingsPage from './pages/Settings.svelte'
   import LogsPage from './pages/Logs.svelte'
+  import AboutPage from './pages/About.svelte'
 
   const routes = {
     '/login': LoginPage,
@@ -19,6 +20,7 @@
     '/compliance': CompliancePage,
     '/settings': SettingsPage,
     '/logs': LogsPage,
+    '/about': AboutPage,
   } as const
 
   $: Page = routes[$currentPath as keyof typeof routes] ?? DevicesPage

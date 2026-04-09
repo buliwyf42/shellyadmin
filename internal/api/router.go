@@ -97,7 +97,7 @@ func NewRouter(database *db.DB, cfg Config) *gin.Engine {
 }
 
 func registerAppRoutes(auth *gin.RouterGroup, cfg Config) {
-	for _, path := range []string{"/", "/scan", "/firmware", "/provision", "/compliance", "/settings", "/logs"} {
+	for _, path := range []string{"/", "/scan", "/firmware", "/provision", "/compliance", "/settings", "/logs", "/about"} {
 		auth.GET(path, func(c *gin.Context) {
 			serveSPA(c, cfg)
 		})

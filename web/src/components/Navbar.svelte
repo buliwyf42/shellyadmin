@@ -1,6 +1,7 @@
 <script lang="ts">
   import { api } from '../lib/api'
   import { currentPath } from '../lib/stores'
+  import { APP_VERSION } from '../lib/version'
 
   const links = [
     ['/', 'Devices'],
@@ -10,6 +11,7 @@
     ['/provision', 'Provision'],
     ['/settings', 'Settings'],
     ['/logs', 'Logs'],
+    ['/about', 'About'],
   ] as const
 
   async function logout() {
@@ -22,6 +24,7 @@
   <div class="container-fluid">
     <a href="/" class="navbar-brand btn btn-link text-decoration-none text-light fw-bold">
       ShellyAdmin
+      <span class="badge bg-secondary ms-2">v{APP_VERSION}</span>
     </a>
     <div class="navbar-nav flex-wrap">
       {#each links as [path, label]}
