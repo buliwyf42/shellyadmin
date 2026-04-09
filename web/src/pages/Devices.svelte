@@ -1,20 +1,17 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { api } from '../lib/api'
-  import { colVis, deviceColumns, devices } from '../lib/stores'
+  import { colVis, deviceColumns, devices, refreshInterval } from '../lib/stores'
   import type { Device } from '../lib/types'
   import ComplianceBadge from '../components/ComplianceBadge.svelte'
 
   let filter = ''
-  let selected = new Set<string>()
   let loading = false
   let error = ''
-  let bulkAction = 'set_24h'
-  let bulkValue = ''
-  let bulkEnabled = true
   let showColumns = false
   let sortKey = 'device_num'
   let sortDir: 'asc' | 'desc' = 'asc'
+  let autoRefreshTimer: ReturnType<typeof setInterval> | null = null
 
   async function load(refresh = false) {
     loading = true
@@ -26,21 +23,6 @@
     } finally {
       loading = false
     }
-  }
-
-  async function applyBulk() {
-    const macs = [...selected]
-    const payload: Record<string, unknown> = { action: bulkAction, macs }
-    if (bulkAction === 'set_location') Object.assign(payload, { lat: 52.52, lon: 13.4 })
-    if (bulkAction === 'set_timezone' || bulkAction === 'set_mqtt_server') payload.value = bulkValue
-    if (bulkAction === 'set_mqtt_enabled') payload.enabled = bulkEnabled
-    await api.bulk(payload)
-    await load(true)
-  }
-
-  function toggle(mac: string, checked: boolean) {
-    checked ? selected.add(mac) : selected.delete(mac)
-    selected = new Set(selected)
   }
 
   function toggleColumn(key: string, checked: boolean) {
@@ -116,6 +98,42 @@
     }).format(date)
   }
 
+  function formatSeen(value: string): string {
+    if (!value) return 'n/a'
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return value
+    const age = Date.now() - date.getTime()
+    if (age < 0) return formatDateIntl(value)
+    if (age < 60_000) return 'just now'
+    if (age < 3_600_000) {
+      const minutes = Math.floor(age / 60_000)
+      return `${minutes}m ago`
+    }
+    if (age < 86_400_000) {
+      const hours = Math.floor(age / 3_600_000)
+      const minutes = Math.floor((age % 3_600_000) / 60_000)
+      if (minutes === 0) return `${hours}h ago`
+      return `${hours}h ${minutes}m ago`
+    }
+    return formatDateIntl(value)
+  }
+
+  function clearAutoRefresh(): void {
+    if (autoRefreshTimer) {
+      clearInterval(autoRefreshTimer)
+      autoRefreshTimer = null
+    }
+  }
+
+  function setupAutoRefresh(intervalMs: number): void {
+    clearAutoRefresh()
+    if (intervalMs > 0) {
+      autoRefreshTimer = setInterval(() => {
+        void load(true)
+      }, intervalMs)
+    }
+  }
+
   function compare(a: Device, b: Device, key: string): number {
     switch (key) {
       case 'device_num':
@@ -187,33 +205,25 @@
     return sortDir === 'asc' ? result : -result
   })
 
-  onMount(() => void load())
+  $: setupAutoRefresh($refreshInterval)
+
+  onMount(() => {
+    void load()
+    return () => clearAutoRefresh()
+  })
 </script>
 
 <div class="d-flex justify-content-between align-items-center mb-3 gap-3 flex-wrap">
   <div class="d-flex gap-2 flex-wrap">
     <button class="btn btn-warning text-dark" on:click={() => load(true)} disabled={loading}>Refresh</button>
+    <select class="form-select" bind:value={$refreshInterval} style="width: 12rem">
+      <option value={0}>Auto refresh: Off</option>
+      <option value={30000}>Auto refresh: 30 sec</option>
+      <option value={60000}>Auto refresh: 1 min</option>
+      <option value={300000}>Auto refresh: 5 min</option>
+    </select>
     <button class="btn btn-outline-light" on:click={() => showColumns = !showColumns}>{showColumns ? 'Hide Columns' : 'Columns'}</button>
     <input class="form-control" placeholder="Filter name / IP / MAC / model" bind:value={filter} style="width: 20rem" />
-  </div>
-  <div class="d-flex gap-2 flex-wrap">
-    <select class="form-select" bind:value={bulkAction}>
-      <option value="set_24h">Set 24h</option>
-      <option value="set_timezone">Set Timezone</option>
-      <option value="set_mqtt_server">Set MQTT Broker</option>
-      <option value="set_mqtt_enabled">Enable/Disable MQTT</option>
-      <option value="set_location">Set Location</option>
-    </select>
-    {#if bulkAction === 'set_timezone' || bulkAction === 'set_mqtt_server'}
-      <input class="form-control" bind:value={bulkValue} />
-    {/if}
-    {#if bulkAction === 'set_mqtt_enabled'}
-      <select class="form-select" bind:value={bulkEnabled}>
-        <option value={true}>Enable</option>
-        <option value={false}>Disable</option>
-      </select>
-    {/if}
-    <button class="btn btn-outline-light" on:click={applyBulk} disabled={selected.size === 0}>Apply to {selected.size}</button>
   </div>
 </div>
 
@@ -248,7 +258,6 @@
   <table class="table table-dark table-striped align-middle table-nowrap">
     <thead>
       <tr>
-        <th></th>
         {#if $colVis.device_num}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('device_num')}>{sortLabel('#', 'device_num')}</button></th>{/if}
         {#if $colVis.name}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('name')}>{sortLabel('Name', 'name')}</button></th>{/if}
         {#if $colVis.ip}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('ip')}>{sortLabel('IP', 'ip')}</button></th>{/if}
@@ -281,43 +290,47 @@
     <tbody>
       {#each sorted as device}
         <tr>
-          <td><input class="form-check-input" type="checkbox" checked={selected.has(device.mac)} on:change={(e) => toggle(device.mac, (e.currentTarget as HTMLInputElement).checked)} /></td>
           {#if $colVis.device_num}<td>{String(device.device_num).padStart(3, '0')}</td>{/if}
           {#if $colVis.name}<td>{device.name || device.serial || device.mac}</td>{/if}
           {#if $colVis.ip}<td><a href={`http://${device.ip}`} target="_blank" rel="noreferrer" class="text-decoration-none">{device.ip}</a></td>{/if}
           {#if $colVis.mac}<td class="font-monospace">{device.mac}</td>{/if}
           {#if $colVis.gen}<td><span class={`badge ${supportClass(device)}`} title={supportTitle(device)}>{generationLabel(device)}</span></td>{/if}
-          {#if $colVis.model}<td>{device.model || 'n/a'}</td>{/if}
-          {#if $colVis.fw}<td>{device.fw || 'n/a'} {#if device.fw_available_ver}<span class="badge bg-info text-dark">↑ {device.fw_available_ver}</span>{/if}</td>{/if}
+          {#if $colVis.model}<td>{#if device.model}{device.model}{:else}<span class="text-secondary">n/a</span>{/if}</td>{/if}
+          {#if $colVis.fw}
+            <td>
+              {#if device.fw}{device.fw}{:else}<span class="text-secondary">n/a</span>{/if}
+              {#if device.fw_available_ver}<span class="badge bg-info text-dark">↑ {device.fw_available_ver}</span>{/if}
+            </td>
+          {/if}
           {#if $colVis.online}<td><span class={`badge ${statusBadgeClass(device.online)}`}>{statusText(device.online, 'Online', 'Offline')}</span></td>{/if}
-          {#if $colVis.wifi_ssid}<td>{device.wifi_ssid || 'n/a'}</td>{/if}
+          {#if $colVis.wifi_ssid}<td>{#if device.wifi_ssid}{device.wifi_ssid}{:else}<span class="text-secondary">n/a</span>{/if}</td>{/if}
           {#if $colVis.mqtt_enabled}
             <td><span class={`badge ${mqttManagedByCloud(device) ? 'bg-secondary' : statusBadgeClass(device.mqtt_enabled)}`}>{mqttManagedByCloud(device) ? 'cloud-managed' : statusText(device.mqtt_enabled)}</span></td>
           {/if}
-          {#if $colVis.mqtt_server}<td>{mqttManagedByCloud(device) ? 'cloud-managed' : device.mqtt_server || 'n/a'}</td>{/if}
-          {#if $colVis.mqtt_client_id}<td>{mqttManagedByCloud(device) ? 'cloud-managed' : device.mqtt_client_id || 'n/a'}</td>{/if}
-          {#if $colVis.mqtt_topic_prefix}<td>{mqttManagedByCloud(device) ? 'cloud-managed' : device.mqtt_topic_prefix || 'n/a'}</td>{/if}
+          {#if $colVis.mqtt_server}<td>{#if mqttManagedByCloud(device)}cloud-managed{:else if device.mqtt_server}{device.mqtt_server}{:else}<span class="text-secondary">n/a</span>{/if}</td>{/if}
+          {#if $colVis.mqtt_client_id}<td>{#if mqttManagedByCloud(device)}cloud-managed{:else if device.mqtt_client_id}{device.mqtt_client_id}{:else}<span class="text-secondary">n/a</span>{/if}</td>{/if}
+          {#if $colVis.mqtt_topic_prefix}<td>{#if mqttManagedByCloud(device)}cloud-managed{:else if device.mqtt_topic_prefix}{device.mqtt_topic_prefix}{:else}<span class="text-secondary">n/a</span>{/if}</td>{/if}
           {#if $colVis.cloud_connected}<td><span class={`badge ${statusBadgeClass(device.cloud_connected)}`}>{statusText(device.cloud_connected, 'Connected', 'Off')}</span></td>{/if}
           {#if $colVis.ws_connected}
             <td>
               {#if supportsWebSocket(device)}
                 <span class={`badge ${statusBadgeClass(device.ws_connected)}`}>{statusText(device.ws_connected, 'Connected', 'Off')}</span>
               {:else}
-                <span class="badge bg-secondary">n/a</span>
+                <span class="badge bg-secondary" title="WebSocket is not available on Gen1">🔒</span>
               {/if}
             </td>
           {/if}
-          {#if $colVis.tz}<td>{device.tz || 'n/a'}</td>{/if}
-          {#if $colVis.time_format}<td>{device.time_format || 'n/a'}</td>{/if}
-          {#if $colVis.sntp_server}<td>{device.sntp_server || 'n/a'}</td>{/if}
-          {#if $colVis.serial}<td class="font-monospace">{device.serial || 'n/a'}</td>{/if}
+          {#if $colVis.tz}<td>{#if device.tz}{device.tz}{:else}<span class="text-secondary">n/a</span>{/if}</td>{/if}
+          {#if $colVis.time_format}<td>{#if device.time_format}{device.time_format}{:else}<span class="text-secondary">n/a</span>{/if}</td>{/if}
+          {#if $colVis.sntp_server}<td>{#if device.sntp_server}{device.sntp_server}{:else}<span class="text-secondary">n/a</span>{/if}</td>{/if}
+          {#if $colVis.serial}<td class="font-monospace">{#if device.serial}{device.serial}{:else}<span class="text-secondary">n/a</span>{/if}</td>{/if}
           {#if $colVis.matter_enabled}<td><span class={`badge ${statusBadgeClass(device.matter_enabled)}`}>{statusText(device.matter_enabled)}</span></td>{/if}
           {#if $colVis.ble_gw_enabled}<td><span class={`badge ${statusBadgeClass(device.ble_gw_enabled)}`}>{statusText(device.ble_gw_enabled)}</span></td>{/if}
-          {#if $colVis.coords}<td>{formatCoords(device)}</td>{/if}
+          {#if $colVis.coords}<td>{#if formatCoords(device) !== 'n/a'}{formatCoords(device)}{:else}<span class="text-secondary">n/a</span>{/if}</td>{/if}
           {#if $colVis.eco_mode}<td><span class={`badge ${statusBadgeClass(device.eco_mode)}`}>{statusText(device.eco_mode)}</span></td>{/if}
           {#if $colVis.discoverable}<td><span class={`badge ${statusBadgeClass(device.discoverable)}`}>{statusText(device.discoverable)}</span></td>{/if}
-          {#if $colVis.first_seen}<td>{formatDateIntl(device.first_seen)}</td>{/if}
-          {#if $colVis.last_seen}<td>{formatDateIntl(device.last_seen)}</td>{/if}
+          {#if $colVis.first_seen}<td title={formatDateIntl(device.first_seen)}>{formatSeen(device.first_seen)}</td>{/if}
+          {#if $colVis.last_seen}<td title={formatDateIntl(device.last_seen)}>{formatSeen(device.last_seen)}</td>{/if}
           {#if $colVis.compliance}<td><ComplianceBadge compliant={device.compliant} issues={device.compliance_issues} /></td>{/if}
         </tr>
       {/each}
