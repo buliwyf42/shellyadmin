@@ -17,8 +17,7 @@ func Evaluate(dev models.Device, rules models.ComplianceRules) (bool, []string) 
 	deviceName := effectiveDeviceName(dev)
 
 	compareString := func(rule, got, label string) {
-		expected := substituteTokens(rule, deviceName)
-		if expected != "" && expected != got {
+		if !matchesRuleString(rule, got, deviceName) {
 			issues = append(issues, fmt.Sprintf("%s mismatch", label))
 		}
 	}
@@ -273,6 +272,28 @@ func hasMQTTFlag(flagsCSV, flagName string) bool {
 
 func substituteTokens(value, deviceName string) string {
 	return strings.ReplaceAll(value, "{device_name}", deviceName)
+}
+
+func matchesRuleString(rule, got, deviceName string) bool {
+	rule = strings.TrimSpace(rule)
+	if rule == "" {
+		return true
+	}
+	got = strings.TrimSpace(got)
+	expected := strings.TrimSpace(substituteTokens(rule, deviceName))
+	if expected == got {
+		return true
+	}
+	if !strings.Contains(rule, "{device_name}") {
+		return false
+	}
+	pattern := "^" + regexp.QuoteMeta(rule) + "$"
+	pattern = strings.ReplaceAll(pattern, regexp.QuoteMeta("{device_name}"), `.+`)
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return false
+	}
+	return re.MatchString(got)
 }
 
 func effectiveDeviceName(dev models.Device) string {
