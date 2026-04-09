@@ -17,32 +17,32 @@
   let viewMode: 'form' | 'json' = 'form'
   let jsonText = '{}'
 
-  let sysEnabled = true
-  let sysNameEnabled = true
+  let sysEnabled = false
+  let sysNameEnabled = false
   let sysName = '{device_name}'
-  let sysTZEnabled = true
+  let sysTZEnabled = false
   let sysTZ = 'Europe/Berlin'
   let sysLatEnabled = false
   let sysLat = ''
   let sysLonEnabled = false
   let sysLon = ''
-  let sysSNTPEnabled = true
+  let sysSNTPEnabled = false
   let sysSNTP = 'time.cloudflare.com'
-  let sysTimeFormatEnabled = true
+  let sysTimeFormatEnabled = false
   let sysTimeFormat: '24h' | '12h' = '24h'
   let sysEcoEnabled = false
   let sysEco = false
   let sysDiscoverableEnabled = false
   let sysDiscoverable = true
 
-  let mqttEnabled = true
-  let mqttEnableField = true
+  let mqttEnabled = false
+  let mqttEnableField = false
   let mqttEnable = true
-  let mqttServerEnabled = true
+  let mqttServerEnabled = false
   let mqttServer = 'mqtt.home:1883'
-  let mqttClientIDEnabled = true
+  let mqttClientIDEnabled = false
   let mqttClientID = '{device_name}'
-  let mqttTopicPrefixEnabled = true
+  let mqttTopicPrefixEnabled = false
   let mqttTopicPrefix = 'shelly/{device_name}'
   let mqttUserEnabled = false
   let mqttUser = ''
@@ -50,27 +50,27 @@
   let mqttPass = ''
   let mqttSSLCAEnabled = false
   let mqttSSLCA = ''
-  let mqttRPCNtfEnabled = true
+  let mqttRPCNtfEnabled = false
   let mqttRPCNtf = true
-  let mqttStatusNtfEnabled = true
+  let mqttStatusNtfEnabled = false
   let mqttStatusNtf = true
-  let mqttEnableRPCEnabled = true
+  let mqttEnableRPCEnabled = false
   let mqttEnableRPC = true
-  let mqttEnableControlEnabled = true
+  let mqttEnableControlEnabled = false
   let mqttEnableControl = true
   let mqttUseClientCertEnabled = false
   let mqttUseClientCert = false
 
   let wsEnabled = false
-  let wsEnableField = true
+  let wsEnableField = false
   let wsEnable = true
-  let wsServerEnabled = true
+  let wsServerEnabled = false
   let wsServer = 'ws://ha.home:8123/api/shelly/ws'
   let wsSSLCAEnabled = false
   let wsSSLCA = ''
 
   let bleEnabled = false
-  let bleEnableField = true
+  let bleEnableField = false
   let bleEnable = true
   let bleRPCEnabledField = false
   let bleRPCEnabled = false
@@ -78,26 +78,26 @@
   let bleObserverEnabled = false
 
   let matterEnabled = false
-  let matterEnableField = true
+  let matterEnableField = false
   let matterEnable = true
 
   let cloudEnabled = false
-  let cloudEnableField = true
+  let cloudEnableField = false
   let cloudEnable = true
 
   let otaEnabled = false
-  let otaStageEnabled = true
+  let otaStageEnabled = false
   let otaStage: 'stable' | 'beta' = 'stable'
 
   let authEnabled = false
-  let authPassEnabled = true
+  let authPassEnabled = false
   let authPass = ''
 
   let wifiEnabled = false
-  let wifiSTAEnabled = true
-  let wifiSSIDEnabled = true
+  let wifiSTAEnabled = false
+  let wifiSSIDEnabled = false
   let wifiSSID = ''
-  let wifiPassEnabled = true
+  let wifiPassEnabled = false
   let wifiPass = ''
 
   onMount(async () => {
