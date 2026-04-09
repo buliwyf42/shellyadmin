@@ -420,9 +420,9 @@
           <div class="d-flex flex-column gap-3">
             <div class="card bg-black border-secondary">
               <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                  <label class="d-flex align-items-center gap-2 mb-0"><input type="checkbox" class="form-check-input" bind:checked={sysEnabled} /> <strong>sys</strong> - System & Location</label>
-                  <button type="button" class="btn btn-sm btn-outline-light" on:click={() => (sysOpen = !sysOpen)}>{sysVisible ? '▾' : '▸'}</button>
+                <div class="d-flex justify-content-between align-items-center mb-3" role="button" tabindex="0" on:click={() => (sysOpen = !sysOpen)} on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (sysOpen = !sysOpen)} style="cursor: pointer">
+                  <label class="d-flex align-items-center gap-2 mb-0" style="cursor: pointer"><input type="checkbox" class="form-check-input" bind:checked={sysEnabled} on:click|stopPropagation /> <strong>sys</strong> - System & Location</label>
+                  <span class="text-secondary">{sysVisible ? '▾' : '▸'}</span>
                 </div>
                 {#if sysVisible}
                   <div class="row g-2">
@@ -441,9 +441,9 @@
 
             <div class="card bg-black border-secondary">
               <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                  <label class="d-flex align-items-center gap-2 mb-0"><input type="checkbox" class="form-check-input" bind:checked={mqttEnabled} /> <strong>mqtt</strong> - MQTT Broker</label>
-                  <button type="button" class="btn btn-sm btn-outline-light" on:click={() => (mqttOpen = !mqttOpen)}>{mqttVisible ? '▾' : '▸'}</button>
+                <div class="d-flex justify-content-between align-items-center mb-3" role="button" tabindex="0" on:click={() => (mqttOpen = !mqttOpen)} on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (mqttOpen = !mqttOpen)} style="cursor: pointer">
+                  <label class="d-flex align-items-center gap-2 mb-0" style="cursor: pointer"><input type="checkbox" class="form-check-input" bind:checked={mqttEnabled} on:click|stopPropagation /> <strong>mqtt</strong> - MQTT Broker</label>
+                  <span class="text-secondary">{mqttVisible ? '▾' : '▸'}</span>
                 </div>
                 {#if mqttVisible}
                   <div class="row g-2">
@@ -466,9 +466,9 @@
 
             <div class="card bg-black border-secondary">
               <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                  <label class="d-flex align-items-center gap-2 mb-0"><input type="checkbox" class="form-check-input" bind:checked={wsEnabled} /> <strong>ws</strong> - WebSocket (Gen 2+)</label>
-                  <button type="button" class="btn btn-sm btn-outline-light" on:click={() => (wsOpen = !wsOpen)}>{wsVisible ? '▾' : '▸'}</button>
+                <div class="d-flex justify-content-between align-items-center mb-3" role="button" tabindex="0" on:click={() => (wsOpen = !wsOpen)} on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (wsOpen = !wsOpen)} style="cursor: pointer">
+                  <label class="d-flex align-items-center gap-2 mb-0" style="cursor: pointer"><input type="checkbox" class="form-check-input" bind:checked={wsEnabled} on:click|stopPropagation /> <strong>ws</strong> - WebSocket (Gen 2+)</label>
+                  <span class="text-secondary">{wsVisible ? '▾' : '▸'}</span>
                 </div>
                 {#if wsVisible}
                   <div class="row g-2">
@@ -482,9 +482,9 @@
 
             <div class="card bg-black border-secondary">
               <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                  <label class="d-flex align-items-center gap-2 mb-0"><input type="checkbox" class="form-check-input" bind:checked={bleEnabled} /> <strong>ble</strong> - Bluetooth (Gen 2+)</label>
-                  <button type="button" class="btn btn-sm btn-outline-light" on:click={() => (bleOpen = !bleOpen)}>{bleVisible ? '▾' : '▸'}</button>
+                <div class="d-flex justify-content-between align-items-center mb-3" role="button" tabindex="0" on:click={() => (bleOpen = !bleOpen)} on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (bleOpen = !bleOpen)} style="cursor: pointer">
+                  <label class="d-flex align-items-center gap-2 mb-0" style="cursor: pointer"><input type="checkbox" class="form-check-input" bind:checked={bleEnabled} on:click|stopPropagation /> <strong>ble</strong> - Bluetooth (Gen 2+)</label>
+                  <span class="text-secondary">{bleVisible ? '▾' : '▸'}</span>
                 </div>
                 {#if bleVisible}
                   <div class="row g-2">
@@ -498,9 +498,9 @@
 
             <div class="card bg-black border-secondary">
               <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                  <label class="d-flex align-items-center gap-2 mb-0"><input type="checkbox" class="form-check-input" bind:checked={matterEnabled} /> <strong>matter</strong> - Matter (Gen 2+)</label>
-                  <button type="button" class="btn btn-sm btn-outline-light" on:click={() => (matterOpen = !matterOpen)}>{matterVisible ? '▾' : '▸'}</button>
+                <div class="d-flex justify-content-between align-items-center mb-3" role="button" tabindex="0" on:click={() => (matterOpen = !matterOpen)} on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (matterOpen = !matterOpen)} style="cursor: pointer">
+                  <label class="d-flex align-items-center gap-2 mb-0" style="cursor: pointer"><input type="checkbox" class="form-check-input" bind:checked={matterEnabled} on:click|stopPropagation /> <strong>matter</strong> - Matter (Gen 2+)</label>
+                  <span class="text-secondary">{matterVisible ? '▾' : '▸'}</span>
                 </div>
                 {#if matterVisible}
                   <div class="row g-2">
@@ -512,9 +512,9 @@
 
             <div class="card bg-black border-secondary">
               <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                  <label class="d-flex align-items-center gap-2 mb-0"><input type="checkbox" class="form-check-input" bind:checked={cloudEnabled} /> <strong>cloud</strong> - Shelly Cloud</label>
-                  <button type="button" class="btn btn-sm btn-outline-light" on:click={() => (cloudOpen = !cloudOpen)}>{cloudVisible ? '▾' : '▸'}</button>
+                <div class="d-flex justify-content-between align-items-center mb-3" role="button" tabindex="0" on:click={() => (cloudOpen = !cloudOpen)} on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (cloudOpen = !cloudOpen)} style="cursor: pointer">
+                  <label class="d-flex align-items-center gap-2 mb-0" style="cursor: pointer"><input type="checkbox" class="form-check-input" bind:checked={cloudEnabled} on:click|stopPropagation /> <strong>cloud</strong> - Shelly Cloud</label>
+                  <span class="text-secondary">{cloudVisible ? '▾' : '▸'}</span>
                 </div>
                 {#if cloudVisible}
                   <div class="row g-2">
@@ -526,9 +526,9 @@
 
             <div class="card bg-black border-secondary">
               <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                  <label class="d-flex align-items-center gap-2 mb-0"><input type="checkbox" class="form-check-input" bind:checked={otaEnabled} /> <strong>ota</strong> - Firmware Update</label>
-                  <button type="button" class="btn btn-sm btn-outline-light" on:click={() => (otaOpen = !otaOpen)}>{otaVisible ? '▾' : '▸'}</button>
+                <div class="d-flex justify-content-between align-items-center mb-3" role="button" tabindex="0" on:click={() => (otaOpen = !otaOpen)} on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (otaOpen = !otaOpen)} style="cursor: pointer">
+                  <label class="d-flex align-items-center gap-2 mb-0" style="cursor: pointer"><input type="checkbox" class="form-check-input" bind:checked={otaEnabled} on:click|stopPropagation /> <strong>ota</strong> - Firmware Update</label>
+                  <span class="text-secondary">{otaVisible ? '▾' : '▸'}</span>
                 </div>
                 {#if otaVisible}
                   <div class="row g-2">
@@ -540,9 +540,9 @@
 
             <div class="card bg-black border-secondary">
               <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                  <label class="d-flex align-items-center gap-2 mb-0"><input type="checkbox" class="form-check-input" bind:checked={authEnabled} /> <strong>auth</strong> - Set Device Password (Gen 2+)</label>
-                  <button type="button" class="btn btn-sm btn-outline-light" on:click={() => (authOpen = !authOpen)}>{authVisible ? '▾' : '▸'}</button>
+                <div class="d-flex justify-content-between align-items-center mb-3" role="button" tabindex="0" on:click={() => (authOpen = !authOpen)} on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (authOpen = !authOpen)} style="cursor: pointer">
+                  <label class="d-flex align-items-center gap-2 mb-0" style="cursor: pointer"><input type="checkbox" class="form-check-input" bind:checked={authEnabled} on:click|stopPropagation /> <strong>auth</strong> - Set Device Password (Gen 2+)</label>
+                  <span class="text-secondary">{authVisible ? '▾' : '▸'}</span>
                 </div>
                 {#if authVisible}
                   <div class="row g-2">
@@ -554,9 +554,9 @@
 
             <div class="card bg-black border-secondary">
               <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                  <label class="d-flex align-items-center gap-2 mb-0"><input type="checkbox" class="form-check-input" bind:checked={wifiEnabled} /> <strong>wifi</strong> - WiFi STA</label>
-                  <button type="button" class="btn btn-sm btn-outline-light" on:click={() => (wifiOpen = !wifiOpen)}>{wifiVisible ? '▾' : '▸'}</button>
+                <div class="d-flex justify-content-between align-items-center mb-3" role="button" tabindex="0" on:click={() => (wifiOpen = !wifiOpen)} on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (wifiOpen = !wifiOpen)} style="cursor: pointer">
+                  <label class="d-flex align-items-center gap-2 mb-0" style="cursor: pointer"><input type="checkbox" class="form-check-input" bind:checked={wifiEnabled} on:click|stopPropagation /> <strong>wifi</strong> - WiFi STA</label>
+                  <span class="text-secondary">{wifiVisible ? '▾' : '▸'}</span>
                 </div>
                 {#if wifiVisible}
                   <div class="row g-2">
