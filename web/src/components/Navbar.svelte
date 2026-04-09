@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { currentPath, navigate } from '../lib/stores'
+  import { currentPath } from '../lib/stores'
 
   const links = [
     ['/', 'Devices'],
@@ -13,13 +13,13 @@
 
   async function logout() {
     await fetch('/logout', { method: 'POST', credentials: 'same-origin' })
-    navigate('/login')
+    window.location.href = '/login'
   }
 </script>
 
 <nav class="navbar navbar-expand-lg border-bottom border-secondary-subtle bg-black">
   <div class="container-fluid">
-    <a href="/" class="navbar-brand btn btn-link text-decoration-none text-light fw-bold" on:click|preventDefault={() => navigate('/')}>
+    <a href="/" class="navbar-brand btn btn-link text-decoration-none text-light fw-bold">
       ShellyAdmin
     </a>
     <div class="navbar-nav flex-wrap">
@@ -27,7 +27,6 @@
         <a
           href={path}
           class={`btn btn-sm me-2 mb-2 ${$currentPath === path ? 'btn-warning text-dark' : 'btn-outline-light'}`}
-          on:click|preventDefault={() => navigate(path)}
         >
           {label}
         </a>

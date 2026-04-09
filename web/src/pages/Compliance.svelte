@@ -7,21 +7,42 @@
 
   let settings: AppSettings = { subnets: [], scan_timeout: 2, scan_concurrency: 64, compliance: {} }
   let saved = ''
+  let loading = false
+  let error = ''
 
   async function load() {
-    settings = await api.getSettings()
-    $devices = await api.getDevices()
+    loading = true
+    error = ''
+    const [settingsResult, devicesResult] = await Promise.allSettled([
+      api.getSettings(),
+      api.getDevices(),
+    ])
+
+    if (settingsResult.status === 'fulfilled') {
+      settings = settingsResult.value
+    } else {
+      error = settingsResult.reason instanceof Error ? settingsResult.reason.message : 'Failed to load compliance settings'
+    }
+
+    if (devicesResult.status === 'fulfilled') {
+      $devices = devicesResult.value
+    } else {
+      error = error || (devicesResult.reason instanceof Error ? devicesResult.reason.message : 'Failed to load devices')
+      $devices = []
+    }
+    loading = false
   }
 
   async function save() {
     await api.saveSettings(settings)
-    $devices = await api.getDevices()
+    await load()
     saved = 'Saved'
     setTimeout(() => saved = '', 1500)
   }
 
   $: compliantDevices = $devices.filter((device: Device) => device.compliant)
   $: nonCompliantDevices = $devices.filter((device: Device) => !device.compliant)
+  $: sortedDevices = [...$devices].sort((a, b) => (a.name || a.serial || a.mac).localeCompare(b.name || b.serial || b.mac))
 
   onMount(() => void load())
 </script>
@@ -58,32 +79,42 @@
   </div>
 </div>
 
+{#if error}
+  <div class="alert alert-danger mt-3">{error}</div>
+{/if}
+
 <div class="card bg-dark border-secondary mt-3">
   <div class="card-body">
     <h2 class="h5">Compliance Results</h2>
-    <div class="table-responsive">
-      <table class="table table-dark table-striped align-middle">
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>IP</th>
-            <th>Type</th>
-            <th>Status</th>
-            <th>Issues</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#each $devices as device}
+    {#if loading}
+      <div class="text-secondary">Loading compliance results...</div>
+    {:else if sortedDevices.length === 0}
+      <div class="alert alert-secondary mb-0">No enrolled devices available for compliance checks yet.</div>
+    {:else}
+      <div class="table-responsive">
+        <table class="table table-dark table-striped align-middle">
+          <thead>
             <tr>
-              <td>{device.name || device.serial || device.mac}</td>
-              <td><a href={`http://${device.ip}`} target="_blank" rel="noreferrer" class="text-decoration-none">{device.ip}</a></td>
-              <td>Gen {device.gen}</td>
-              <td><ComplianceBadge compliant={device.compliant} issues={device.compliance_issues} /></td>
-              <td>{device.compliance_issues?.join(', ') || 'No issues'}</td>
+              <th>Name</th>
+              <th>IP</th>
+              <th>Type</th>
+              <th>Status</th>
+              <th>Issues</th>
             </tr>
-          {/each}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {#each sortedDevices as device}
+              <tr>
+                <td>{device.name || device.serial || device.mac}</td>
+                <td><a href={`http://${device.ip}`} target="_blank" rel="noreferrer" class="text-decoration-none">{device.ip}</a></td>
+                <td>{device.gen <= 1 ? 'Gen 1.x' : `Gen ${device.gen}.x`}</td>
+                <td><ComplianceBadge compliant={device.compliant} issues={device.compliance_issues} /></td>
+                <td>{device.compliance_issues?.join(', ') || 'No issues'}</td>
+              </tr>
+            {/each}
+          </tbody>
+        </table>
+      </div>
+    {/if}
   </div>
 </div>
