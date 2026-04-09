@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"runtime/debug"
@@ -107,39 +108,54 @@ func getenv(key, fallback string) string {
 }
 
 func resolveBackendVersion() string {
+	if value := strings.TrimSpace(os.Getenv("SHELLYADMIN_VERSION")); value != "" {
+		return value
+	}
 	if AppVersion != "" && AppVersion != "dev" {
 		return AppVersion
 	}
 	info, ok := debug.ReadBuildInfo()
-	if !ok {
-		return "dev"
-	}
-	if info.Main.Version != "" && info.Main.Version != "(devel)" {
+	if ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
 		return info.Main.Version
+	}
+	if value := gitOutput("describe", "--tags", "--always", "--dirty"); value != "" {
+		return value
 	}
 	return "dev"
 }
 
 func resolveBackendCommit() string {
+	if value := strings.TrimSpace(os.Getenv("GIT_COMMIT")); value != "" {
+		return trimCommit(value)
+	}
 	if CommitHash != "" && CommitHash != "unknown" {
 		return trimCommit(CommitHash)
 	}
 	info, ok := debug.ReadBuildInfo()
-	if !ok {
-		return "unknown"
-	}
-	revision := "unknown"
-	dirty := false
-	for _, setting := range info.Settings {
-		switch setting.Key {
-		case "vcs.revision":
-			revision = setting.Value
-		case "vcs.modified":
-			dirty = setting.Value == "true"
+	if ok {
+		revision := "unknown"
+		dirty := false
+		for _, setting := range info.Settings {
+			switch setting.Key {
+			case "vcs.revision":
+				revision = setting.Value
+			case "vcs.modified":
+				dirty = setting.Value == "true"
+			}
+		}
+		revision = trimCommit(revision)
+		if dirty && revision != "unknown" {
+			return revision + "-dirty"
+		}
+		if revision != "unknown" {
+			return revision
 		}
 	}
-	revision = trimCommit(revision)
-	if dirty && revision != "unknown" {
+	revision := gitOutput("rev-parse", "--short=12", "HEAD")
+	if revision == "" {
+		return "unknown"
+	}
+	if gitOutput("status", "--porcelain") != "" {
 		return revision + "-dirty"
 	}
 	return revision
@@ -154,4 +170,13 @@ func trimCommit(value string) string {
 		return commit[:12]
 	}
 	return commit
+}
+
+func gitOutput(args ...string) string {
+	cmd := exec.Command("git", args...)
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
 }
