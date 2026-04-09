@@ -292,7 +292,7 @@
         <tr>
           {#if $colVis.device_num}<td>{String(device.device_num).padStart(2, '0')}</td>{/if}
           {#if $colVis.name}<td>{device.name || device.serial || device.mac}</td>{/if}
-          {#if $colVis.ip}<td><a href={`http://${device.ip}`} target="_blank" rel="noreferrer" class="text-decoration-none">{device.ip}</a></td>{/if}
+          {#if $colVis.ip}<td><a href={`http://${device.ip}`} target="_blank" rel="noreferrer" class="ip-link">{device.ip}</a></td>{/if}
           {#if $colVis.mac}<td class="font-monospace">{device.mac}</td>{/if}
           {#if $colVis.gen}<td><span class={`badge ${supportClass(device)}`} title={supportTitle(device)}>{generationLabel(device)}</span></td>{/if}
           {#if $colVis.model}<td>{#if device.model}{device.model}{:else}<span class="text-secondary">n/a</span>{/if}</td>{/if}
