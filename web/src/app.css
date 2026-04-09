@@ -64,9 +64,15 @@ pre { white-space: pre-wrap; word-break: break-word; }
   .col-lg-4 { grid-column: span 4; }
   .col-lg-6 { grid-column: span 6; }
   .col-lg-8 { grid-column: span 8; }
+  .col-md-2 { grid-column: span 2; }
+  .col-md-3 { grid-column: span 3; }
+  .col-md-4 { grid-column: span 4; }
+  .col-md-6 { grid-column: span 6; }
 }
 @media (min-width: 700px) and (max-width: 899px) {
   .row { grid-template-columns: repeat(6, 1fr); }
+  .col-md-2 { grid-column: span 1; }
+  .col-md-3 { grid-column: span 2; }
   .col-md-4 { grid-column: span 2; }
   .col-md-6 { grid-column: span 3; }
 }
