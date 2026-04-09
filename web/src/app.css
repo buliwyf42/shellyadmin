@@ -62,7 +62,9 @@ pre { white-space: pre-wrap; word-break: break-word; }
 @media (min-width: 900px) {
   .row { grid-template-columns: repeat(12, 1fr); }
   .col-lg-4 { grid-column: span 4; }
+  .col-lg-5 { grid-column: span 5; }
   .col-lg-6 { grid-column: span 6; }
+  .col-lg-7 { grid-column: span 7; }
   .col-lg-8 { grid-column: span 8; }
   .col-md-2 { grid-column: span 2; }
   .col-md-3 { grid-column: span 3; }
