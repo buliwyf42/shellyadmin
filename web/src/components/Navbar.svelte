@@ -4,15 +4,38 @@
   import { APP_VERSION } from '../lib/version'
 
   const links = [
-    ['/', 'Devices'],
-    ['/scan', 'Scan'],
-    ['/firmware', 'Firmware'],
-    ['/compliance', 'Compliance'],
-    ['/provision', 'Provision'],
-    ['/settings', 'Settings'],
-    ['/logs', 'Logs'],
-    ['/about', 'About'],
+    { path: '/', label: 'Devices', icon: 'grid' },
+    { path: '/scan', label: 'Scan', icon: 'search' },
+    { path: '/firmware', label: 'Firmware', icon: 'chip' },
+    { path: '/provision', label: 'Provision', icon: 'upload' },
+    { path: '/settings', label: 'Settings', icon: 'gear' },
+    { path: '/compliance', label: 'Compliance', icon: 'shield' },
+    { path: '/logs', label: 'Logs', icon: 'list' },
+    { path: '/about', label: 'About', icon: 'info' },
   ] as const
+
+  function iconPath(name: (typeof links)[number]['icon'] | 'logout'): string {
+    switch (name) {
+      case 'grid':
+        return 'M3 3h4v4H3V3zm7 0h4v4h-4V3zm7 0h4v4h-4V3zM3 10h4v4H3v-4zm7 0h4v4h-4v-4zm7 0h4v4h-4v-4zM3 17h4v4H3v-4zm7 0h4v4h-4v-4zm7 0h4v4h-4v-4z'
+      case 'search':
+        return 'M10.5 3a7.5 7.5 0 015.978 12.032l3.745 3.745-1.06 1.06-3.745-3.745A7.5 7.5 0 1110.5 3zm0 1.5a6 6 0 100 12 6 6 0 000-12z'
+      case 'chip':
+        return 'M8 4h8v2H8V4zm-3 3h14v10H5V7zm2 2v6h10V9H7zm1 10h8v2H8v-2zM4 8h2v8H4V8zm14 0h2v8h-2V8z'
+      case 'upload':
+        return 'M12 3l4 4h-3v6h-2V7H8l4-4zm-7 10h2v5h10v-5h2v7H5v-7z'
+      case 'gear':
+        return 'M11 2h2l.4 2.1a7.7 7.7 0 011.7.7l1.8-1.2 1.4 1.4-1.2 1.8c.3.5.6 1.1.7 1.7L21 11v2l-2.1.4c-.2.6-.4 1.2-.7 1.7l1.2 1.8-1.4 1.4-1.8-1.2c-.5.3-1.1.6-1.7.7L13 22h-2l-.4-2.1c-.6-.2-1.2-.4-1.7-.7l-1.8 1.2-1.4-1.4 1.2-1.8a7.7 7.7 0 01-.7-1.7L3 13v-2l2.1-.4c.2-.6.4-1.2.7-1.7L4.6 7.1 6 5.7l1.8 1.2c.5-.3 1.1-.6 1.7-.7L11 2zm1 6a4 4 0 100 8 4 4 0 000-8z'
+      case 'shield':
+        return 'M12 2l8 3v5c0 5.3-3.3 9.2-8 11-4.7-1.8-8-5.7-8-11V5l8-3zm0 2.1L6 6.3V10c0 4.3 2.5 7.5 6 9 3.5-1.5 6-4.7 6-9V6.3l-6-2.2zm-1 4.4h2v4h-2v-4zm0 5.5h2v2h-2v-2z'
+      case 'list':
+        return 'M4 5h2v2H4V5zm4 0h12v2H8V5zM4 11h2v2H4v-2zm4 0h12v2H8v-2zM4 17h2v2H4v-2zm4 0h12v2H8v-2z'
+      case 'info':
+        return 'M12 3a9 9 0 110 18 9 9 0 010-18zm0 1.5a7.5 7.5 0 100 15 7.5 7.5 0 000-15zm-1 5h2v7h-2v-7zm0-3h2v2h-2v-2z'
+      case 'logout':
+        return 'M10 4h-5v16h5v2H3V2h7v2zm4.6 3.4L13.2 8.8 15.4 11H8v2h7.4l-2.2 2.2 1.4 1.4L19.2 12l-4.6-4.6z'
+    }
+  }
 
   async function logout() {
     await api.logout()
@@ -20,22 +43,35 @@
   }
 </script>
 
-<nav class="navbar navbar-expand-lg border-bottom border-secondary-subtle bg-black">
+<nav class="navbar topbar border-bottom border-secondary-subtle bg-black">
   <div class="container-fluid">
-    <a href="/" class="navbar-brand btn btn-link text-decoration-none text-light fw-bold">
-      ShellyAdmin
-      <span class="badge bg-secondary ms-2">v{APP_VERSION}</span>
+    <a href="/" class="brand text-decoration-none text-light fw-bold">
+      <img src="/logo-mark.svg" alt="ShellyAdmin logo" class="brand-logo" />
+      <span class="brand-name">ShellyAdmin</span>
+      <span class="brand-version">v{APP_VERSION}</span>
     </a>
-    <div class="navbar-nav flex-wrap">
-      {#each links as [path, label]}
+    <div class="topnav-links">
+      {#each links as link}
         <a
-          href={path}
-          class={`btn btn-sm me-2 mb-2 ${$currentPath === path ? 'btn-warning text-dark' : 'btn-outline-light'}`}
+          href={link.path}
+          class={`topnav-link ${$currentPath === link.path ? 'is-active' : ''}`}
         >
-          {label}
+          <span class="topnav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" role="img">
+              <path d={iconPath(link.icon)} />
+            </svg>
+          </span>
+          <span>{link.label}</span>
         </a>
       {/each}
-      <button type="button" class="btn btn-sm btn-outline-danger mb-2" on:click={logout}>Logout</button>
+      <button type="button" class="topnav-link logout" on:click={logout}>
+        <span class="topnav-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" role="img">
+            <path d={iconPath('logout')} />
+          </svg>
+        </span>
+        <span>Logout</span>
+      </button>
     </div>
   </div>
 </nav>
