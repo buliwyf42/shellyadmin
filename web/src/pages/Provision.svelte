@@ -100,6 +100,16 @@
   let wifiPassEnabled = false
   let wifiPass = ''
 
+  let sysOpen = false
+  let mqttOpen = false
+  let wsOpen = false
+  let bleOpen = false
+  let matterOpen = false
+  let cloudOpen = false
+  let otaOpen = false
+  let authOpen = false
+  let wifiOpen = false
+
   $: sysExpanded = sysEnabled || sysNameEnabled || sysTZEnabled || sysLatEnabled || sysLonEnabled || sysSNTPEnabled || sysTimeFormatEnabled || sysEcoEnabled || sysDiscoverableEnabled
   $: mqttExpanded = mqttEnabled || mqttEnableField || mqttServerEnabled || mqttClientIDEnabled || mqttTopicPrefixEnabled || mqttUserEnabled || mqttPassEnabled || mqttSSLCAEnabled || mqttRPCNtfEnabled || mqttStatusNtfEnabled || mqttEnableRPCEnabled || mqttEnableControlEnabled || mqttUseClientCertEnabled
   $: wsExpanded = wsEnabled || wsEnableField || wsServerEnabled || wsSSLCAEnabled
@@ -109,6 +119,15 @@
   $: otaExpanded = otaEnabled || otaStageEnabled
   $: authExpanded = authEnabled || authPassEnabled
   $: wifiExpanded = wifiEnabled || wifiSTAEnabled || wifiSSIDEnabled || wifiPassEnabled
+  $: sysVisible = sysExpanded || sysOpen
+  $: mqttVisible = mqttExpanded || mqttOpen
+  $: wsVisible = wsExpanded || wsOpen
+  $: bleVisible = bleExpanded || bleOpen
+  $: matterVisible = matterExpanded || matterOpen
+  $: cloudVisible = cloudExpanded || cloudOpen
+  $: otaVisible = otaExpanded || otaOpen
+  $: authVisible = authExpanded || authOpen
+  $: wifiVisible = wifiExpanded || wifiOpen
 
   onMount(async () => {
     loading = true
@@ -401,8 +420,11 @@
           <div class="d-flex flex-column gap-3">
             <div class="card bg-black border-secondary">
               <div class="card-body">
-                <label class="d-flex align-items-center gap-2 mb-3"><input type="checkbox" class="form-check-input" bind:checked={sysEnabled} /> <strong>sys</strong> - System & Location</label>
-                {#if sysExpanded}
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <label class="d-flex align-items-center gap-2 mb-0"><input type="checkbox" class="form-check-input" bind:checked={sysEnabled} /> <strong>sys</strong> - System & Location</label>
+                  <button type="button" class="btn btn-sm btn-outline-light" on:click={() => (sysOpen = !sysOpen)}>{sysVisible ? '▾' : '▸'}</button>
+                </div>
+                {#if sysVisible}
                   <div class="row g-2">
                     <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysNameEnabled} disabled={!sysEnabled} />Device Name</label><input class="form-control" bind:value={sysName} disabled={!sysEnabled || !sysNameEnabled} /></div>
                     <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysTZEnabled} disabled={!sysEnabled} />Timezone</label><input class="form-control" bind:value={sysTZ} disabled={!sysEnabled || !sysTZEnabled} /></div>
@@ -419,8 +441,11 @@
 
             <div class="card bg-black border-secondary">
               <div class="card-body">
-                <label class="d-flex align-items-center gap-2 mb-3"><input type="checkbox" class="form-check-input" bind:checked={mqttEnabled} /> <strong>mqtt</strong> - MQTT Broker</label>
-                {#if mqttExpanded}
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <label class="d-flex align-items-center gap-2 mb-0"><input type="checkbox" class="form-check-input" bind:checked={mqttEnabled} /> <strong>mqtt</strong> - MQTT Broker</label>
+                  <button type="button" class="btn btn-sm btn-outline-light" on:click={() => (mqttOpen = !mqttOpen)}>{mqttVisible ? '▾' : '▸'}</button>
+                </div>
+                {#if mqttVisible}
                   <div class="row g-2">
                     <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttEnableField} disabled={!mqttEnabled} />Enable MQTT</label><select class="form-select" bind:value={mqttEnable} disabled={!mqttEnabled || !mqttEnableField}><option value={true}>On</option><option value={false}>Off</option></select></div>
                     <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttServerEnabled} disabled={!mqttEnabled} />Broker</label><input class="form-control" bind:value={mqttServer} disabled={!mqttEnabled || !mqttServerEnabled} /></div>
@@ -441,8 +466,11 @@
 
             <div class="card bg-black border-secondary">
               <div class="card-body">
-                <label class="d-flex align-items-center gap-2 mb-3"><input type="checkbox" class="form-check-input" bind:checked={wsEnabled} /> <strong>ws</strong> - WebSocket (Gen 2+)</label>
-                {#if wsExpanded}
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <label class="d-flex align-items-center gap-2 mb-0"><input type="checkbox" class="form-check-input" bind:checked={wsEnabled} /> <strong>ws</strong> - WebSocket (Gen 2+)</label>
+                  <button type="button" class="btn btn-sm btn-outline-light" on:click={() => (wsOpen = !wsOpen)}>{wsVisible ? '▾' : '▸'}</button>
+                </div>
+                {#if wsVisible}
                   <div class="row g-2">
                     <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={wsEnableField} disabled={!wsEnabled} />Enable WebSocket</label><select class="form-select" bind:value={wsEnable} disabled={!wsEnabled || !wsEnableField}><option value={true}>On</option><option value={false}>Off</option></select></div>
                     <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={wsServerEnabled} disabled={!wsEnabled} />Server URL</label><input class="form-control" bind:value={wsServer} disabled={!wsEnabled || !wsServerEnabled} /></div>
@@ -454,8 +482,11 @@
 
             <div class="card bg-black border-secondary">
               <div class="card-body">
-                <label class="d-flex align-items-center gap-2 mb-3"><input type="checkbox" class="form-check-input" bind:checked={bleEnabled} /> <strong>ble</strong> - Bluetooth (Gen 2+)</label>
-                {#if bleExpanded}
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <label class="d-flex align-items-center gap-2 mb-0"><input type="checkbox" class="form-check-input" bind:checked={bleEnabled} /> <strong>ble</strong> - Bluetooth (Gen 2+)</label>
+                  <button type="button" class="btn btn-sm btn-outline-light" on:click={() => (bleOpen = !bleOpen)}>{bleVisible ? '▾' : '▸'}</button>
+                </div>
+                {#if bleVisible}
                   <div class="row g-2">
                     <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={bleEnableField} disabled={!bleEnabled} />Enable BLE</label><select class="form-select" bind:value={bleEnable} disabled={!bleEnabled || !bleEnableField}><option value={true}>On</option><option value={false}>Off</option></select></div>
                     <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={bleRPCEnabledField} disabled={!bleEnabled} />Enable RPC over BLE</label><select class="form-select" bind:value={bleRPCEnabled} disabled={!bleEnabled || !bleRPCEnabledField}><option value={true}>On</option><option value={false}>Off</option></select></div>
@@ -467,8 +498,11 @@
 
             <div class="card bg-black border-secondary">
               <div class="card-body">
-                <label class="d-flex align-items-center gap-2 mb-3"><input type="checkbox" class="form-check-input" bind:checked={matterEnabled} /> <strong>matter</strong> - Matter (Gen 2+)</label>
-                {#if matterExpanded}
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <label class="d-flex align-items-center gap-2 mb-0"><input type="checkbox" class="form-check-input" bind:checked={matterEnabled} /> <strong>matter</strong> - Matter (Gen 2+)</label>
+                  <button type="button" class="btn btn-sm btn-outline-light" on:click={() => (matterOpen = !matterOpen)}>{matterVisible ? '▾' : '▸'}</button>
+                </div>
+                {#if matterVisible}
                   <div class="row g-2">
                     <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={matterEnableField} disabled={!matterEnabled} />Enable Matter</label><select class="form-select" bind:value={matterEnable} disabled={!matterEnabled || !matterEnableField}><option value={true}>On</option><option value={false}>Off</option></select></div>
                   </div>
@@ -478,8 +512,11 @@
 
             <div class="card bg-black border-secondary">
               <div class="card-body">
-                <label class="d-flex align-items-center gap-2 mb-3"><input type="checkbox" class="form-check-input" bind:checked={cloudEnabled} /> <strong>cloud</strong> - Shelly Cloud</label>
-                {#if cloudExpanded}
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <label class="d-flex align-items-center gap-2 mb-0"><input type="checkbox" class="form-check-input" bind:checked={cloudEnabled} /> <strong>cloud</strong> - Shelly Cloud</label>
+                  <button type="button" class="btn btn-sm btn-outline-light" on:click={() => (cloudOpen = !cloudOpen)}>{cloudVisible ? '▾' : '▸'}</button>
+                </div>
+                {#if cloudVisible}
                   <div class="row g-2">
                     <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={cloudEnableField} disabled={!cloudEnabled} />Enable Cloud</label><select class="form-select" bind:value={cloudEnable} disabled={!cloudEnabled || !cloudEnableField}><option value={true}>On</option><option value={false}>Off</option></select></div>
                   </div>
@@ -489,8 +526,11 @@
 
             <div class="card bg-black border-secondary">
               <div class="card-body">
-                <label class="d-flex align-items-center gap-2 mb-3"><input type="checkbox" class="form-check-input" bind:checked={otaEnabled} /> <strong>ota</strong> - Firmware Update</label>
-                {#if otaExpanded}
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <label class="d-flex align-items-center gap-2 mb-0"><input type="checkbox" class="form-check-input" bind:checked={otaEnabled} /> <strong>ota</strong> - Firmware Update</label>
+                  <button type="button" class="btn btn-sm btn-outline-light" on:click={() => (otaOpen = !otaOpen)}>{otaVisible ? '▾' : '▸'}</button>
+                </div>
+                {#if otaVisible}
                   <div class="row g-2">
                     <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={otaStageEnabled} disabled={!otaEnabled} />Stage</label><select class="form-select" bind:value={otaStage} disabled={!otaEnabled || !otaStageEnabled}><option value="stable">Stable</option><option value="beta">Beta</option></select></div>
                   </div>
@@ -500,8 +540,11 @@
 
             <div class="card bg-black border-secondary">
               <div class="card-body">
-                <label class="d-flex align-items-center gap-2 mb-3"><input type="checkbox" class="form-check-input" bind:checked={authEnabled} /> <strong>auth</strong> - Set Device Password (Gen 2+)</label>
-                {#if authExpanded}
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <label class="d-flex align-items-center gap-2 mb-0"><input type="checkbox" class="form-check-input" bind:checked={authEnabled} /> <strong>auth</strong> - Set Device Password (Gen 2+)</label>
+                  <button type="button" class="btn btn-sm btn-outline-light" on:click={() => (authOpen = !authOpen)}>{authVisible ? '▾' : '▸'}</button>
+                </div>
+                {#if authVisible}
                   <div class="row g-2">
                     <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={authPassEnabled} disabled={!authEnabled} />Password</label><input class="form-control" type="password" bind:value={authPass} disabled={!authEnabled || !authPassEnabled} /></div>
                   </div>
@@ -511,8 +554,11 @@
 
             <div class="card bg-black border-secondary">
               <div class="card-body">
-                <label class="d-flex align-items-center gap-2 mb-3"><input type="checkbox" class="form-check-input" bind:checked={wifiEnabled} /> <strong>wifi</strong> - WiFi STA</label>
-                {#if wifiExpanded}
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                  <label class="d-flex align-items-center gap-2 mb-0"><input type="checkbox" class="form-check-input" bind:checked={wifiEnabled} /> <strong>wifi</strong> - WiFi STA</label>
+                  <button type="button" class="btn btn-sm btn-outline-light" on:click={() => (wifiOpen = !wifiOpen)}>{wifiVisible ? '▾' : '▸'}</button>
+                </div>
+                {#if wifiVisible}
                   <div class="row g-2">
                     <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={wifiSTAEnabled} disabled={!wifiEnabled} />Enable STA</label><div class="text-secondary">On when section selected</div></div>
                     <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={wifiSSIDEnabled} disabled={!wifiEnabled} />SSID</label><input class="form-control" bind:value={wifiSSID} disabled={!wifiEnabled || !wifiSSIDEnabled} /></div>
