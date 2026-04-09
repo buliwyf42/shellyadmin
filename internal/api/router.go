@@ -54,7 +54,9 @@ func NewRouter(database *db.DB, cfg Config) *gin.Engine {
 		serveSPA(c, cfg)
 	})
 	r.POST("/login", middleware.LoginRateLimit(), h.Login)
+	r.POST("/api/login", middleware.LoginRateLimit(), h.Login)
 	r.POST("/logout", middleware.RequireAuth(), middleware.RequireCSRF(), h.Logout)
+	r.POST("/api/logout", middleware.RequireAuth(), middleware.RequireCSRF(), h.Logout)
 
 	auth := r.Group("/")
 	auth.Use(middleware.RequireAuth())

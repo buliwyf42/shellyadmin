@@ -53,7 +53,7 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
   if (body) {
     headers['Content-Type'] = 'application/json'
   }
-  const requiresCSRF = !SAFE_METHODS.has(method) && path !== '/login'
+  const requiresCSRF = !SAFE_METHODS.has(method) && path !== '/login' && path !== '/api/login'
   if (requiresCSRF) {
     await ensureCSRFToken()
     if (csrfToken) {
@@ -77,8 +77,8 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
 }
 
 export const api = {
-  login: (username: string, password: string) => req<{ ok: true; csrf_token?: string }>('POST', '/login', { username, password }),
-  logout: () => req<{ ok: true }>('POST', '/logout', {}),
+  login: (username: string, password: string) => req<{ ok: true; csrf_token?: string }>('POST', '/api/login', { username, password }),
+  logout: () => req<{ ok: true }>('POST', '/api/logout', {}),
   getDevices: () => req<Device[]>('GET', '/api/devices'),
   refreshDevices: () => req<Device[]>('POST', '/api/devices/refresh', {}),
   refreshDevice: (target: string) => req<Device[]>('POST', '/api/devices/refresh-one', { target }),
