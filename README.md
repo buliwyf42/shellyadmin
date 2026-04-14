@@ -17,6 +17,13 @@ It is designed as a single-container deployment with:
 This repository is under active development.
 Current UI/API baseline is `v0.0.3`.
 
+Current `0.0.3` highlights:
+
+- configurable device refresh timeout in Settings
+- stale-device signaling in Devices when the latest refresh attempt fails
+- `Last Success` wording in Devices to distinguish successful retrieval from the latest attempted refresh
+- database migration support for refresh-state tracking
+
 The target architecture is documented in [docs/ARCHITECTURE.md](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/docs/ARCHITECTURE.md).
 
 ## Goals
@@ -31,9 +38,11 @@ The target architecture is documented in [docs/ARCHITECTURE.md](/Users/buliwyf/D
 - Scan with staging and explicit add-to-inventory
 - Device inventory table with sortable columns and per-user column visibility
 - Auto-refresh in Devices view (30s, 1m, 5m)
+- Separate scan timeout and refresh timeout in Settings
 - Per-device row actions in Devices view:
   - immediate refresh
   - delete/forget
+- Stale row signal when the latest refresh attempt fails
 - Compliance status in Devices view with hover details
 - Gen-aware rendering for unsupported fields (for example WebSocket on Gen1)
 - Manual firmware check and update flow
@@ -130,6 +139,14 @@ make backend
 ## Docker
 
 The app is intended to run as a single container.
+
+For GitHub-based distribution, the repository should be treated as the source of truth for:
+
+- tagged source releases such as `v0.0.3`
+- the Docker build context under [`docker/`](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/docker)
+- future container publishing automation, for example a GitHub Actions flow that publishes a versioned image per tag
+
+Today, the included Compose file builds locally from this repository. That keeps the container path aligned with the same code and embedded frontend assets used by the release commit.
 
 See [docs/DEPLOYMENT.md](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/docs/DEPLOYMENT.md) for deployment guidance.
 

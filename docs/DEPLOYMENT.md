@@ -14,6 +14,7 @@ Supported environments:
 
 - plain HTTP on a trusted LAN
 - optional reverse proxy with TLS termination
+- Docker or Compose driven deployment from a tagged GitHub checkout
 
 ## Environment Variables
 
@@ -40,6 +41,27 @@ The repo includes:
 - [docker/Dockerfile](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/docker/Dockerfile)
 - [docker/docker-compose.yml](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/docker/docker-compose.yml)
 
+Current expected flow:
+
+1. Check out a tagged GitHub release, for example `v0.0.3`
+2. Provide the required secrets files
+3. Build and run with Compose from the repository root
+
+Example:
+
+```bash
+git clone https://github.com/buliwyf42/shellyadmin.git
+cd shellyadmin
+git checkout v0.0.3
+docker compose -f docker/docker-compose.yml up -d --build
+```
+
+Notes:
+
+- the current Compose file builds from local source instead of pulling a published image
+- this keeps the embedded frontend bundle and backend binary aligned with the checked-out release tag
+- a future GitHub container publishing workflow can layer on top of this without changing the runtime model
+
 Recommended production characteristics:
 
 - non-root container user
@@ -60,6 +82,7 @@ Important note:
 
 - discovery behavior may differ depending on Docker networking
 - host networking may be more reliable in some LAN environments
+- longer device refresh timeouts may be useful when weaker Wi-Fi links delay refresh responses
 
 The UI should eventually warn when Docker networking may limit discovery.
 
@@ -87,6 +110,7 @@ The SQLite database contains:
 - templates
 - jobs
 - audit events
+- device refresh-state metadata used for stale/fresh signaling in the UI
 
 ## Restore
 

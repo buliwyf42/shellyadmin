@@ -45,6 +45,12 @@ Use the Go app directly on `8080` when testing embedded production assets.
 make build
 ```
 
+The production-oriented path is the same one used for Docker builds:
+
+- build the Svelte frontend
+- sync it into `cmd/shellyctl/dist`
+- compile the Go binary with embedded static assets
+
 To rebuild only the frontend bundle that the Go app embeds:
 
 ```bash
@@ -82,4 +88,5 @@ The architecture is documented, but some product-facing pieces are still in prog
 - export flows (devices, logs, templates, jobs)
 - advanced mode gating in settings
 - Docker networking guidance surfaced in UI
+- GitHub-driven container publishing automation
 - richer preview/dry-run flows for risky operations

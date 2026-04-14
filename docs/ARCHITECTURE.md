@@ -55,6 +55,11 @@ Primary tables:
 
 No historical device-state timeline is required.
 
+Current device-state nuance:
+
+- `last_seen` represents the last successful device retrieval
+- the latest refresh attempt status is tracked separately so the UI can mark a device as stale even when an older successful snapshot exists
+
 ## Job Policy
 
 Auto-restart after container restart:
@@ -99,6 +104,11 @@ Primary target:
 
 - one Docker container
 
+Current distribution assumption:
+
+- GitHub tagged source releases are the canonical release artifact
+- container builds are expected to be reproducible directly from the tagged repository checkout
+
 Optional:
 
 - reverse proxy with TLS termination
@@ -109,7 +119,9 @@ Optional:
   - sortable table
   - configurable columns
   - auto refresh
+  - configurable refresh timeout
   - per-row refresh/delete actions
+  - stale/fresh signal based on latest refresh outcome
 - Per-device compliance details are shown via the compliance badge hover in Devices.
 - Provision, Auth Groups, and Compliance follow a shared two-column layout:
   - left: settings/rules/groups
