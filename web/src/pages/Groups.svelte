@@ -234,7 +234,7 @@
           </div>
         </div>
         <div class="d-flex gap-2 align-items-center flex-wrap mb-3">
-          <select class="form-select" bind:value={assignGroupName} style="width: 14rem">
+          <select class="form-select toolbar-select-lg" bind:value={assignGroupName}>
             <option value="">select group</option>
             {#each groups as group}
               <option value={group.name}>{group.name}</option>

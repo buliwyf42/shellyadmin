@@ -49,7 +49,7 @@
 </script>
 
 <div class="d-flex gap-2 mb-3">
-  <select class="form-select" bind:value={stage} style="width: 12rem">
+  <select class="form-select toolbar-select-md" bind:value={stage}>
     <option value="stable">Stable</option>
     <option value="beta">Beta</option>
   </select>

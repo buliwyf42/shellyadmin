@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { api } from '../lib/api'
-  import { currentPath } from '../lib/stores'
+  import { currentPath, uiScale } from '../lib/stores'
   import type { VersionInfo } from '../lib/types'
   import { APP_VERSION } from '../lib/version'
 
@@ -70,7 +70,7 @@
       </span>
       <span class="brand-version">v{navVersion}</span>
     </a>
-    <div class="topnav-links">
+    <div class="topnav-main">
       {#each links as link}
         <a
           href={link.path}
@@ -84,6 +84,18 @@
           <span>{link.label}</span>
         </a>
       {/each}
+    </div>
+    <div class="topnav-side">
+      <div class="topnav-scale">
+        <label class="topnav-scale-label" for="nav-ui-scale">Size</label>
+        <select id="nav-ui-scale" class="topnav-scale-select" bind:value={$uiScale}>
+          <option value="compact">Compact</option>
+          <option value="default">Default</option>
+          <option value="large">Large</option>
+          <option value="xlarge">XL</option>
+          <option value="xxlarge">XXL</option>
+        </select>
+      </div>
       <button type="button" class="topnav-link logout" on:click={logout}>
         <span class="topnav-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" role="img">

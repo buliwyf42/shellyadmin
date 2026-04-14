@@ -36,7 +36,7 @@
 </script>
 
 <div class="d-flex gap-2 mb-3">
-  <select class="form-select" bind:value={level} style="width: 12rem">
+  <select class="form-select toolbar-select-md" bind:value={level}>
     <option value="">All Levels</option>
     <option value="INFO">INFO</option>
     <option value="WARN">WARN</option>

@@ -647,15 +647,15 @@
     <div class="card bg-dark border-secondary">
       <div class="card-header d-flex justify-content-between align-items-center gap-2 flex-wrap">
         <div class="d-flex gap-2 align-items-center flex-wrap">
-          <select class="form-select" bind:value={selectedTemplate} style="width: 14rem">
+          <select class="form-select toolbar-select-lg" bind:value={selectedTemplate}>
             <option value="">load template</option>
             {#each templateNames as name}
               <option value={name}>{name}</option>
             {/each}
           </select>
           <button class="btn btn-sm btn-outline-light" on:click={loadCurrentTemplate} disabled={!selectedTemplate}>Load</button>
-          <input class="form-control" style="width: 12rem" placeholder="template name" bind:value={templateName} />
-          <select class="form-select" bind:value={selectedTemplateCredentialRef} style="width: 12rem">
+          <input class="form-control toolbar-input-md" placeholder="template name" bind:value={templateName} />
+          <select class="form-select toolbar-select-md" bind:value={selectedTemplateCredentialRef}>
             <option value="">credential: none</option>
             {#each credentials as credential}
               <option value={credential.name}>{credential.name}</option>

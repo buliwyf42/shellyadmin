@@ -281,15 +281,12 @@
 </script>
 
 <section class="page-hero">
-  <div class="page-hero-copy">
-    <div class="page-eyebrow">Operations</div>
-    <div class="page-title-row">
-      <h1 class="page-title">Devices</h1>
-      <span class="page-status">{onlineCount} online</span>
-      {#if loading}
-        <span class="page-status muted">Refreshing…</span>
-      {/if}
-    </div>
+  <div class="page-title-row">
+    <span class="page-kicker">Devices</span>
+    <span class="page-status">{onlineCount} online</span>
+    {#if loading}
+      <span class="page-status muted">Refreshing…</span>
+    {/if}
   </div>
   <div class="page-hero-controls">
     <input class="form-control toolbar-search" placeholder="Filter name / IP / MAC / model" bind:value={filter} />
@@ -465,39 +462,33 @@
   .page-hero {
     display: flex;
     justify-content: space-between;
-    align-items: flex-end;
-    gap: 1rem;
-    margin-bottom: 0.65rem;
-    padding-bottom: 0.55rem;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.45rem;
     border-bottom: 1px solid rgba(160, 177, 190, 0.18);
-  }
-
-  .page-eyebrow {
-    color: #80909d;
-    font-size: 0.62rem;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    margin-bottom: 0.14rem;
   }
 
   .page-title-row {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
-    flex-wrap: wrap;
+    gap: 0.5rem;
+    flex-wrap: nowrap;
+    min-width: 0;
   }
 
-  .page-title {
-    margin: 0;
-    font-size: 1.1rem;
-    letter-spacing: -0.02em;
+  .page-kicker {
+    font-size: 0.95rem;
+    font-weight: 700;
     line-height: 1;
+    white-space: nowrap;
   }
 
   .page-status {
     color: #39c37c;
-    font-size: 0.72rem;
+    font-size: 0.68rem;
     font-weight: 700;
+    white-space: nowrap;
   }
 
   .page-status.muted {
@@ -508,30 +499,33 @@
     display: flex;
     align-items: center;
     gap: 0.4rem;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     justify-content: flex-end;
+    flex: 1 1 auto;
+    min-width: 0;
   }
 
   .toolbar-search {
-    width: min(17rem, 100%);
+    width: var(--toolbar-control-width-lg);
+    flex: 0 0 var(--toolbar-control-width-lg);
   }
 
   .toolbar-select {
-    width: 9.4rem;
+    width: var(--toolbar-control-width-sm);
+    flex: 0 0 var(--toolbar-control-width-sm);
   }
 
   .page-hero-controls :global(.form-control),
   .page-hero-controls :global(.form-select),
   .page-hero-controls :global(.btn) {
-    min-height: 2rem;
-    padding-top: 0.36rem;
-    padding-bottom: 0.36rem;
+    min-height: var(--control-height-sm);
     font-size: 0.76rem;
   }
 
   .page-hero-controls :global(.btn) {
     padding-left: 0.62rem;
     padding-right: 0.62rem;
+    white-space: nowrap;
   }
 
   .control-panel :global(.card-body) {
@@ -540,17 +534,23 @@
 
   @media (max-width: 900px) {
     .page-hero {
-      align-items: flex-start;
       flex-direction: column;
+      align-items: stretch;
     }
 
     .page-hero-controls {
       width: 100%;
       justify-content: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .page-title-row {
+      flex-wrap: wrap;
     }
 
     .toolbar-search {
       width: 100%;
+      flex-basis: 100%;
     }
   }
 </style>

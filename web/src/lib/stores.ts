@@ -1,7 +1,7 @@
 import { writable } from 'svelte/store'
 import type { Device } from './types'
 
-export type UIScale = 'compact' | 'default' | 'large'
+export type UIScale = 'compact' | 'default' | 'large' | 'xlarge' | 'xxlarge'
 
 export const deviceColumns = [
   { key: 'device_num', label: '#' },
