@@ -17,6 +17,13 @@ It is designed as a single-container deployment with:
 This repository is under active development.
 Current UI/API baseline is `v0.0.4`.
 
+Public support posture:
+
+- experimental but usable for trusted-LAN administration
+- optimized for a single trusted operator
+- not intended for direct internet exposure
+- not yet positioned as a multi-user or HA-ready platform
+
 Current `0.0.4` highlights:
 
 - configurable device refresh timeout in Settings
@@ -34,6 +41,31 @@ The target architecture is documented in [docs/ARCHITECTURE.md](/Users/buliwyf/D
 - Optimized for a single trusted operator on a LAN
 - Supports both Gen1 and Gen2+ Shelly devices
 - Keeps risky actions manual and previewed
+
+## Quick Start
+
+Fastest Docker run for a trusted LAN test setup:
+
+```bash
+docker run -d \
+  --name shellyadmin \
+  -p 8080:8080 \
+  -v shellyadmin-data:/data \
+  -e SHELLYADMIN_PASS='change-this-admin-password' \
+  -e SHELLYADMIN_SECRET='change-this-cookie-secret' \
+  -e COOKIE_SECURE=false \
+  ghcr.io/buliwyf42/shellyadmin:latest
+```
+
+Then open `http://localhost:8080`.
+
+For a Compose-based deployment, create the secret files expected by [`docker/docker-compose.yml`](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/docker/docker-compose.yml) and run:
+
+```bash
+docker compose -f docker/docker-compose.yml up -d
+```
+
+Use strong secrets for real installs. The `COOKIE_SECURE=false` example above is only for plain HTTP on a trusted LAN.
 
 ## Current Feature Set
 
@@ -160,11 +192,28 @@ Compatibility note:
 
 See [docs/DEPLOYMENT.md](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/docs/DEPLOYMENT.md) for deployment guidance.
 
+## What Works Today
+
+- device discovery with explicit inventory enrollment
+- periodic and manual device refresh
+- compliance rule management and device compliance visibility
+- firmware inspection and update flow
+- guided provisioning plus advanced JSON mode
+- auth groups, backup export/import, and audit logs
+
+## Not Production-Grade Yet
+
+- direct internet exposure
+- multi-user RBAC
+- high availability deployments
+- public API lifecycle guarantees
+- broad automated recovery and self-healing flows
+
 ## Security
 
 This project is intended for trusted LAN use, not direct internet exposure.
 
-See [docs/SECURITY.md](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/docs/SECURITY.md) for the current security model and deployment expectations.
+See [SECURITY.md](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/SECURITY.md) and [docs/SECURITY.md](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/docs/SECURITY.md) for the current security model and deployment expectations.
 
 ## Architecture
 
@@ -176,3 +225,5 @@ The current agreed architecture is documented in:
 ## Contributing
 
 The project is still being shaped, so architecture changes should align with the documented design goals before implementation.
+
+See [CONTRIBUTING.md](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/CONTRIBUTING.md) for the development and PR workflow.

@@ -2,3 +2,6 @@ bin/
 data/
 web/dist/
 secrets/
+.DS_Store
+.devlogs/
+web/node_modules/

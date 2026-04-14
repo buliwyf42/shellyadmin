@@ -1,6 +1,8 @@
 <script lang="ts">
+  import { onMount } from 'svelte'
   import { api } from '../lib/api'
   import { currentPath } from '../lib/stores'
+  import type { VersionInfo } from '../lib/types'
   import { APP_VERSION } from '../lib/version'
 
   const links = [
@@ -14,6 +16,18 @@
     { path: '/settings', label: 'Settings', icon: 'gear' },
     { path: '/about', label: 'About', icon: 'info' },
   ] as const
+
+  let runtimeVersion: VersionInfo = { backend_version: '', commit: '' }
+
+  onMount(async () => {
+    try {
+      runtimeVersion = await api.getVersion()
+    } catch {
+      runtimeVersion = { backend_version: '', commit: '' }
+    }
+  })
+
+  $: navVersion = runtimeVersion.backend_version || APP_VERSION
 
   function iconPath(name: (typeof links)[number]['icon'] | 'logout'): string {
     switch (name) {
@@ -50,8 +64,11 @@
   <div class="container-fluid">
     <a href="/" class="brand text-decoration-none text-light fw-bold">
       <img src="/logo-mark.svg" alt="ShellyAdmin logo" class="brand-logo" />
-      <span class="brand-name">ShellyAdmin</span>
-      <span class="brand-version">v{APP_VERSION}</span>
+      <span class="brand-copy">
+        <span class="brand-name">ShellyAdmin</span>
+        <span class="brand-tagline">Trusted LAN fleet management</span>
+      </span>
+      <span class="brand-version">v{navVersion}</span>
     </a>
     <div class="topnav-links">
       {#each links as link}

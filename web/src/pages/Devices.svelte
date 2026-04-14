@@ -265,6 +265,8 @@
     return haystack.includes(filter.toLowerCase())
   })
 
+  $: onlineCount = $devices.filter((device) => device.online).length
+
   $: sorted = [...filtered].sort((a, b) => {
     const result = compare(a, b, sortKey)
     return sortDir === 'asc' ? result : -result
@@ -278,22 +280,32 @@
   })
 </script>
 
-<div class="d-flex justify-content-between align-items-center mb-3 gap-3 flex-wrap">
-  <div class="d-flex gap-2 flex-wrap">
-    <button class="btn btn-warning text-dark" on:click={() => load(true)} disabled={loading}>Refresh</button>
-    <select class="form-select" bind:value={$refreshInterval} style="width: 15rem">
+<section class="page-hero">
+  <div class="page-hero-copy">
+    <div class="page-eyebrow">Operations</div>
+    <div class="page-title-row">
+      <h1 class="page-title">Devices</h1>
+      <span class="page-status">{onlineCount} online</span>
+      {#if loading}
+        <span class="page-status muted">Refreshing…</span>
+      {/if}
+    </div>
+  </div>
+  <div class="page-hero-controls">
+    <input class="form-control toolbar-search" placeholder="Filter name / IP / MAC / model" bind:value={filter} />
+    <select class="form-select toolbar-select" bind:value={$refreshInterval}>
       <option value={0}>Auto refresh: Off</option>
       <option value={30000}>Auto refresh: 30 sec</option>
       <option value={60000}>Auto refresh: 1 min</option>
       <option value={300000}>Auto refresh: 5 min</option>
     </select>
     <button class="btn btn-outline-light" on:click={() => showColumns = !showColumns}>{showColumns ? 'Hide Columns' : 'Columns'}</button>
-    <input class="form-control" placeholder="Filter name / IP / MAC / model" bind:value={filter} style="width: 20rem" />
+    <button class="btn btn-warning text-dark" on:click={() => load(true)} disabled={loading}>Refresh</button>
   </div>
-</div>
+</section>
 
 {#if showColumns}
-  <div class="card bg-dark border-secondary mb-3">
+  <div class="card bg-dark border-secondary mb-3 control-panel">
     <div class="card-body">
       <h2 class="h5">Visible Columns</h2>
       <div class="row g-3">
@@ -317,8 +329,8 @@
 
 <ErrorNotice summary={error} details={errorDetails} />
 
-<div class="table-responsive">
-  <table class="table table-dark table-striped align-middle table-nowrap">
+<div class="table-responsive dashboard-table-wrap">
+  <table class="table table-dark table-striped align-middle table-nowrap dashboard-table">
     <thead>
       <tr>
         {#if $colVis.device_num}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('device_num')}>{sortLabel('#', 'device_num')}</button></th>{/if}
@@ -448,5 +460,82 @@
 
   :global(tr.device-stale .row-action-btn) {
     opacity: 1;
+  }
+
+  .page-hero {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.85rem;
+    border-bottom: 1px solid rgba(160, 177, 190, 0.18);
+  }
+
+  .page-eyebrow {
+    color: #80909d;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-bottom: 0.3rem;
+  }
+
+  .page-title-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .page-title {
+    margin: 0;
+    font-size: 1.45rem;
+    letter-spacing: -0.02em;
+  }
+
+  .page-status {
+    color: #39c37c;
+    font-size: 0.86rem;
+    font-weight: 700;
+  }
+
+  .page-status.muted {
+    color: #d2b14e;
+  }
+
+  .page-hero-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .toolbar-search {
+    width: min(22rem, 100%);
+  }
+
+  .toolbar-select {
+    width: 11.5rem;
+  }
+
+  .control-panel :global(.card-body) {
+    padding-top: 1rem;
+  }
+
+  @media (max-width: 900px) {
+    .page-hero {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .page-hero-controls {
+      width: 100%;
+      justify-content: flex-start;
+    }
+
+    .toolbar-search {
+      width: 100%;
+    }
   }
 </style>

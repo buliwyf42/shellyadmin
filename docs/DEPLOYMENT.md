@@ -51,11 +51,13 @@ docker run -d \
   --name shellyadmin \
   -p 8080:8080 \
   -v shellyadmin-data:/data \
-  -e SHELLYADMIN_PASS=change-me \
-  -e SHELLYADMIN_SECRET=change-me-too \
+  -e SHELLYADMIN_PASS='change-this-admin-password' \
+  -e SHELLYADMIN_SECRET='change-this-cookie-secret' \
   -e COOKIE_SECURE=false \
   ghcr.io/buliwyf42/shellyadmin:latest
 ```
+
+This quick-start example is only for plain HTTP on a trusted LAN. For a more durable deployment, use the `*_FILE` secret variants and set `COOKIE_SECURE=true` when serving through TLS.
 
 Tagged source checkout:
 
@@ -69,6 +71,9 @@ Example:
 git clone https://github.com/buliwyf42/shellyadmin.git
 cd shellyadmin
 git checkout v0.0.4
+mkdir -p secrets
+openssl rand -base64 24 > secrets/shellyadmin_pass.txt
+openssl rand -base64 32 > secrets/shellyadmin_secret.txt
 docker compose -f docker/docker-compose.yml up -d --build
 ```
 
@@ -87,6 +92,12 @@ Recommended production characteristics:
 - dropped Linux capabilities
 - `tmpfs` for `/tmp`
 - healthcheck enabled
+
+Public-readiness note:
+
+- the app is intended for trusted LAN use only
+- do not expose it directly to the public internet
+- validate discovery behavior in your Docker networking mode before depending on it operationally
 
 ## Networking
 
