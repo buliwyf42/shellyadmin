@@ -161,6 +161,28 @@
     return formatDateIntl(value)
   }
 
+  function refreshState(device: Device): 'fresh' | 'stale' {
+    return device.last_refresh_ok ? 'fresh' : 'stale'
+  }
+
+  function refreshStateBadgeClass(device: Device): string {
+    return refreshState(device) === 'fresh' ? 'bg-success' : 'bg-secondary'
+  }
+
+  function refreshStateText(device: Device): string {
+    return refreshState(device) === 'fresh' ? 'Fresh' : 'Stale'
+  }
+
+  function refreshStateTitle(device: Device): string {
+    if (device.last_refresh_ok) {
+      return `Last successful refresh: ${formatDateIntl(device.last_seen)}`
+    }
+    const lastSuccess = device.last_seen ? formatDateIntl(device.last_seen) : 'never'
+    const lastAttempt = device.last_refresh_attempt ? formatDateIntl(device.last_refresh_attempt) : 'unknown'
+    const reason = device.last_refresh_error || 'latest refresh did not return device data'
+    return `Latest refresh failed: ${reason}. Last attempt: ${lastAttempt}. Last successful refresh: ${lastSuccess}.`
+  }
+
   function clearAutoRefresh(): void {
     if (autoRefreshTimer) {
       clearInterval(autoRefreshTimer)
@@ -324,14 +346,14 @@
         {#if $colVis.eco_mode}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('eco_mode')}>{sortLabel('Eco', 'eco_mode')}</button></th>{/if}
         {#if $colVis.discoverable}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('discoverable')}>{sortLabel('Discoverable', 'discoverable')}</button></th>{/if}
         {#if $colVis.first_seen}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('first_seen')}>{sortLabel('First Seen', 'first_seen')}</button></th>{/if}
-        {#if $colVis.last_seen}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('last_seen')}>{sortLabel('Last Seen', 'last_seen')}</button></th>{/if}
+        {#if $colVis.last_seen}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('last_seen')}>{sortLabel('Last Success', 'last_seen')}</button></th>{/if}
         {#if $colVis.compliance}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('compliance')}>{sortLabel('Compliance', 'compliance')}</button></th>{/if}
         <th class="text-end">Actions</th>
       </tr>
     </thead>
     <tbody>
       {#each sorted as device}
-        <tr>
+        <tr class:device-stale={refreshState(device) === 'stale'}>
           {#if $colVis.device_num}<td>{String(device.device_num).padStart(2, '0')}</td>{/if}
           {#if $colVis.name}<td>{device.name || device.serial || device.mac}</td>{/if}
           {#if $colVis.ip}<td><a href={`http://${device.ip}`} target="_blank" rel="noreferrer" class="ip-link">{device.ip}</a></td>{/if}
@@ -344,7 +366,14 @@
               {#if device.fw_available_ver}<span class="badge bg-info text-dark">↑ {device.fw_available_ver}</span>{/if}
             </td>
           {/if}
-          {#if $colVis.online}<td><span class={`badge ${statusBadgeClass(device.online)}`}>{statusText(device.online, 'Online', 'Offline')}</span></td>{/if}
+          {#if $colVis.online}
+            <td>
+              <div class="d-flex gap-2 align-items-center flex-wrap">
+                <span class={`badge ${statusBadgeClass(device.online)}`}>{statusText(device.online, 'Online', 'Offline')}</span>
+                <span class={`badge ${refreshStateBadgeClass(device)}`} title={refreshStateTitle(device)}>{refreshStateText(device)}</span>
+              </div>
+            </td>
+          {/if}
           {#if $colVis.wifi_ssid}<td>{#if device.wifi_ssid}{device.wifi_ssid}{:else}<span class="text-secondary">n/a</span>{/if}</td>{/if}
           {#if $colVis.mqtt_enabled}
             <td><span class={`badge ${mqttManagedByCloud(device) ? 'bg-secondary' : statusBadgeClass(device.mqtt_enabled)}`}>{mqttManagedByCloud(device) ? 'cloud-managed' : statusText(device.mqtt_enabled)}</span></td>
@@ -372,7 +401,15 @@
           {#if $colVis.eco_mode}<td><span class={`badge ${statusBadgeClass(device.eco_mode)}`}>{statusText(device.eco_mode)}</span></td>{/if}
           {#if $colVis.discoverable}<td><span class={`badge ${statusBadgeClass(device.discoverable)}`}>{statusText(device.discoverable)}</span></td>{/if}
           {#if $colVis.first_seen}<td title={formatDateIntl(device.first_seen)}>{formatSeen(device.first_seen)}</td>{/if}
-          {#if $colVis.last_seen}<td title={formatDateIntl(device.last_seen)}>{formatSeen(device.last_seen)}</td>{/if}
+          {#if $colVis.last_seen}
+            <td title={refreshStateTitle(device)}>
+              {#if device.last_seen}
+                {formatSeen(device.last_seen)}
+              {:else}
+                <span class="text-secondary">never</span>
+              {/if}
+            </td>
+          {/if}
           {#if $colVis.compliance}<td><ComplianceBadge compliant={device.compliant} issues={device.compliance_issues} /></td>{/if}
           <td class="text-end">
             <div class="d-flex justify-content-end gap-2">
@@ -399,3 +436,17 @@
 {#if !loading && !error && sorted.length === 0}
   <div class="alert alert-secondary mt-3 mb-0">No devices loaded yet. Start a scan or refresh this page.</div>
 {/if}
+
+<style>
+  :global(tr.device-stale td) {
+    opacity: 0.62;
+  }
+
+  :global(tr.device-stale .badge) {
+    opacity: 1;
+  }
+
+  :global(tr.device-stale .row-action-btn) {
+    opacity: 1;
+  }
+</style>

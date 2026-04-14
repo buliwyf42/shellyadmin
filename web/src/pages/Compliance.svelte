@@ -4,7 +4,7 @@
   import { devices } from '../lib/stores'
   import type { AppSettings, CustomRule, Device } from '../lib/types'
 
-  let settings: AppSettings = { subnets: [], scan_timeout: 2, scan_concurrency: 64, compliance: { custom_rules: [] } }
+  let settings: AppSettings = { subnets: [], scan_timeout: 2, refresh_timeout: 5, scan_concurrency: 64, compliance: { custom_rules: [] } }
   let saved = ''
   let loading = false
   let error = ''

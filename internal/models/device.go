@@ -9,6 +9,9 @@ type Device struct {
 	Gen               int      `json:"gen"`
 	Online            bool     `json:"online"`
 	LastSeen          string   `json:"last_seen"`
+	LastRefreshAttempt string  `json:"last_refresh_attempt"`
+	LastRefreshOK      bool    `json:"last_refresh_ok"`
+	LastRefreshError   string  `json:"last_refresh_error"`
 	FirstSeen         string   `json:"first_seen"`
 	DeviceNum         int      `json:"device_num"`
 	ConsecutiveMisses int      `json:"consecutive_misses"`

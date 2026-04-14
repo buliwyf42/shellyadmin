@@ -5,6 +5,7 @@ import "strings"
 type AppSettings struct {
 	Subnets         []string        `json:"subnets"`
 	ScanTimeout     float64         `json:"scan_timeout"`
+	RefreshTimeout  float64         `json:"refresh_timeout"`
 	ScanConcurrency int             `json:"scan_concurrency"`
 	Compliance      ComplianceRules `json:"compliance"`
 }
@@ -50,6 +51,7 @@ func DefaultSettings() AppSettings {
 	return AppSettings{
 		Subnets:         []string{},
 		ScanTimeout:     2,
+		RefreshTimeout:  5,
 		ScanConcurrency: 64,
 	}
 }
@@ -68,5 +70,8 @@ func (s *AppSettings) Normalize() {
 	}
 	if s.ScanTimeout <= 0 {
 		s.ScanTimeout = 2
+	}
+	if s.RefreshTimeout <= 0 {
+		s.RefreshTimeout = 5
 	}
 }

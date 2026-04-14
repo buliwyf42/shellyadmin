@@ -7,6 +7,9 @@ export interface Device {
   gen: number
   online: boolean
   device_num: number
+  last_refresh_attempt: string
+  last_refresh_ok: boolean
+  last_refresh_error: string
   mqtt_enabled: boolean | null
   mqtt_server: string
   mqtt_client_id: string
@@ -77,6 +80,7 @@ export interface CustomRule {
 export interface AppSettings {
   subnets: string[]
   scan_timeout: number
+  refresh_timeout: number
   scan_concurrency: number
   compliance: ComplianceRules
 }

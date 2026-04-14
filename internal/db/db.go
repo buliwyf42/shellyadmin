@@ -102,6 +102,7 @@ func (db *DB) migrate() error {
 
 func (db *DB) ListDevices() ([]models.Device, error) {
 	rows, err := db.sql.Query(`SELECT mac, ip, name, model, fw, gen, online, last_seen, first_seen, device_num,
+		last_refresh_attempt, last_refresh_ok, last_refresh_error,
 		consecutive_misses, mqtt_enabled, mqtt_server, mqtt_client_id, mqtt_topic_prefix, mqtt_flags_na,
 		lat, lon, tz, ws_enabled, ws_server, ble_gw_enabled, wifi_ssid, fw_status, fw_available_ver,
 		cloud_enabled, cloud_connected, ws_connected, matter_enabled, time_format, sntp_server, serial, auth_required, auth_error,
@@ -114,8 +115,9 @@ func (db *DB) ListDevices() ([]models.Device, error) {
 	var out []models.Device
 	for rows.Next() {
 		var d models.Device
-		var online, cloudConnected, wsConnected, authRequired int
+		var online, refreshOK, cloudConnected, wsConnected, authRequired int
 		if err := rows.Scan(&d.MAC, &d.IP, &d.Name, &d.Model, &d.FW, &d.Gen, &online, &d.LastSeen, &d.FirstSeen, &d.DeviceNum,
+			&d.LastRefreshAttempt, &refreshOK, &d.LastRefreshError,
 			&d.ConsecutiveMisses, &d.MQTTEnabled, &d.MQTTServer, &d.MQTTClientID, &d.MQTTTopicPrefix, &d.MQTTFlagsNA,
 			&d.Lat, &d.Lon, &d.TZ, &d.WSEnabled, &d.WSServer, &d.BLEGWEnabled, &d.WiFiSSID, &d.FWStatus, &d.FWAvailableVer,
 			&d.CloudEnabled, &cloudConnected, &wsConnected, &d.MatterEnabled, &d.TimeFormat, &d.SNTPServer, &d.Serial, &authRequired, &d.AuthError,
@@ -123,6 +125,7 @@ func (db *DB) ListDevices() ([]models.Device, error) {
 			return nil, err
 		}
 		d.Online = online == 1
+		d.LastRefreshOK = refreshOK == 1
 		d.CloudConnected = cloudConnected == 1
 		d.WSConnected = wsConnected == 1
 		d.AuthRequired = authRequired == 1
@@ -156,6 +159,9 @@ func (db *DB) UpsertDevices(scanned []models.Device) error {
 			d.FirstSeen = now()
 		}
 		d.LastSeen = now()
+		d.LastRefreshAttempt = d.LastSeen
+		d.LastRefreshOK = true
+		d.LastRefreshError = ""
 		d.ConsecutiveMisses = 0
 		d.Online = true
 		if d.FWStatus == "" {
@@ -169,6 +175,9 @@ func (db *DB) UpsertDevices(scanned []models.Device) error {
 		if seen[d.MAC] {
 			continue
 		}
+		d.LastRefreshAttempt = now()
+		d.LastRefreshOK = false
+		d.LastRefreshError = "refresh timed out"
 		d.ConsecutiveMisses++
 		if d.ConsecutiveMisses >= 2 {
 			d.Online = false
@@ -183,14 +192,16 @@ func (db *DB) UpsertDevices(scanned []models.Device) error {
 func (db *DB) upsertDevice(d models.Device) error {
 	_, err := db.sql.Exec(`INSERT INTO devices (
 		mac, ip, name, model, fw, gen, online, last_seen, first_seen, device_num, consecutive_misses,
+		last_refresh_attempt, last_refresh_ok, last_refresh_error,
 		mqtt_enabled, mqtt_server, mqtt_client_id, mqtt_topic_prefix, mqtt_flags_na, lat, lon, tz,
 		ws_enabled, ws_server, ble_gw_enabled, wifi_ssid, fw_status, fw_available_ver, cloud_enabled, auth_required, auth_error,
 		cloud_connected, ws_connected, matter_enabled, time_format, sntp_server, serial, eco_mode, discoverable, raw_config, raw_status
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	ON CONFLICT(mac) DO UPDATE SET
 		ip=excluded.ip, name=excluded.name, model=excluded.model, fw=excluded.fw, gen=excluded.gen,
 		online=excluded.online, last_seen=excluded.last_seen, first_seen=excluded.first_seen,
 		device_num=excluded.device_num, consecutive_misses=excluded.consecutive_misses,
+		last_refresh_attempt=excluded.last_refresh_attempt, last_refresh_ok=excluded.last_refresh_ok, last_refresh_error=excluded.last_refresh_error,
 		mqtt_enabled=excluded.mqtt_enabled, mqtt_server=excluded.mqtt_server,
 		mqtt_client_id=excluded.mqtt_client_id, mqtt_topic_prefix=excluded.mqtt_topic_prefix,
 		mqtt_flags_na=excluded.mqtt_flags_na, lat=excluded.lat, lon=excluded.lon, tz=excluded.tz,
@@ -203,6 +214,7 @@ func (db *DB) upsertDevice(d models.Device) error {
 		eco_mode=excluded.eco_mode, discoverable=excluded.discoverable,
 		raw_config=excluded.raw_config, raw_status=excluded.raw_status`,
 		d.MAC, d.IP, d.Name, d.Model, d.FW, d.Gen, boolToInt(d.Online), d.LastSeen, d.FirstSeen, d.DeviceNum, d.ConsecutiveMisses,
+		d.LastRefreshAttempt, boolToInt(d.LastRefreshOK), d.LastRefreshError,
 		d.MQTTEnabled, d.MQTTServer, d.MQTTClientID, d.MQTTTopicPrefix, d.MQTTFlagsNA, d.Lat, d.Lon, d.TZ,
 		d.WSEnabled, d.WSServer, d.BLEGWEnabled, d.WiFiSSID, d.FWStatus, d.FWAvailableVer, d.CloudEnabled, boolToInt(d.AuthRequired), d.AuthError,
 		boolToInt(d.CloudConnected), boolToInt(d.WSConnected), d.MatterEnabled, d.TimeFormat, d.SNTPServer, d.Serial, d.EcoMode, d.Discoverable, d.RawConfig, d.RawStatus)
@@ -236,6 +248,9 @@ func (db *DB) GetSettings() (models.AppSettings, error) {
 	}
 	if settings.ScanTimeout == 0 {
 		settings.ScanTimeout = 2
+	}
+	if settings.RefreshTimeout == 0 {
+		settings.RefreshTimeout = 5
 	}
 	return settings, nil
 }

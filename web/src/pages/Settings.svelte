@@ -4,7 +4,7 @@
   import type { AppSettings, BackupExport, Credential, ImportReport } from '../lib/types'
   import ErrorNotice from '../components/ErrorNotice.svelte'
 
-  let settings: AppSettings = { subnets: [], scan_timeout: 2, scan_concurrency: 64, compliance: {} }
+  let settings: AppSettings = { subnets: [], scan_timeout: 2, refresh_timeout: 5, scan_concurrency: 64, compliance: {} }
   let templateNames: string[] = []
   let newTemplateName = ''
   let newTemplateContent = '{\n  "mqtt": {\n    "enable": true\n  }\n}'
@@ -151,13 +151,15 @@
   <div class="col-lg-6">
     <div class="card bg-dark border-secondary">
       <div class="card-body">
-        <h2 class="h5">Scan Settings</h2>
+        <h2 class="h5">Discovery & Refresh</h2>
         <label class="form-label" for="settings-subnets">Subnets (one per line)</label>
         <textarea id="settings-subnets" class="form-control mb-3" rows="6" value={settings.subnets.join('\n')} on:input={(e) => settings.subnets = (e.currentTarget as HTMLTextAreaElement).value.split('\n').map((v) => v.trim()).filter(Boolean)}></textarea>
         <div class="row g-3">
-          <div class="col-md-6"><label class="form-label" for="settings-scan-timeout">Timeout (s)</label><input id="settings-scan-timeout" class="form-control" type="number" bind:value={settings.scan_timeout} /></div>
-          <div class="col-md-6"><label class="form-label" for="settings-scan-concurrency">Concurrency</label><input id="settings-scan-concurrency" class="form-control" type="number" bind:value={settings.scan_concurrency} /></div>
+          <div class="col-md-4"><label class="form-label" for="settings-scan-timeout">Scan timeout (s)</label><input id="settings-scan-timeout" class="form-control" type="number" bind:value={settings.scan_timeout} /></div>
+          <div class="col-md-4"><label class="form-label" for="settings-refresh-timeout">Refresh timeout (s)</label><input id="settings-refresh-timeout" class="form-control" type="number" bind:value={settings.refresh_timeout} /></div>
+          <div class="col-md-4"><label class="form-label" for="settings-scan-concurrency">Concurrency</label><input id="settings-scan-concurrency" class="form-control" type="number" bind:value={settings.scan_concurrency} /></div>
         </div>
+        <p class="text-secondary mt-2 mb-0">Tune discovery, refresh, and concurrency here. A higher refresh timeout helps when weaker Wi-Fi causes incomplete device data or false compliance issues.</p>
         <button class="btn btn-warning text-dark mt-3" on:click={saveSettings}>Save Settings</button>
       </div>
     </div>

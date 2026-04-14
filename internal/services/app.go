@@ -75,6 +75,11 @@ type BackupExport struct {
 	DeviceGroupAssignments map[string]string        `json:"device_group_assignments,omitempty"`
 }
 
+func refreshProbeTimeout(settings models.AppSettings) time.Duration {
+	settings.Normalize()
+	return time.Duration(settings.RefreshTimeout * float64(time.Second))
+}
+
 type TemplateRecord struct {
 	Name          string `json:"name"`
 	Content       string `json:"content"`
@@ -148,8 +153,7 @@ func (s *AppService) runRefreshJob(ctx context.Context, jobID int64, done chan<-
 		done <- err
 		return
 	}
-	settings.Normalize()
-	timeout := time.Duration(settings.ScanTimeout * float64(time.Second))
+	timeout := refreshProbeTimeout(settings)
 	limit := boundedConcurrency(settings.ScanConcurrency)
 	if limit > len(devices) {
 		limit = len(devices)
@@ -223,16 +227,21 @@ func (s *AppService) RefreshDevice(ctx context.Context, target string) ([]models
 	if err != nil {
 		return nil, err
 	}
-	timeout := time.Duration(settings.ScanTimeout * float64(time.Second))
+	timeout := refreshProbeTimeout(settings)
+	attemptedAt := time.Now().UTC().Format(time.RFC3339)
 	probed := scanner.ProbeDevice(ctx, current.IP, timeout, s.Log)
 	if probed == nil {
+		current.LastRefreshAttempt = attemptedAt
+		current.LastRefreshOK = false
 		required, reason := checkAuthRequired(ctx, current.IP, timeout)
 		if required {
 			current.AuthRequired = true
 			current.AuthError = reason
+			current.LastRefreshError = reason
 			current.Online = true
 			current.ConsecutiveMisses = 0
 		} else {
+			current.LastRefreshError = "refresh timed out"
 			current.ConsecutiveMisses++
 			if current.ConsecutiveMisses >= 2 {
 				current.Online = false
@@ -246,6 +255,9 @@ func (s *AppService) RefreshDevice(ctx context.Context, target string) ([]models
 
 	probed.DeviceNum = current.DeviceNum
 	probed.FirstSeen = current.FirstSeen
+	probed.LastRefreshAttempt = attemptedAt
+	probed.LastRefreshOK = true
+	probed.LastRefreshError = ""
 	probed.ConsecutiveMisses = 0
 	probed.Online = true
 	probed.AuthRequired = false
@@ -1270,6 +1282,9 @@ func ValidateSettings(settings models.AppSettings) error {
 	}
 	if settings.ScanTimeout < 0.2 || settings.ScanTimeout > 30 {
 		return fmt.Errorf("scan timeout must be between 0.2 and 30 seconds")
+	}
+	if settings.RefreshTimeout < 0.2 || settings.RefreshTimeout > 30 {
+		return fmt.Errorf("refresh timeout must be between 0.2 and 30 seconds")
 	}
 	total := 0
 	for _, subnet := range settings.Subnets {
