@@ -1,9 +1,12 @@
 services:
-  shellyctl:
-    image: shellyctl-go
+  shellyadmin:
+    image: ${SHELLYADMIN_IMAGE:-ghcr.io/buliwyf42/shellyadmin:latest}
     build:
       context: ..
       dockerfile: docker/Dockerfile
+      args:
+        VERSION: ${SHELLYADMIN_VERSION:-dev}
+        VCS_REF: ${GIT_COMMIT:-unknown}
     ports:
       - "8080:8080"
     volumes:

@@ -15,14 +15,16 @@ It is designed as a single-container deployment with:
 ## Status
 
 This repository is under active development.
-Current UI/API baseline is `v0.0.3`.
+Current UI/API baseline is `v0.0.4`.
 
-Current `0.0.3` highlights:
+Current `0.0.4` highlights:
 
 - configurable device refresh timeout in Settings
 - stale-device signaling in Devices when the latest refresh attempt fails
 - `Last Success` wording in Devices to distinguish successful retrieval from the latest attempted refresh
 - database migration support for refresh-state tracking
+- GitHub Actions workflow for publishing a `ShellyAdmin` container image to GHCR
+- Docker Compose aligned with the published `ghcr.io/buliwyf42/shellyadmin` image name
 
 The target architecture is documented in [docs/ARCHITECTURE.md](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/docs/ARCHITECTURE.md).
 
@@ -142,11 +144,19 @@ The app is intended to run as a single container.
 
 For GitHub-based distribution, the repository should be treated as the source of truth for:
 
-- tagged source releases such as `v0.0.3`
+- tagged source releases such as `v0.0.4`
 - the Docker build context under [`docker/`](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/docker)
-- future container publishing automation, for example a GitHub Actions flow that publishes a versioned image per tag
+- the GitHub Actions flow that publishes a versioned image to GHCR per release tag
 
-Today, the included Compose file builds locally from this repository. That keeps the container path aligned with the same code and embedded frontend assets used by the release commit.
+The included Compose file is aligned with the published GHCR image name:
+
+- default image: `ghcr.io/buliwyf42/shellyadmin:latest`
+- optional local rebuild path: `docker compose -f docker/docker-compose.yml up -d --build`
+
+Compatibility note:
+
+- internal binary and SQLite filenames still use `shellyctl` for now
+- the external product, Docker, and GitHub-facing name remains `ShellyAdmin`
 
 See [docs/DEPLOYMENT.md](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/docs/DEPLOYMENT.md) for deployment guidance.
 

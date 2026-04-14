@@ -7,18 +7,23 @@ RUN npm run build
 
 FROM golang:1.24-alpine AS backend
 WORKDIR /app
+ARG VERSION=dev
+ARG VCS_REF=unknown
 COPY go.mod ./
 COPY go.sum ./
 RUN go mod download
 COPY . .
 COPY --from=frontend /app/web/dist ./cmd/shellyctl/dist
-RUN go build -ldflags="-s -w" -o /shellyctl ./cmd/shellyctl
+RUN go build -ldflags="-s -w -X main.AppVersion=${VERSION} -X main.CommitHash=${VCS_REF}" -o /shellyadmin ./cmd/shellyctl
 
 FROM alpine:3.19
 RUN apk add --no-cache ca-certificates tzdata su-exec
 RUN addgroup -S shelly && adduser -S -G shelly -h /app shelly
 RUN mkdir -p /data /tmp /app
-COPY --from=backend /shellyctl /usr/local/bin/shellyctl
+LABEL org.opencontainers.image.title="ShellyAdmin"
+LABEL org.opencontainers.image.description="Self-hosted Shelly fleet management for trusted local networks"
+LABEL org.opencontainers.image.source="https://github.com/buliwyf42/shellyadmin"
+COPY --from=backend /shellyadmin /usr/local/bin/shellyctl
 COPY docker/entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 VOLUME ["/data"]

@@ -15,6 +15,7 @@ Supported environments:
 - plain HTTP on a trusted LAN
 - optional reverse proxy with TLS termination
 - Docker or Compose driven deployment from a tagged GitHub checkout
+- Docker deployment from the published GHCR image
 
 ## Environment Variables
 
@@ -41,9 +42,24 @@ The repo includes:
 - [docker/Dockerfile](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/docker/Dockerfile)
 - [docker/docker-compose.yml](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/docker/docker-compose.yml)
 
-Current expected flow:
+Current expected flows:
 
-1. Check out a tagged GitHub release, for example `v0.0.3`
+Published image:
+
+```bash
+docker run -d \
+  --name shellyadmin \
+  -p 8080:8080 \
+  -v shellyadmin-data:/data \
+  -e SHELLYADMIN_PASS=change-me \
+  -e SHELLYADMIN_SECRET=change-me-too \
+  -e COOKIE_SECURE=false \
+  ghcr.io/buliwyf42/shellyadmin:latest
+```
+
+Tagged source checkout:
+
+1. Check out a tagged GitHub release, for example `v0.0.4`
 2. Provide the required secrets files
 3. Build and run with Compose from the repository root
 
@@ -52,15 +68,16 @@ Example:
 ```bash
 git clone https://github.com/buliwyf42/shellyadmin.git
 cd shellyadmin
-git checkout v0.0.3
+git checkout v0.0.4
 docker compose -f docker/docker-compose.yml up -d --build
 ```
 
 Notes:
 
-- the current Compose file builds from local source instead of pulling a published image
-- this keeps the embedded frontend bundle and backend binary aligned with the checked-out release tag
-- a future GitHub container publishing workflow can layer on top of this without changing the runtime model
+- the Compose file uses `ghcr.io/buliwyf42/shellyadmin:latest` as its default image name
+- `docker compose up -d` can use the published image directly
+- `docker compose up -d --build` rebuilds locally from the checked-out source when you want an exact local release build
+- GitHub Actions publishes versioned images for tags such as `v0.0.4`
 
 Recommended production characteristics:
 
@@ -111,6 +128,11 @@ The SQLite database contains:
 - jobs
 - audit events
 - device refresh-state metadata used for stale/fresh signaling in the UI
+
+Compatibility note:
+
+- internal runtime filenames still use `shellyctl.db` and `shellyctl.log`
+- those names are kept for now to avoid unnecessary migration churn
 
 ## Restore
 

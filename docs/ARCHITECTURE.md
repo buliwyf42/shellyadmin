@@ -108,6 +108,7 @@ Current distribution assumption:
 
 - GitHub tagged source releases are the canonical release artifact
 - container builds are expected to be reproducible directly from the tagged repository checkout
+- GHCR-published images are the canonical container artifact for release consumption
 
 Optional:
 
