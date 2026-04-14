@@ -467,17 +467,17 @@
     justify-content: space-between;
     align-items: flex-end;
     gap: 1rem;
-    margin-bottom: 1rem;
-    padding-bottom: 0.85rem;
+    margin-bottom: 0.65rem;
+    padding-bottom: 0.55rem;
     border-bottom: 1px solid rgba(160, 177, 190, 0.18);
   }
 
   .page-eyebrow {
     color: #80909d;
-    font-size: 0.72rem;
+    font-size: 0.62rem;
     text-transform: uppercase;
     letter-spacing: 0.12em;
-    margin-bottom: 0.3rem;
+    margin-bottom: 0.14rem;
   }
 
   .page-title-row {
@@ -489,13 +489,14 @@
 
   .page-title {
     margin: 0;
-    font-size: 1.45rem;
+    font-size: 1.1rem;
     letter-spacing: -0.02em;
+    line-height: 1;
   }
 
   .page-status {
     color: #39c37c;
-    font-size: 0.86rem;
+    font-size: 0.72rem;
     font-weight: 700;
   }
 
@@ -506,17 +507,31 @@
   .page-hero-controls {
     display: flex;
     align-items: center;
-    gap: 0.55rem;
+    gap: 0.4rem;
     flex-wrap: wrap;
     justify-content: flex-end;
   }
 
   .toolbar-search {
-    width: min(22rem, 100%);
+    width: min(17rem, 100%);
   }
 
   .toolbar-select {
-    width: 11.5rem;
+    width: 9.4rem;
+  }
+
+  .page-hero-controls :global(.form-control),
+  .page-hero-controls :global(.form-select),
+  .page-hero-controls :global(.btn) {
+    min-height: 2rem;
+    padding-top: 0.36rem;
+    padding-bottom: 0.36rem;
+    font-size: 0.76rem;
+  }
+
+  .page-hero-controls :global(.btn) {
+    padding-left: 0.62rem;
+    padding-right: 0.62rem;
   }
 
   .control-panel :global(.card-body) {

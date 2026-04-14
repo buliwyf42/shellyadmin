@@ -1,6 +1,8 @@
 import { writable } from 'svelte/store'
 import type { Device } from './types'
 
+export type UIScale = 'compact' | 'default' | 'large'
+
 export const deviceColumns = [
   { key: 'device_num', label: '#' },
   { key: 'name', label: 'Name' },
@@ -52,6 +54,7 @@ function persisted<T>(key: string, fallback: T) {
 export const devices = writable<Device[]>([])
 export const colVis = persisted<Record<string, boolean>>('colVis', defaultCols)
 export const refreshInterval = persisted<number>('refreshInterval', 0)
+export const uiScale = persisted<UIScale>('uiScale', 'default')
 export const currentPath = writable<string>(window.location.pathname)
 
 export function navigate(path: string): void {

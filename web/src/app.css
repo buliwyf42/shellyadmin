@@ -1,4 +1,5 @@
 :root {
+  --ui-scale: 1;
   --bg: #1f252b;
   --bg-2: #23292f;
   --panel: #262d33;
@@ -17,6 +18,18 @@
 
 * { box-sizing: border-box; }
 html, body, #app { min-height: 100%; }
+html {
+  font-size: calc(16px * var(--ui-scale));
+}
+html[data-ui-scale='compact'] {
+  --ui-scale: 0.92;
+}
+html[data-ui-scale='default'] {
+  --ui-scale: 1;
+}
+html[data-ui-scale='large'] {
+  --ui-scale: 1.1;
+}
 body {
   margin: 0;
   font-family: "IBM Plex Sans", "Segoe UI", sans-serif;

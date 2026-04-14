@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { currentPath } from './lib/stores'
+  import { currentPath, uiScale } from './lib/stores'
   import Navbar from './components/Navbar.svelte'
   import LoginPage from './pages/Login.svelte'
   import DevicesPage from './pages/Devices.svelte'
@@ -27,6 +27,9 @@
 
   $: Page = routes[$currentPath as keyof typeof routes] ?? DevicesPage
   $: showShell = $currentPath !== '/login'
+  $: if (typeof document !== 'undefined') {
+    document.documentElement.dataset.uiScale = $uiScale
+  }
 </script>
 
 {#if showShell}

@@ -2,6 +2,7 @@
   import { onMount } from 'svelte'
   import { APIError, api } from '../lib/api'
   import type { AppSettings, BackupExport, Credential, ImportReport } from '../lib/types'
+  import { uiScale } from '../lib/stores'
   import ErrorNotice from '../components/ErrorNotice.svelte'
 
   let settings: AppSettings = { subnets: [], scan_timeout: 2, refresh_timeout: 5, scan_concurrency: 64, compliance: {} }
@@ -148,6 +149,20 @@
 {/if}
 
 <div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card bg-dark border-secondary">
+      <div class="card-body">
+        <h2 class="h5">Display</h2>
+        <label class="form-label" for="settings-ui-scale">UI size</label>
+        <select id="settings-ui-scale" class="form-select" bind:value={$uiScale}>
+          <option value="compact">Compact</option>
+          <option value="default">Default</option>
+          <option value="large">Large</option>
+        </select>
+        <p class="text-secondary mt-2 mb-0">This only affects the current browser and is applied immediately.</p>
+      </div>
+    </div>
+  </div>
   <div class="col-lg-6">
     <div class="card bg-dark border-secondary">
       <div class="card-body">
