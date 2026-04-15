@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -100,37 +101,37 @@ func applySection(ctx context.Context, client *http.Client, ip string, gen int, 
 		if gen == 1 {
 			return gen1HTTPSection(ctx, client, ip, "settings/mqtt", payload, section)
 		}
-		return rpcSection(ctx, client, ip, "MQTT.SetConfig", payload, section)
+		return rpcConfigSection(ctx, client, ip, "MQTT.SetConfig", payload, section)
 	case "sys":
 		if gen == 1 {
 			return gen1HTTPSection(ctx, client, ip, "settings", payload, section)
 		}
-		return rpcSection(ctx, client, ip, "Sys.SetConfig", payload, section)
+		return rpcConfigSection(ctx, client, ip, "Sys.SetConfig", payload, section)
 	case "ws":
 		if gen == 1 {
 			return SectionResult{Section: section, Status: "skipped", Detail: "gen2+ only"}
 		}
-		return rpcSection(ctx, client, ip, "WS.SetConfig", payload, section)
+		return rpcConfigSection(ctx, client, ip, "WS.SetConfig", payload, section)
 	case "ble":
 		if gen == 1 {
 			return SectionResult{Section: section, Status: "skipped", Detail: "gen2+ only"}
 		}
-		return rpcSection(ctx, client, ip, "BLE.SetConfig", payload, section)
+		return rpcConfigSection(ctx, client, ip, "BLE.SetConfig", payload, section)
 	case "matter":
 		if gen == 1 {
 			return SectionResult{Section: section, Status: "skipped", Detail: "gen2+ only"}
 		}
-		return rpcSection(ctx, client, ip, "Matter.SetConfig", payload, section)
+		return rpcConfigSection(ctx, client, ip, "Matter.SetConfig", payload, section)
 	case "cloud":
 		if gen == 1 {
 			return SectionResult{Section: section, Status: "skipped", Detail: "gen2+ only"}
 		}
-		return rpcSection(ctx, client, ip, "Cloud.SetConfig", payload, section)
+		return rpcConfigSection(ctx, client, ip, "Cloud.SetConfig", payload, section)
 	case "wifi":
 		if gen == 1 {
 			return SectionResult{Section: section, Status: "skipped", Detail: "gen2+ only"}
 		}
-		return rpcSection(ctx, client, ip, "Wifi.SetConfig", payload, section)
+		return rpcConfigSection(ctx, client, ip, "Wifi.SetConfig", payload, section)
 	case "kvs":
 		if gen == 1 {
 			return SectionResult{Section: section, Status: "skipped", Detail: "gen2+ only"}
@@ -165,7 +166,7 @@ func applySection(ctx context.Context, client *http.Client, ip string, gen int, 
 			return SectionResult{Section: section, Status: "skipped", Detail: "generic config unsupported on gen1"}
 		}
 		method := strings.ToUpper(section[:1]) + section[1:] + ".SetConfig"
-		return rpcSection(ctx, client, ip, method, payload, section)
+		return rpcConfigSection(ctx, client, ip, method, payload, section)
 	}
 }
 
@@ -206,19 +207,87 @@ func gen1Value(v interface{}) string {
 	}
 }
 
+func rpcConfigSection(ctx context.Context, client *http.Client, ip, method string, payload map[string]interface{}, section string) SectionResult {
+	return rpcSection(ctx, client, ip, method, map[string]interface{}{"config": payload}, section)
+}
+
 func rpcSection(ctx context.Context, client *http.Client, ip, method string, payload map[string]interface{}, section string) SectionResult {
-	buf, _ := json.Marshal(payload)
-	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, "http://"+ip+"/rpc/"+method, bytes.NewReader(buf))
+	reqBody := map[string]any{
+		"id":     1,
+		"method": method,
+		"params": payload,
+	}
+	buf, _ := json.Marshal(reqBody)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, "http://"+ip+"/rpc", bytes.NewReader(buf))
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := client.Do(req)
 	if err != nil {
 		return SectionResult{Section: section, Status: "failed", Detail: err.Error()}
 	}
 	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode >= 400 {
-		return SectionResult{Section: section, Status: "failed", Detail: resp.Status}
+		return SectionResult{Section: section, Status: "failed", Detail: firstNonEmpty(rpcErrorDetail(body), resp.Status)}
+	}
+
+	var rpcResp struct {
+		Error any `json:"error"`
+	}
+	if len(body) > 0 {
+		if err := json.Unmarshal(body, &rpcResp); err == nil && rpcResp.Error != nil {
+			return SectionResult{Section: section, Status: "failed", Detail: rpcErrorValue(rpcResp.Error)}
+		}
 	}
 	return SectionResult{Section: section, Status: "ok", Detail: method}
+}
+
+func rpcErrorDetail(body []byte) string {
+	if len(body) == 0 {
+		return ""
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return strings.TrimSpace(string(body))
+	}
+	if raw, ok := payload["error"]; ok {
+		return rpcErrorValue(raw)
+	}
+	return strings.TrimSpace(string(body))
+}
+
+func rpcErrorValue(raw any) string {
+	switch value := raw.(type) {
+	case string:
+		return strings.TrimSpace(value)
+	case map[string]any:
+		msg := firstNonEmpty(anyString(value["message"]), anyString(value["msg"]), anyString(value["error"]))
+		code := anyString(value["code"])
+		if msg != "" && code != "" {
+			return fmt.Sprintf("%s (%s)", msg, code)
+		}
+		if msg != "" {
+			return msg
+		}
+		encoded, _ := json.Marshal(value)
+		return string(encoded)
+	default:
+		encoded, _ := json.Marshal(value)
+		return string(encoded)
+	}
+}
+
+func anyString(raw any) string {
+	switch value := raw.(type) {
+	case string:
+		return strings.TrimSpace(value)
+	case float64:
+		return strings.TrimRight(strings.TrimRight(fmt.Sprintf("%.6f", value), "0"), ".")
+	default:
+		if value == nil {
+			return ""
+		}
+		return strings.TrimSpace(fmt.Sprint(value))
+	}
 }
 
 func substitute(v interface{}, name string) interface{} {

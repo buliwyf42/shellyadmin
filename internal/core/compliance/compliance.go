@@ -44,6 +44,20 @@ func Evaluate(dev models.Device, rules models.ComplianceRules) (bool, []string) 
 			issues = append(issues, fmt.Sprintf("%s mismatch", label))
 		}
 	}
+	compareConfigStringOrUnsupported := func(rule, path, label string) {
+		if strings.TrimSpace(rule) == "" {
+			return
+		}
+		config := unmarshalMap(dev.RawConfig)
+		got, found := resolvePath(config, path)
+		if !found {
+			issues = append(issues, fmt.Sprintf("%s unsupported", label))
+			return
+		}
+		if strings.TrimSpace(got) != strings.TrimSpace(rule) {
+			issues = append(issues, fmt.Sprintf("%s mismatch", label))
+		}
+	}
 	compareConfigBool := func(rule *bool, path, label string) {
 		if rule == nil {
 			return
@@ -94,7 +108,7 @@ func Evaluate(dev models.Device, rules models.ComplianceRules) (bool, []string) 
 	compareString(rules.TimeFormat, dev.TimeFormat, "time_format")
 	compareBoolPtr(rules.EcoMode, dev.EcoMode, "eco_mode")
 	compareBoolPtr(rules.Discoverable, dev.Discoverable, "discoverable")
-	compareConfigString(rules.OTAAutoUpdate, "ota.auto_update", "ota_auto_update")
+	compareConfigStringOrUnsupported(rules.OTAAutoUpdate, "ota.auto_update", "ota_auto_update")
 	evaluateCustomRules(&issues, dev, rules.CustomRules, deviceName)
 
 	return len(issues) == 0, issues

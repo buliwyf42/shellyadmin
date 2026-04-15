@@ -1,0 +1,30 @@
+services:
+  shellyadmin:
+    image: ghcr.io/buliwyf42/shellyadmin:v0.0.5
+    container_name: shellyadmin
+    ports:
+      - "8080:8080"
+    volumes:
+      - /docker/shellyadmin:/data
+    environment:
+      DATA_DIR: /data
+      SHELLYADMIN_USER: ${SHELLYADMIN_USER:-admin}
+      SHELLYADMIN_PASS: ${SHELLYADMIN_PASS:-change-this-admin-password}
+      SHELLYADMIN_SECRET: ${SHELLYADMIN_SECRET:-change-this-cookie-secret}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - SETGID
+      - SETUID
+    pids_limit: 256
+    init: true
+    stop_grace_period: 15s
+    restart: unless-stopped

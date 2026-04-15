@@ -25,6 +25,7 @@
   let templateName = ''
   let viewMode: 'form' | 'json' = 'form'
   let jsonText = '{}'
+  let templateLoadNotice = ''
 
   let sysEnabled = false
   let sysNameEnabled = false
@@ -138,6 +139,10 @@
     }
     error = (err as Error).message
     errorDetails = String(err)
+  }
+
+  function clearTemplateLoadNotice() {
+    templateLoadNotice = ''
   }
 
   $: sysExpanded = sysEnabled || sysNameEnabled || sysTZEnabled || sysLatEnabled || sysLonEnabled || sysSNTPEnabled || sysTimeFormatEnabled || sysDebugWSEnabled || sysDebugUDPHostEnabled || sysRPCUDPPortEnabled || sysEcoEnabled || sysDiscoverableEnabled
@@ -388,6 +393,468 @@
     return Number.isFinite(n) ? n : undefined
   }
 
+  function resetFormState() {
+    sysEnabled = false
+    sysNameEnabled = false
+    sysName = '{device_name}'
+    sysTZEnabled = false
+    sysTZ = 'Europe/Berlin'
+    sysLatEnabled = false
+    sysLat = ''
+    sysLonEnabled = false
+    sysLon = ''
+    sysSNTPEnabled = false
+    sysSNTP = 'time.cloudflare.com'
+    sysTimeFormatEnabled = false
+    sysTimeFormat = '24h'
+    sysDebugWSEnabled = false
+    sysDebugWS = false
+    sysDebugUDPHostEnabled = false
+    sysDebugUDPHost = ''
+    sysRPCUDPPortEnabled = false
+    sysRPCUDPPort = '0'
+    sysEcoEnabled = false
+    sysEco = false
+    sysDiscoverableEnabled = false
+    sysDiscoverable = true
+
+    mqttEnabled = false
+    mqttEnableField = false
+    mqttEnable = true
+    mqttServerEnabled = false
+    mqttServer = 'mqtt.home:1883'
+    mqttClientIDEnabled = false
+    mqttClientID = '{device_name}'
+    mqttTopicPrefixEnabled = false
+    mqttTopicPrefix = 'shelly/{device_name}'
+    mqttUserEnabled = false
+    mqttUser = ''
+    mqttPassEnabled = false
+    mqttPass = ''
+    mqttSSLCAEnabled = false
+    mqttSSLCA = ''
+    mqttRPCNtfEnabled = false
+    mqttRPCNtf = true
+    mqttStatusNtfEnabled = false
+    mqttStatusNtf = true
+    mqttEnableRPCEnabled = false
+    mqttEnableRPC = true
+    mqttEnableControlEnabled = false
+    mqttEnableControl = true
+    mqttUseClientCertEnabled = false
+    mqttUseClientCert = false
+
+    wsEnabled = false
+    wsEnableField = false
+    wsEnable = true
+    wsServerEnabled = false
+    wsServer = 'ws://ha.home:8123/api/shelly/ws'
+    wsTLSModeEnabled = false
+    wsTLSMode = 'default'
+    wsSSLCAEnabled = false
+    wsSSLCA = ''
+
+    bleEnabled = false
+    bleEnableField = false
+    bleEnable = true
+    bleRPCEnabledField = false
+    bleRPCEnabled = false
+    bleObserverEnabledField = false
+    bleObserverEnabled = false
+
+    matterEnabled = false
+    matterEnableField = false
+    matterEnable = true
+
+    cloudEnabled = false
+    cloudEnableField = false
+    cloudEnable = true
+
+    otaEnabled = false
+    otaStageEnabled = false
+    otaStage = 'stable'
+    otaAutoUpdateEnabled = false
+    otaAutoUpdate = 'off'
+
+    authEnabled = false
+    authPassEnabled = false
+    authPass = ''
+
+    wifiEnabled = false
+    wifiSTAEnabled = false
+    wifiSSIDEnabled = false
+    wifiSSID = ''
+    wifiPassEnabled = false
+    wifiPass = ''
+  }
+
+  function asRecord(value: unknown): Record<string, unknown> | null {
+    return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
+  }
+
+  function hasOnlyKeys(record: Record<string, unknown>, keys: string[]): boolean {
+    return Object.keys(record).every((key) => keys.includes(key))
+  }
+
+  function boolField(record: Record<string, unknown>, key: string): boolean | undefined {
+    const value = record[key]
+    return typeof value === 'boolean' ? value : undefined
+  }
+
+  function stringField(record: Record<string, unknown>, key: string): string | undefined {
+    const value = record[key]
+    return typeof value === 'string' ? value : undefined
+  }
+
+  function numberField(record: Record<string, unknown>, key: string): number | undefined {
+    const value = record[key]
+    return typeof value === 'number' ? value : undefined
+  }
+
+  function hydrateFormFromTemplate(template: Record<string, unknown>): { ok: true } | { ok: false; reason: string } {
+    resetFormState()
+    for (const [sectionName, rawSection] of Object.entries(template)) {
+      const section = sectionName.trim().toLowerCase()
+      const record = asRecord(rawSection)
+      if (!record) {
+        return { ok: false, reason: `Template section "${sectionName}" is not an object.` }
+      }
+      switch (section) {
+        case 'sys': {
+          if (!hasOnlyKeys(record, ['name', 'device', 'tz', 'location', 'sntp', 'clock_mode', 'dbg', 'rpc_udp', 'lat', 'lng'])) {
+            return { ok: false, reason: 'Template sys section contains fields the form cannot represent.' }
+          }
+          const device = record.device ? asRecord(record.device) : null
+          const location = record.location ? asRecord(record.location) : null
+          const sntp = record.sntp ? asRecord(record.sntp) : null
+          const dbg = record.dbg ? asRecord(record.dbg) : null
+          const rpcUDP = record.rpc_udp ? asRecord(record.rpc_udp) : null
+          if ((record.device && !device) || (record.location && !location) || (record.sntp && !sntp) || (record.dbg && !dbg) || (record.rpc_udp && !rpcUDP)) {
+            return { ok: false, reason: 'Template sys section contains nested values the form cannot represent.' }
+          }
+          if (device && !hasOnlyKeys(device, ['name', 'eco_mode', 'discoverable'])) {
+            return { ok: false, reason: 'Template sys.device section contains unsupported fields.' }
+          }
+          if (location && !hasOnlyKeys(location, ['tz', 'lat', 'lon'])) {
+            return { ok: false, reason: 'Template sys.location section contains unsupported fields.' }
+          }
+          if (sntp && !hasOnlyKeys(sntp, ['server'])) {
+            return { ok: false, reason: 'Template sys.sntp section contains unsupported fields.' }
+          }
+          if (dbg && !hasOnlyKeys(dbg, ['websocket_enable', 'udp_addr'])) {
+            return { ok: false, reason: 'Template sys.dbg section contains unsupported fields.' }
+          }
+          if (rpcUDP && !hasOnlyKeys(rpcUDP, ['port'])) {
+            return { ok: false, reason: 'Template sys.rpc_udp section contains unsupported fields.' }
+          }
+
+          sysEnabled = true
+          const topName = stringField(record, 'name')
+          const nestedName = device ? stringField(device, 'name') : undefined
+          if (topName !== undefined || nestedName !== undefined) {
+            if (topName !== undefined && nestedName !== undefined && topName !== nestedName) {
+              return { ok: false, reason: 'Template sys name fields disagree and cannot be represented safely in the form.' }
+            }
+            sysNameEnabled = true
+            sysName = topName ?? nestedName ?? sysName
+          }
+          const topTZ = stringField(record, 'tz')
+          const nestedTZ = location ? stringField(location, 'tz') : undefined
+          if (topTZ !== undefined || nestedTZ !== undefined) {
+            if (topTZ !== undefined && nestedTZ !== undefined && topTZ !== nestedTZ) {
+              return { ok: false, reason: 'Template sys timezone fields disagree and cannot be represented safely in the form.' }
+            }
+            sysTZEnabled = true
+            sysTZ = topTZ ?? nestedTZ ?? sysTZ
+          }
+          const topLat = numberField(record, 'lat')
+          const nestedLat = location ? numberField(location, 'lat') : undefined
+          if (topLat !== undefined || nestedLat !== undefined) {
+            if (topLat !== undefined && nestedLat !== undefined && topLat !== nestedLat) {
+              return { ok: false, reason: 'Template sys latitude fields disagree and cannot be represented safely in the form.' }
+            }
+            sysLatEnabled = true
+            sysLat = String(topLat ?? nestedLat ?? '')
+          }
+          const topLon = numberField(record, 'lng')
+          const nestedLon = location ? numberField(location, 'lon') : undefined
+          if (topLon !== undefined || nestedLon !== undefined) {
+            if (topLon !== undefined && nestedLon !== undefined && topLon !== nestedLon) {
+              return { ok: false, reason: 'Template sys longitude fields disagree and cannot be represented safely in the form.' }
+            }
+            sysLonEnabled = true
+            sysLon = String(topLon ?? nestedLon ?? '')
+          }
+          const sntpServer = sntp ? stringField(sntp, 'server') : undefined
+          if (sntpServer !== undefined) {
+            sysSNTPEnabled = true
+            sysSNTP = sntpServer
+          }
+          const clockMode = numberField(record, 'clock_mode')
+          if (clockMode !== undefined) {
+            if (clockMode !== 0 && clockMode !== 1) {
+              return { ok: false, reason: 'Template sys clock_mode is not representable in the form.' }
+            }
+            sysTimeFormatEnabled = true
+            sysTimeFormat = clockMode === 1 ? '12h' : '24h'
+          }
+          const debugWS = dbg ? boolField(dbg, 'websocket_enable') : undefined
+          if (debugWS !== undefined) {
+            sysDebugWSEnabled = true
+            sysDebugWS = debugWS
+          }
+          const debugUDPHost = dbg ? stringField(dbg, 'udp_addr') : undefined
+          if (debugUDPHost !== undefined) {
+            sysDebugUDPHostEnabled = true
+            sysDebugUDPHost = debugUDPHost
+          }
+          const rpcUDPPort = rpcUDP ? numberField(rpcUDP, 'port') : undefined
+          if (rpcUDPPort !== undefined) {
+            sysRPCUDPPortEnabled = true
+            sysRPCUDPPort = String(rpcUDPPort)
+          }
+          const ecoMode = device ? boolField(device, 'eco_mode') : undefined
+          if (ecoMode !== undefined) {
+            sysEcoEnabled = true
+            sysEco = ecoMode
+          }
+          const discoverable = device ? boolField(device, 'discoverable') : undefined
+          if (discoverable !== undefined) {
+            sysDiscoverableEnabled = true
+            sysDiscoverable = discoverable
+          }
+          break
+        }
+        case 'mqtt': {
+          if (!hasOnlyKeys(record, ['enable', 'server', 'client_id', 'id', 'topic_prefix', 'user', 'pass', 'ssl_ca', 'rpc_ntf', 'status_ntf', 'enable_rpc', 'enable_control', 'use_client_cert'])) {
+            return { ok: false, reason: 'Template mqtt section contains unsupported fields.' }
+          }
+          const clientID = stringField(record, 'client_id')
+          const aliasID = stringField(record, 'id')
+          if (clientID !== undefined && aliasID !== undefined && clientID !== aliasID) {
+            return { ok: false, reason: 'Template mqtt client identifiers disagree and cannot be represented safely in the form.' }
+          }
+          mqttEnabled = true
+          const mqttEnableValue = boolField(record, 'enable')
+          if (mqttEnableValue !== undefined) {
+            mqttEnableField = true
+            mqttEnable = mqttEnableValue
+          }
+          const mqttServerValue = stringField(record, 'server')
+          if (mqttServerValue !== undefined) {
+            mqttServerEnabled = true
+            mqttServer = mqttServerValue
+          }
+          const mqttClientValue = clientID ?? aliasID
+          if (mqttClientValue !== undefined) {
+            mqttClientIDEnabled = true
+            mqttClientID = mqttClientValue
+          }
+          const mqttTopicValue = stringField(record, 'topic_prefix')
+          if (mqttTopicValue !== undefined) {
+            mqttTopicPrefixEnabled = true
+            mqttTopicPrefix = mqttTopicValue
+          }
+          const mqttUserValue = stringField(record, 'user')
+          if (mqttUserValue !== undefined) {
+            mqttUserEnabled = true
+            mqttUser = mqttUserValue
+          }
+          const mqttPassValue = stringField(record, 'pass')
+          if (mqttPassValue !== undefined) {
+            mqttPassEnabled = true
+            mqttPass = mqttPassValue
+          }
+          const mqttSSLCAValue = stringField(record, 'ssl_ca')
+          if (mqttSSLCAValue !== undefined) {
+            mqttSSLCAEnabled = true
+            mqttSSLCA = mqttSSLCAValue
+          }
+          const mqttRPCValue = boolField(record, 'rpc_ntf')
+          if (mqttRPCValue !== undefined) {
+            mqttRPCNtfEnabled = true
+            mqttRPCNtf = mqttRPCValue
+          }
+          const mqttStatusValue = boolField(record, 'status_ntf')
+          if (mqttStatusValue !== undefined) {
+            mqttStatusNtfEnabled = true
+            mqttStatusNtf = mqttStatusValue
+          }
+          const mqttEnableRPCValue = boolField(record, 'enable_rpc')
+          if (mqttEnableRPCValue !== undefined) {
+            mqttEnableRPCEnabled = true
+            mqttEnableRPC = mqttEnableRPCValue
+          }
+          const mqttEnableControlValue = boolField(record, 'enable_control')
+          if (mqttEnableControlValue !== undefined) {
+            mqttEnableControlEnabled = true
+            mqttEnableControl = mqttEnableControlValue
+          }
+          const mqttUseClientCertValue = boolField(record, 'use_client_cert')
+          if (mqttUseClientCertValue !== undefined) {
+            mqttUseClientCertEnabled = true
+            mqttUseClientCert = mqttUseClientCertValue
+          }
+          break
+        }
+        case 'ws': {
+          if (!hasOnlyKeys(record, ['enable', 'server', 'tls_mode', 'ssl_ca'])) {
+            return { ok: false, reason: 'Template ws section contains unsupported fields.' }
+          }
+          const tlsMode = stringField(record, 'tls_mode')
+          if (tlsMode !== undefined && tlsMode !== 'no_validation' && tlsMode !== 'default' && tlsMode !== 'user') {
+            return { ok: false, reason: 'Template ws tls_mode is not representable in the form.' }
+          }
+          if (record.ssl_ca !== undefined && tlsMode !== 'user') {
+            return { ok: false, reason: 'Template ws ssl_ca requires user TLS mode to be represented in the form.' }
+          }
+          wsEnabled = true
+          const wsEnableValue = boolField(record, 'enable')
+          if (wsEnableValue !== undefined) {
+            wsEnableField = true
+            wsEnable = wsEnableValue
+          }
+          const wsServerValue = stringField(record, 'server')
+          if (wsServerValue !== undefined) {
+            wsServerEnabled = true
+            wsServer = wsServerValue
+          }
+          if (tlsMode !== undefined) {
+            wsTLSModeEnabled = true
+            wsTLSMode = tlsMode
+          }
+          const wsSSLCAValue = stringField(record, 'ssl_ca')
+          if (wsSSLCAValue !== undefined) {
+            wsSSLCAEnabled = true
+            wsSSLCA = wsSSLCAValue
+          }
+          break
+        }
+        case 'ble': {
+          if (!hasOnlyKeys(record, ['enable', 'rpc', 'observer'])) {
+            return { ok: false, reason: 'Template ble section contains unsupported fields.' }
+          }
+          const rpc = record.rpc ? asRecord(record.rpc) : null
+          const observer = record.observer ? asRecord(record.observer) : null
+          if ((record.rpc && !rpc) || (record.observer && !observer)) {
+            return { ok: false, reason: 'Template ble section contains nested values the form cannot represent.' }
+          }
+          if (rpc && !hasOnlyKeys(rpc, ['enable'])) {
+            return { ok: false, reason: 'Template ble.rpc section contains unsupported fields.' }
+          }
+          if (observer && !hasOnlyKeys(observer, ['enable'])) {
+            return { ok: false, reason: 'Template ble.observer section contains unsupported fields.' }
+          }
+          bleEnabled = true
+          const bleEnableValue = boolField(record, 'enable')
+          if (bleEnableValue !== undefined) {
+            bleEnableField = true
+            bleEnable = bleEnableValue
+          }
+          const bleRPCValue = rpc ? boolField(rpc, 'enable') : undefined
+          if (bleRPCValue !== undefined) {
+            bleRPCEnabledField = true
+            bleRPCEnabled = bleRPCValue
+          }
+          const bleObserverValue = observer ? boolField(observer, 'enable') : undefined
+          if (bleObserverValue !== undefined) {
+            bleObserverEnabledField = true
+            bleObserverEnabled = bleObserverValue
+          }
+          break
+        }
+        case 'matter': {
+          if (!hasOnlyKeys(record, ['enable'])) {
+            return { ok: false, reason: 'Template matter section contains unsupported fields.' }
+          }
+          matterEnabled = true
+          const matterEnableValue = boolField(record, 'enable')
+          if (matterEnableValue !== undefined) {
+            matterEnableField = true
+            matterEnable = matterEnableValue
+          }
+          break
+        }
+        case 'cloud': {
+          if (!hasOnlyKeys(record, ['enable'])) {
+            return { ok: false, reason: 'Template cloud section contains unsupported fields.' }
+          }
+          cloudEnabled = true
+          const cloudEnableValue = boolField(record, 'enable')
+          if (cloudEnableValue !== undefined) {
+            cloudEnableField = true
+            cloudEnable = cloudEnableValue
+          }
+          break
+        }
+        case 'ota': {
+          if (!hasOnlyKeys(record, ['stage', 'auto_update'])) {
+            return { ok: false, reason: 'Template ota section contains unsupported fields.' }
+          }
+          const stageValue = stringField(record, 'stage')
+          if (stageValue !== undefined && stageValue !== 'stable' && stageValue !== 'beta') {
+            return { ok: false, reason: 'Template ota stage is not representable in the form.' }
+          }
+          const autoUpdateValue = stringField(record, 'auto_update')
+          if (autoUpdateValue !== undefined && autoUpdateValue !== 'off' && autoUpdateValue !== 'stable' && autoUpdateValue !== 'beta') {
+            return { ok: false, reason: 'Template ota auto_update is not representable in the form.' }
+          }
+          otaEnabled = true
+          if (stageValue !== undefined) {
+            otaStageEnabled = true
+            otaStage = stageValue
+          }
+          if (autoUpdateValue !== undefined) {
+            otaAutoUpdateEnabled = true
+            otaAutoUpdate = autoUpdateValue
+          }
+          break
+        }
+        case 'auth': {
+          if (!hasOnlyKeys(record, ['pass'])) {
+            return { ok: false, reason: 'Template auth section contains unsupported fields.' }
+          }
+          authEnabled = true
+          const passValue = stringField(record, 'pass')
+          if (passValue !== undefined) {
+            authPassEnabled = true
+            authPass = passValue
+          }
+          break
+        }
+        case 'wifi': {
+          if (!hasOnlyKeys(record, ['sta'])) {
+            return { ok: false, reason: 'Template wifi section contains unsupported fields.' }
+          }
+          const sta = record.sta ? asRecord(record.sta) : null
+          if (record.sta && !sta) {
+            return { ok: false, reason: 'Template wifi.sta section is not representable in the form.' }
+          }
+          if (sta && !hasOnlyKeys(sta, ['enable', 'ssid', 'pass'])) {
+            return { ok: false, reason: 'Template wifi.sta section contains unsupported fields.' }
+          }
+          wifiEnabled = true
+          const staEnabled = sta ? boolField(sta, 'enable') : undefined
+          if (staEnabled !== undefined) wifiSTAEnabled = staEnabled
+          const ssidValue = sta ? stringField(sta, 'ssid') : undefined
+          if (ssidValue !== undefined) {
+            wifiSSIDEnabled = true
+            wifiSSID = ssidValue
+          }
+          const passValue = sta ? stringField(sta, 'pass') : undefined
+          if (passValue !== undefined) {
+            wifiPassEnabled = true
+            wifiPass = passValue
+          }
+          break
+        }
+        default:
+          return { ok: false, reason: `Template section "${sectionName}" is not supported by the form editor.` }
+      }
+    }
+    return { ok: true }
+  }
+
   function buildTemplate() {
     const out: Record<string, unknown> = {}
 
@@ -546,8 +1013,18 @@
       const loaded = await api.getTemplate(selectedTemplate)
       jsonText = loaded.content
       selectedTemplateCredentialRef = loaded.credential_ref || ''
-      viewMode = 'json'
       templateName = selectedTemplate
+      clearTemplateLoadNotice()
+      const parsed = asRecord(JSON.parse(loaded.content))
+      const hydrated = parsed
+        ? hydrateFormFromTemplate(parsed)
+        : { ok: false as const, reason: 'Template root is not an object and cannot be represented in the form.' }
+      if (hydrated.ok) {
+        viewMode = 'form'
+      } else {
+        viewMode = 'json'
+        templateLoadNotice = `Loaded in JSON mode: ${hydrated.reason}`
+      }
       error = ''
       errorDetails = ''
     } catch (err) {
@@ -695,6 +1172,9 @@
       </div>
 
       <div class="card-body">
+        {#if templateLoadNotice}
+          <div class="alert alert-info py-2">{templateLoadNotice}</div>
+        {/if}
         {#if viewMode === 'json'}
           <textarea class="form-control font-monospace" rows="36" bind:value={jsonText}></textarea>
         {:else}
