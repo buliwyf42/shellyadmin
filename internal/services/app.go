@@ -17,7 +17,6 @@ import (
 	"shellyadmin/internal/core/firmware"
 	"shellyadmin/internal/core/provisioner"
 	"shellyadmin/internal/core/scanner"
-	"shellyadmin/internal/core/setters"
 	"shellyadmin/internal/db"
 	"shellyadmin/internal/models"
 )
@@ -29,6 +28,8 @@ const (
 	maxSubnets       = 64
 	maxScanTargets   = 65534
 )
+
+const staleScanGrace = 15 * time.Second
 
 type AppService struct {
 	db      *db.DB
@@ -268,60 +269,6 @@ func (s *AppService) RefreshDevice(ctx context.Context, target string) ([]models
 	return s.GetDevices()
 }
 
-func (s *AppService) BulkAction(ctx context.Context, action string, macs []string, value string, lat, lon float64, enabled *bool) ([]map[string]string, error) {
-	if len(macs) == 0 {
-		return nil, errors.New("at least one device is required")
-	}
-	devices, err := s.db.ListDevices()
-	if err != nil {
-		return nil, err
-	}
-	ipToDevice := map[string]models.Device{}
-	for _, device := range devices {
-		ipToDevice[device.IP] = device
-	}
-	settings, err := s.db.GetSettings()
-	if err != nil {
-		return nil, err
-	}
-	timeout := time.Duration(settings.ScanTimeout * float64(time.Second))
-	index := map[string]models.Device{}
-	for _, device := range devices {
-		index[device.MAC] = device
-	}
-	results := make([]map[string]string, 0, len(macs))
-	for _, mac := range macs {
-		device, ok := index[mac]
-		if !ok {
-			results = append(results, map[string]string{"mac": mac, "status": "missing"})
-			continue
-		}
-		success := false
-		switch action {
-		case "set_location":
-			success = setters.SetLocation(ctx, device.IP, lat, lon, device.Gen, timeout)
-		case "set_timezone":
-			success = setters.SetTimezone(ctx, device.IP, value, device.Gen, timeout)
-		case "set_mqtt_server":
-			success = setters.SetMQTTServer(ctx, device.IP, value, device.Gen, timeout)
-		case "set_mqtt_enabled":
-			if enabled != nil {
-				success = setters.SetMQTTEnabled(ctx, device.IP, *enabled, device.Gen, timeout)
-			}
-		case "set_24h":
-			success = setters.SetTimeFormat24h(ctx, device.IP, device.Gen, timeout)
-		default:
-			return nil, fmt.Errorf("unsupported action: %s", action)
-		}
-		status := "failed"
-		if success {
-			status = "ok"
-		}
-		results = append(results, map[string]string{"mac": device.MAC, "ip": device.IP, "status": status})
-	}
-	return results, nil
-}
-
 func (s *AppService) StartScan() error {
 	settings, err := s.db.GetSettings()
 	if err != nil {
@@ -331,7 +278,12 @@ func (s *AppService) StartScan() error {
 		return err
 	}
 	if latest, err := s.db.GetLatestJob("scan"); err == nil && latest.Status == "running" {
-		return errors.New("scan already running")
+		stale, staleErr := scanJobStale(latest, time.Now())
+		if staleErr == nil && stale {
+			_ = s.db.InterruptJob(latest.ID, "scan stalled")
+		} else {
+			return errors.New("scan already running")
+		}
 	}
 	devices, err := s.db.ListDevices()
 	if err != nil {
@@ -348,6 +300,9 @@ func (s *AppService) StartScan() error {
 			return err
 		}
 		total += len(ips)
+	}
+	if settings.EnableMDNS {
+		total++
 	}
 	if total > maxScanTargets {
 		return fmt.Errorf("scan target count %d exceeds limit %d", total, maxScanTargets)
@@ -367,6 +322,11 @@ func (s *AppService) runScanJob(jobID int64, settings models.AppSettings) {
 	results := scanner.ScanSubnets(context.Background(), settings.Subnets, boundedConcurrency(settings.ScanConcurrency), timeout, s.Log, func() {
 		_ = s.db.IncrementJobDone(jobID)
 	})
+	if settings.EnableMDNS {
+		mdnsResults := scanner.ScanMDNS(context.Background(), timeout, s.Log)
+		results = scanner.MergeDevices(results, mdnsResults)
+		_ = s.db.IncrementJobDone(jobID)
+	}
 	body, _ := json.Marshal(ScanJobResult{Pending: results})
 	job, err := s.db.GetJob(jobID)
 	if err != nil {
@@ -379,6 +339,15 @@ func (s *AppService) ScanStatus() (ScanStatus, error) {
 	job, err := s.db.GetLatestJob("scan")
 	if err != nil {
 		return ScanStatus{Pending: []map[string]any{}}, nil
+	}
+	if job.Status == "running" {
+		if stale, staleErr := scanJobStale(job, time.Now()); staleErr == nil && stale {
+			_ = s.db.InterruptJob(job.ID, "scan stalled")
+			job, err = s.db.GetJob(job.ID)
+			if err != nil {
+				return ScanStatus{Pending: []map[string]any{}}, nil
+			}
+		}
 	}
 	payload, _ := ParseScanPayload(job.Payload)
 	result, _ := ParseScanResult(job.Result)
@@ -401,6 +370,14 @@ func (s *AppService) ScanStatus() (ScanStatus, error) {
 		Done:    job.Done,
 		Pending: pending,
 	}, nil
+}
+
+func scanJobStale(job models.Job, now time.Time) (bool, error) {
+	updatedAt, err := time.Parse(time.RFC3339, job.UpdatedAt)
+	if err != nil {
+		return false, err
+	}
+	return now.Sub(updatedAt) > staleScanGrace, nil
 }
 
 func (s *AppService) ConfirmScan(macs []string) (int, error) {
@@ -911,12 +888,8 @@ func (s *AppService) ListCredentialGroups() ([]models.CredentialGroup, error) {
 
 func (s *AppService) SaveCredentialGroup(group models.CredentialGroup) error {
 	group.Name = strings.TrimSpace(group.Name)
-	group.Username = strings.TrimSpace(group.Username)
 	if group.Name == "" {
 		return errors.New("group name is required")
-	}
-	if group.Username == "" {
-		return errors.New("group username is required")
 	}
 	if strings.TrimSpace(group.Password) == "" && strings.TrimSpace(group.HA1) == "" {
 		return errors.New("group requires password or ha1")
@@ -927,7 +900,7 @@ func (s *AppService) SaveCredentialGroup(group models.CredentialGroup) error {
 	}
 	return s.db.SaveCredential(models.Credential{
 		Name:     group.Name,
-		Username: group.Username,
+		Username: "admin",
 		Password: group.Password,
 		HA1:      group.HA1,
 		Tags:     group.Tags,
@@ -1022,7 +995,7 @@ func (s *AppService) ExportBackup(includeSecrets bool) (BackupExport, error) {
 	}
 	s.Log("INFO", fmt.Sprintf("backup export requested include_secrets=%t templates=%d groups=%d assignments=%d", includeSecrets, len(out), len(groups), len(assignments)))
 	return BackupExport{
-		Version:                2,
+		Version:                3,
 		Settings:               settings,
 		Templates:              out,
 		CredentialGroups:       groups,
@@ -1089,14 +1062,10 @@ func (s *AppService) ImportBackup(data BackupExport, apply bool) (ImportReport, 
 	incomingGroups := map[string]models.CredentialGroup{}
 	for _, group := range data.CredentialGroups {
 		name := strings.TrimSpace(group.Name)
-		username := strings.TrimSpace(group.Username)
 		password := strings.TrimSpace(group.Password)
 		ha1 := strings.TrimSpace(group.HA1)
 		if name == "" {
 			return ImportReport{}, errors.New("group name cannot be empty")
-		}
-		if username == "" {
-			return ImportReport{}, fmt.Errorf("group %q missing username", name)
 		}
 		if password == "" && ha1 == "" {
 			return ImportReport{}, fmt.Errorf("group %q requires password or ha1", name)
@@ -1106,7 +1075,6 @@ func (s *AppService) ImportBackup(data BackupExport, apply bool) (ImportReport, 
 		}
 		sanitized := models.CredentialGroup{
 			Name:     name,
-			Username: username,
 			Password: password,
 			HA1:      ha1,
 			Tags:     sanitizeTags(group.Tags),
@@ -1114,7 +1082,7 @@ func (s *AppService) ImportBackup(data BackupExport, apply bool) (ImportReport, 
 		incomingGroups[name] = sanitized
 		if currentGroup, exists := existingGroups[name]; !exists {
 			report.GroupsCreate = append(report.GroupsCreate, name)
-		} else if currentGroup.Username != sanitized.Username || currentGroup.Password != sanitized.Password || currentGroup.HA1 != sanitized.HA1 || strings.Join(currentGroup.Tags, "\x00") != strings.Join(sanitized.Tags, "\x00") {
+		} else if currentGroup.Password != sanitized.Password || currentGroup.HA1 != sanitized.HA1 || strings.Join(currentGroup.Tags, "\x00") != strings.Join(sanitized.Tags, "\x00") {
 			report.GroupsUpdate = append(report.GroupsUpdate, name)
 		}
 	}
@@ -1294,8 +1262,23 @@ func ValidateSettings(settings models.AppSettings) error {
 		}
 		total += len(ips)
 	}
+	if settings.EnableMDNS {
+		total++
+	}
+	if total == 0 {
+		return errors.New("no scan targets configured; add at least one subnet in Settings or enable mDNS discovery")
+	}
 	if total > maxScanTargets {
 		return fmt.Errorf("scan target count %d exceeds limit %d", total, maxScanTargets)
+	}
+	if mode := settings.Compliance.WSTLSMode; mode != "" && mode != "no_validation" && mode != "default" && mode != "user" {
+		return fmt.Errorf("websocket tls mode must be no_validation, default, or user")
+	}
+	if mode := settings.Compliance.OTAAutoUpdate; mode != "" && mode != "off" && mode != "stable" && mode != "beta" {
+		return fmt.Errorf("ota auto update must be off, stable, or beta")
+	}
+	if settings.Compliance.RPCUDPPort != nil && *settings.Compliance.RPCUDPPort < 0 {
+		return fmt.Errorf("rpc udp port must be 0 or greater")
 	}
 	return nil
 }

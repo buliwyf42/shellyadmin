@@ -35,17 +35,23 @@
   onMount(() => void load())
 </script>
 
-<div class="d-flex gap-2 mb-3">
-  <select class="form-select toolbar-select-md" bind:value={level}>
-    <option value="">All Levels</option>
-    <option value="INFO">INFO</option>
-    <option value="WARN">WARN</option>
-    <option value="ERROR">ERROR</option>
-  </select>
-  <input class="form-control" placeholder="Search logs" bind:value={search} />
-  <button class="btn btn-warning text-dark" on:click={load}>Load</button>
-  <button class="btn btn-outline-danger" on:click={clearAll} disabled={busy}>Delete All Logs</button>
-</div>
+<section class="page-hero">
+  <div class="page-hero-stack">
+    <span class="page-kicker">Logs</span>
+    <h1 class="h5 mb-0">Audit trail</h1>
+  </div>
+  <div class="page-toolbar">
+    <select class="form-select toolbar-select-md" bind:value={level}>
+      <option value="">All Levels</option>
+      <option value="INFO">INFO</option>
+      <option value="WARN">WARN</option>
+      <option value="ERROR">ERROR</option>
+    </select>
+    <input class="form-control toolbar-input-lg" placeholder="Search logs" bind:value={search} />
+    <button class="btn btn-warning text-dark" on:click={load}>Load</button>
+    <button class="btn btn-outline-danger" on:click={clearAll} disabled={busy}>Delete All Logs</button>
+  </div>
+</section>
 
 {#if notice}
   <div class="alert alert-success py-2">{notice}</div>

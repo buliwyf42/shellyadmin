@@ -1,13 +1,15 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import { api } from '../lib/api'
+  import { APIError, api } from '../lib/api'
   import { devices } from '../lib/stores'
   import type { AppSettings, CustomRule, Device } from '../lib/types'
+  import ErrorNotice from '../components/ErrorNotice.svelte'
 
-  let settings: AppSettings = { subnets: [], scan_timeout: 2, refresh_timeout: 5, scan_concurrency: 64, compliance: { custom_rules: [] } }
+  let settings: AppSettings = { subnets: [], scan_timeout: 2, refresh_timeout: 5, scan_concurrency: 64, enable_mdns: false, compliance: { custom_rules: [] } }
   let saved = ''
   let loading = false
   let error = ''
+  let errorDetails = ''
 
   const sourceOptions: Array<CustomRule['source']> = ['device', 'config', 'status']
   const opOptions: Array<CustomRule['op']> = ['eq', 'ne', 'contains', 'regex', 'exists']
@@ -28,12 +30,20 @@
   let wsEnabledField = false
   let wsConnectedField = false
   let wsServerField = false
+  let wsTLSModeField = false
+  let wsSSLCAField = false
 
   let bleGWEnabledField = false
+  let bleRPCEnabledField = false
+  let bleObserverEnabledField = false
 
   let tzEnabled = false
   let sntpEnabled = false
   let timeFormatEnabled = false
+  let otaAutoUpdateEnabled = false
+  let sysDebugWSField = false
+  let sysDebugUDPHostField = false
+  let sysRPCUDPPortField = false
   let latEnabled = false
   let lonEnabled = false
   let ecoEnabled = false
@@ -45,14 +55,16 @@
   let wsOpen = false
   let bleOpen = false
   let sysOpen = false
+  let otaOpen = false
   let customOpen = false
 
   $: wifiExpanded = wifiSSIDEnabled
   $: mqttExpanded = mqttEnabledField || mqttServerEnabled || mqttClientIDEnabled || mqttTopicPrefixEnabled || mqttRPCNtfEnabled || mqttStatusNtfEnabled || mqttEnableRPCEnabled || mqttEnableControlEnabled
   $: cloudExpanded = cloudConnectedEnabled
-  $: wsExpanded = wsEnabledField || wsConnectedField || wsServerField
-  $: bleExpanded = bleGWEnabledField
-  $: sysExpanded = tzEnabled || sntpEnabled || timeFormatEnabled || latEnabled || lonEnabled || ecoEnabled || discoverableEnabled
+  $: wsExpanded = wsEnabledField || wsConnectedField || wsServerField || wsTLSModeField || wsSSLCAField
+  $: bleExpanded = bleGWEnabledField || bleRPCEnabledField || bleObserverEnabledField
+  $: sysExpanded = tzEnabled || sntpEnabled || timeFormatEnabled || sysDebugWSField || sysDebugUDPHostField || sysRPCUDPPortField || latEnabled || lonEnabled || ecoEnabled || discoverableEnabled
+  $: otaExpanded = otaAutoUpdateEnabled
   $: customExpanded = (settings.compliance.custom_rules || []).length > 0
 
   $: wifiVisible = wifiExpanded || wifiOpen
@@ -61,7 +73,18 @@
   $: wsVisible = wsExpanded || wsOpen
   $: bleVisible = bleExpanded || bleOpen
   $: sysVisible = sysExpanded || sysOpen
+  $: otaVisible = otaExpanded || otaOpen
   $: customVisible = customExpanded || customOpen
+
+  function captureError(err: unknown) {
+    if (err instanceof APIError) {
+      error = err.message
+      errorDetails = `${err.method} ${err.path} -> ${err.status}\n${JSON.stringify(err.detail ?? {}, null, 2)}`
+      return
+    }
+    error = err instanceof Error ? err.message : String(err)
+    errorDetails = String(err)
+  }
 
   function ensureDefaults() {
     settings.compliance = settings.compliance || {}
@@ -70,11 +93,19 @@
     if (settings.compliance.cloud_connected === undefined) settings.compliance.cloud_connected = null
     if (settings.compliance.ws_enabled === undefined) settings.compliance.ws_enabled = null
     if (settings.compliance.ws_connected === undefined) settings.compliance.ws_connected = null
+    if (settings.compliance.ws_tls_mode === undefined) settings.compliance.ws_tls_mode = ''
+    if (settings.compliance.ws_ssl_ca === undefined) settings.compliance.ws_ssl_ca = ''
     if (settings.compliance.ble_gw_enabled === undefined) settings.compliance.ble_gw_enabled = null
+    if (settings.compliance.ble_rpc_enable === undefined) settings.compliance.ble_rpc_enable = null
+    if (settings.compliance.ble_observer_enable === undefined) settings.compliance.ble_observer_enable = null
     if (settings.compliance.mqtt_rpc_ntf === undefined) settings.compliance.mqtt_rpc_ntf = null
     if (settings.compliance.mqtt_status_ntf === undefined) settings.compliance.mqtt_status_ntf = null
     if (settings.compliance.mqtt_enable_rpc === undefined) settings.compliance.mqtt_enable_rpc = null
     if (settings.compliance.mqtt_enable_control === undefined) settings.compliance.mqtt_enable_control = null
+    if (settings.compliance.ota_auto_update === undefined) settings.compliance.ota_auto_update = ''
+    if (settings.compliance.sys_debug_websocket === undefined) settings.compliance.sys_debug_websocket = null
+    if (settings.compliance.sys_debug_udp_host === undefined) settings.compliance.sys_debug_udp_host = ''
+    if (settings.compliance.sys_rpc_udp_port === undefined) settings.compliance.sys_rpc_udp_port = null
     if (settings.compliance.eco_mode === undefined) settings.compliance.eco_mode = null
     if (settings.compliance.discoverable === undefined) settings.compliance.discoverable = null
   }
@@ -97,12 +128,20 @@
     wsEnabledField = settings.compliance.ws_enabled !== null && settings.compliance.ws_enabled !== undefined
     wsConnectedField = settings.compliance.ws_connected !== null && settings.compliance.ws_connected !== undefined
     wsServerField = Boolean(settings.compliance.ws_server)
+    wsTLSModeField = Boolean(settings.compliance.ws_tls_mode)
+    wsSSLCAField = Boolean(settings.compliance.ws_ssl_ca)
 
     bleGWEnabledField = settings.compliance.ble_gw_enabled !== null && settings.compliance.ble_gw_enabled !== undefined
+    bleRPCEnabledField = settings.compliance.ble_rpc_enable !== null && settings.compliance.ble_rpc_enable !== undefined
+    bleObserverEnabledField = settings.compliance.ble_observer_enable !== null && settings.compliance.ble_observer_enable !== undefined
 
     tzEnabled = Boolean(settings.compliance.tz)
     sntpEnabled = Boolean(settings.compliance.sntp_server)
     timeFormatEnabled = Boolean(settings.compliance.time_format)
+    otaAutoUpdateEnabled = Boolean(settings.compliance.ota_auto_update)
+    sysDebugWSField = settings.compliance.sys_debug_websocket !== null && settings.compliance.sys_debug_websocket !== undefined
+    sysDebugUDPHostField = Boolean(settings.compliance.sys_debug_udp_host)
+    sysRPCUDPPortField = settings.compliance.sys_rpc_udp_port !== null && settings.compliance.sys_rpc_udp_port !== undefined
     latEnabled = settings.compliance.lat !== null && settings.compliance.lat !== undefined
     lonEnabled = settings.compliance.lon !== null && settings.compliance.lon !== undefined
     ecoEnabled = settings.compliance.eco_mode !== null && settings.compliance.eco_mode !== undefined
@@ -127,12 +166,20 @@
     settings.compliance.ws_enabled = wsEnabledField ? Boolean(settings.compliance.ws_enabled) : null
     settings.compliance.ws_connected = wsConnectedField ? Boolean(settings.compliance.ws_connected) : null
     settings.compliance.ws_server = wsServerField ? (settings.compliance.ws_server || '') : ''
+    settings.compliance.ws_tls_mode = wsTLSModeField ? (settings.compliance.ws_tls_mode || 'default') : ''
+    settings.compliance.ws_ssl_ca = wsSSLCAField && settings.compliance.ws_tls_mode === 'user' ? (settings.compliance.ws_ssl_ca || '') : ''
 
     settings.compliance.ble_gw_enabled = bleGWEnabledField ? Boolean(settings.compliance.ble_gw_enabled) : null
+    settings.compliance.ble_rpc_enable = bleRPCEnabledField ? Boolean(settings.compliance.ble_rpc_enable) : null
+    settings.compliance.ble_observer_enable = bleObserverEnabledField ? Boolean(settings.compliance.ble_observer_enable) : null
 
     settings.compliance.tz = tzEnabled ? (settings.compliance.tz || '') : ''
     settings.compliance.sntp_server = sntpEnabled ? (settings.compliance.sntp_server || '') : ''
     settings.compliance.time_format = timeFormatEnabled ? (settings.compliance.time_format || '') : ''
+    settings.compliance.ota_auto_update = otaAutoUpdateEnabled ? (settings.compliance.ota_auto_update || 'off') : ''
+    settings.compliance.sys_debug_websocket = sysDebugWSField ? Boolean(settings.compliance.sys_debug_websocket) : null
+    settings.compliance.sys_debug_udp_host = sysDebugUDPHostField ? (settings.compliance.sys_debug_udp_host || '') : ''
+    settings.compliance.sys_rpc_udp_port = sysRPCUDPPortField ? Number(settings.compliance.sys_rpc_udp_port ?? 0) : null
     settings.compliance.lat = latEnabled ? settings.compliance.lat : null
     settings.compliance.lon = lonEnabled ? settings.compliance.lon : null
     settings.compliance.eco_mode = ecoEnabled ? Boolean(settings.compliance.eco_mode) : null
@@ -142,35 +189,52 @@
   async function load() {
     loading = true
     error = ''
-    const [settingsResult, devicesResult] = await Promise.allSettled([
-      api.getSettings(),
-      api.getDevices(),
-    ])
+    errorDetails = ''
+    try {
+      const [settingsResult, devicesResult] = await Promise.allSettled([
+        api.getSettings(),
+        api.getDevices(),
+      ])
 
-    if (settingsResult.status === 'fulfilled') {
-      settings = settingsResult.value
-      ensureDefaults()
-      initToggles()
-    } else {
-      error = settingsResult.reason instanceof Error ? settingsResult.reason.message : 'Failed to load compliance settings'
-    }
+      if (settingsResult.status === 'fulfilled') {
+        settings = settingsResult.value
+        ensureDefaults()
+        initToggles()
+      } else {
+        captureError(settingsResult.reason)
+      }
 
-    if (devicesResult.status === 'fulfilled') {
-      $devices = devicesResult.value
-    } else {
-      error = error || (devicesResult.reason instanceof Error ? devicesResult.reason.message : 'Failed to load devices')
-      $devices = []
+      if (devicesResult.status === 'fulfilled') {
+        $devices = devicesResult.value
+      } else {
+        if (!error) {
+          captureError(devicesResult.reason)
+        }
+        $devices = []
+      }
+    } finally {
+      loading = false
     }
-    loading = false
   }
 
   async function save() {
-    applyTogglesToSettings()
-    settings.compliance.custom_rules = (settings.compliance.custom_rules || []).filter((rule) => rule.path.trim() !== '')
-    await api.saveSettings(settings)
-    await load()
-    saved = 'Saved'
-    setTimeout(() => (saved = ''), 1500)
+    error = ''
+    errorDetails = ''
+    saved = ''
+    try {
+      applyTogglesToSettings()
+      settings.compliance.custom_rules = (settings.compliance.custom_rules || []).filter((rule) => rule.path.trim() !== '')
+      await api.saveSettings(settings)
+      await load()
+      if (!error) {
+        saved = 'Saved'
+        setTimeout(() => {
+          if (saved === 'Saved') saved = ''
+        }, 1500)
+      }
+    } catch (err) {
+      captureError(err)
+    }
   }
 
   function addRule() {
@@ -210,6 +274,8 @@
 
   onMount(() => void load())
 </script>
+
+<ErrorNotice summary={error} details={errorDetails} />
 
 <div class="row g-3">
   <div class="col-lg-6">
@@ -276,9 +342,11 @@
               </div>
               {#if wsVisible}
                 <div class="row g-2">
-                  <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={wsEnabledField} on:click|stopPropagation />Enabled</label><select class="form-select" bind:value={settings.compliance.ws_enabled} disabled={!wsEnabledField}><option value={true}>On</option><option value={false}>Off</option></select></div>
-                  <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={wsConnectedField} on:click|stopPropagation />Connected</label><select class="form-select" bind:value={settings.compliance.ws_connected} disabled={!wsConnectedField}><option value={true}>Yes</option><option value={false}>No</option></select></div>
-                  <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={wsServerField} on:click|stopPropagation />Server</label><input class="form-control" bind:value={settings.compliance.ws_server} disabled={!wsServerField} /></div>
+                  <div class="col-md-3"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={wsEnabledField} on:click|stopPropagation />Enabled</label><select class="form-select" bind:value={settings.compliance.ws_enabled} disabled={!wsEnabledField}><option value={true}>On</option><option value={false}>Off</option></select></div>
+                  <div class="col-md-3"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={wsConnectedField} on:click|stopPropagation />Connected</label><select class="form-select" bind:value={settings.compliance.ws_connected} disabled={!wsConnectedField}><option value={true}>Yes</option><option value={false}>No</option></select></div>
+                  <div class="col-md-3"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={wsServerField} on:click|stopPropagation />Server</label><input class="form-control" bind:value={settings.compliance.ws_server} disabled={!wsServerField} /></div>
+                  <div class="col-md-3"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={wsTLSModeField} on:click|stopPropagation />Connection type</label><select class="form-select" bind:value={settings.compliance.ws_tls_mode} disabled={!wsTLSModeField}><option value="no_validation">TLS no validation</option><option value="default">Default TLS</option><option value="user">User TLS</option></select></div>
+                  <div class="col-md-3"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={wsSSLCAField} on:click|stopPropagation />TLS / SSL CA</label><input class="form-control" placeholder="* or ca.pem" bind:value={settings.compliance.ws_ssl_ca} disabled={!wsSSLCAField || settings.compliance.ws_tls_mode !== 'user'} /></div>
                 </div>
               {/if}
             </div>
@@ -293,6 +361,8 @@
               {#if bleVisible}
                 <div class="row g-2">
                   <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={bleGWEnabledField} on:click|stopPropagation />Gateway Enabled</label><select class="form-select" bind:value={settings.compliance.ble_gw_enabled} disabled={!bleGWEnabledField}><option value={true}>On</option><option value={false}>Off</option></select></div>
+                  <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={bleRPCEnabledField} on:click|stopPropagation />RPC over BLE</label><select class="form-select" bind:value={settings.compliance.ble_rpc_enable} disabled={!bleRPCEnabledField}><option value={true}>On</option><option value={false}>Off</option></select></div>
+                  <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={bleObserverEnabledField} on:click|stopPropagation />Observer Mode</label><select class="form-select" bind:value={settings.compliance.ble_observer_enable} disabled={!bleObserverEnabledField}><option value={true}>On</option><option value={false}>Off</option></select></div>
                 </div>
               {/if}
             </div>
@@ -309,10 +379,35 @@
                   <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={tzEnabled} on:click|stopPropagation />Timezone</label><input class="form-control" bind:value={settings.compliance.tz} disabled={!tzEnabled} /></div>
                   <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sntpEnabled} on:click|stopPropagation />SNTP Server</label><input class="form-control" bind:value={settings.compliance.sntp_server} disabled={!sntpEnabled} /></div>
                   <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={timeFormatEnabled} on:click|stopPropagation />Time Format</label><select class="form-select" bind:value={settings.compliance.time_format} disabled={!timeFormatEnabled}><option value="24h">24h</option><option value="12h">12h</option></select></div>
+                  <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysDebugWSField} on:click|stopPropagation />Debug WebSocket</label><select class="form-select" bind:value={settings.compliance.sys_debug_websocket} disabled={!sysDebugWSField}><option value={true}>On</option><option value={false}>Off</option></select></div>
+                  <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysDebugUDPHostField} on:click|stopPropagation />Debug UDP Host</label><input class="form-control" placeholder="host:port" bind:value={settings.compliance.sys_debug_udp_host} disabled={!sysDebugUDPHostField} /></div>
+                  <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysRPCUDPPortField} on:click|stopPropagation />RPC UDP Port</label><input class="form-control" type="number" min="0" bind:value={settings.compliance.sys_rpc_udp_port} disabled={!sysRPCUDPPortField} /></div>
                   <div class="col-md-3"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={latEnabled} on:click|stopPropagation />Lat</label><input class="form-control" type="number" step="0.0001" bind:value={settings.compliance.lat} disabled={!latEnabled} /></div>
                   <div class="col-md-3"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={lonEnabled} on:click|stopPropagation />Lon</label><input class="form-control" type="number" step="0.0001" bind:value={settings.compliance.lon} disabled={!lonEnabled} /></div>
                   <div class="col-md-3"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={ecoEnabled} on:click|stopPropagation />Eco Mode</label><select class="form-select" bind:value={settings.compliance.eco_mode} disabled={!ecoEnabled}><option value={true}>On</option><option value={false}>Off</option></select></div>
                   <div class="col-md-3"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={discoverableEnabled} on:click|stopPropagation />Discoverable</label><select class="form-select" bind:value={settings.compliance.discoverable} disabled={!discoverableEnabled}><option value={true}>On</option><option value={false}>Off</option></select></div>
+                </div>
+              {/if}
+            </div>
+          </div>
+
+          <div class="card bg-black border-secondary">
+            <div class="card-body">
+              <div class="d-flex justify-content-between align-items-center mb-3" role="button" tabindex="0" on:click={() => (otaOpen = !otaOpen)} on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (otaOpen = !otaOpen)} style="cursor: pointer">
+                <strong>ota</strong>
+                <span class="text-secondary">{otaVisible ? '▾' : '▸'}</span>
+              </div>
+              {#if otaVisible}
+                <div class="row g-2">
+                  <div class="col-md-6">
+                    <label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={otaAutoUpdateEnabled} on:click|stopPropagation />Update automatically</label>
+                    <select class="form-select" bind:value={settings.compliance.ota_auto_update} disabled={!otaAutoUpdateEnabled}>
+                      <option value="off">Disable auto update</option>
+                      <option value="stable">Enable update to stable version</option>
+                      <option value="beta">Enable update to beta version</option>
+                    </select>
+                    <div class="text-secondary mt-2">BETA firmware may cause instability</div>
+                  </div>
                 </div>
               {/if}
             </div>
@@ -400,7 +495,3 @@
     </div>
   </div>
 </div>
-
-{#if error}
-  <div class="alert alert-danger mt-3">{error}</div>
-{/if}

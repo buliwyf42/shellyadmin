@@ -7,6 +7,7 @@ type AppSettings struct {
 	ScanTimeout     float64         `json:"scan_timeout"`
 	RefreshTimeout  float64         `json:"refresh_timeout"`
 	ScanConcurrency int             `json:"scan_concurrency"`
+	EnableMDNS      bool            `json:"enable_mdns"`
 	Compliance      ComplianceRules `json:"compliance"`
 }
 
@@ -24,14 +25,20 @@ type ComplianceRules struct {
 	WSEnabled       *bool        `json:"ws_enabled"`
 	WSConnected     *bool        `json:"ws_connected"`
 	WSServer        string       `json:"ws_server"`
+	WSTLSMode       string       `json:"ws_tls_mode"`
 	WSSSLCa         string       `json:"ws_ssl_ca"`
 	BLEGWEnabled    *bool        `json:"ble_gw_enabled"`
 	BLERPCEnabled   *bool        `json:"ble_rpc_enable"`
+	BLEObserver     *bool        `json:"ble_observer_enable"`
 	TZ              string       `json:"tz"`
 	SNTPServer      string       `json:"sntp_server"`
 	Lat             *float64     `json:"lat"`
 	Lon             *float64     `json:"lon"`
 	TimeFormat      string       `json:"time_format"`
+	OTAAutoUpdate   string       `json:"ota_auto_update"`
+	DebugWebSocket  *bool        `json:"sys_debug_websocket"`
+	DebugUDPHost    string       `json:"sys_debug_udp_host"`
+	RPCUDPPort      *int         `json:"sys_rpc_udp_port"`
 	EcoMode         *bool        `json:"eco_mode"`
 	Discoverable    *bool        `json:"discoverable"`
 	CustomRules     []CustomRule `json:"custom_rules"`
@@ -53,6 +60,7 @@ func DefaultSettings() AppSettings {
 		ScanTimeout:     2,
 		RefreshTimeout:  5,
 		ScanConcurrency: 64,
+		EnableMDNS:      false,
 	}
 }
 
@@ -73,5 +81,49 @@ func (s *AppSettings) Normalize() {
 	}
 	if s.RefreshTimeout <= 0 {
 		s.RefreshTimeout = 5
+	}
+	s.Compliance.Normalize()
+}
+
+func (c *ComplianceRules) Normalize() {
+	c.WSTLSMode = normalizeWSTLSMode(c.WSTLSMode)
+	if c.WSTLSMode != "user" {
+		c.WSSSLCa = ""
+	}
+	c.WSServer = strings.TrimSpace(c.WSServer)
+	c.TZ = strings.TrimSpace(c.TZ)
+	c.SNTPServer = strings.TrimSpace(c.SNTPServer)
+	c.OTAAutoUpdate = normalizeOTAAutoUpdate(c.OTAAutoUpdate)
+	c.DebugUDPHost = strings.TrimSpace(c.DebugUDPHost)
+	if c.RPCUDPPort != nil && *c.RPCUDPPort < 0 {
+		zero := 0
+		c.RPCUDPPort = &zero
+	}
+}
+
+func normalizeWSTLSMode(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "no_validation", "default", "user":
+		return strings.ToLower(strings.TrimSpace(raw))
+	default:
+		return ""
+	}
+}
+
+func normalizeHourFormat(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "12h", "24h":
+		return strings.ToLower(strings.TrimSpace(raw))
+	default:
+		return ""
+	}
+}
+
+func normalizeOTAAutoUpdate(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "off", "stable", "beta":
+		return strings.ToLower(strings.TrimSpace(raw))
+	default:
+		return ""
 	}
 }

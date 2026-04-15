@@ -49,6 +49,13 @@ func SetTimeFormat24h(ctx context.Context, ip string, gen int, timeout time.Dura
 	return getOK(ctx, "http://"+ip+"/settings?clock_mode=0", timeout)
 }
 
+func Reboot(ctx context.Context, ip string, gen int, timeout time.Duration) bool {
+	if gen >= 2 {
+		return rpcSet(ctx, ip, "Shelly.Reboot", map[string]any{}, timeout)
+	}
+	return getOK(ctx, "http://"+ip+"/reboot", timeout)
+}
+
 func rpcSet(ctx context.Context, ip, method string, payload map[string]any, timeout time.Duration) bool {
 	buf, _ := json.Marshal(payload)
 	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, "http://"+ip+"/rpc/"+method, bytes.NewReader(buf))

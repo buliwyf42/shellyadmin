@@ -7,6 +7,8 @@ export interface Device {
   gen: number
   online: boolean
   device_num: number
+  last_seen: string
+  first_seen: string
   last_refresh_attempt: string
   last_refresh_ok: boolean
   last_refresh_error: string
@@ -54,14 +56,20 @@ export interface ComplianceRules {
   ws_enabled?: boolean | null
   ws_connected?: boolean | null
   ws_server?: string
+  ws_tls_mode?: 'no_validation' | 'default' | 'user' | ''
   ws_ssl_ca?: string
   ble_gw_enabled?: boolean | null
   ble_rpc_enable?: boolean | null
+  ble_observer_enable?: boolean | null
   tz?: string
   sntp_server?: string
   lat?: number | null
   lon?: number | null
   time_format?: string
+  ota_auto_update?: 'off' | 'stable' | 'beta' | ''
+  sys_debug_websocket?: boolean | null
+  sys_debug_udp_host?: string
+  sys_rpc_udp_port?: number | null
   eco_mode?: boolean | null
   discoverable?: boolean | null
   custom_rules?: CustomRule[]
@@ -82,6 +90,7 @@ export interface AppSettings {
   scan_timeout: number
   refresh_timeout: number
   scan_concurrency: number
+  enable_mdns: boolean
   compliance: ComplianceRules
 }
 
@@ -123,6 +132,60 @@ export interface VersionInfo {
   commit: string
 }
 
+export interface BulkActionTarget {
+  mac: string
+  ip: string
+  name: string
+  eligible: boolean
+  reason?: string
+}
+
+export interface BulkActionPreview {
+  action: string
+  summary: string
+  warnings: string[]
+  targets: BulkActionTarget[]
+}
+
+export interface BulkActionResult {
+  mac: string
+  ip: string
+  status: string
+  detail: string
+}
+
+export interface DeviceCapability {
+  id: string
+  label: string
+  state: string
+  description?: string
+}
+
+export interface DeviceAction {
+  id: string
+  label: string
+  description: string
+  risk: string
+  supported: boolean
+  requires_online: boolean
+  reason?: string
+}
+
+export interface DeviceDetail {
+  device: Device
+  raw_config: Record<string, unknown>
+  raw_status: Record<string, unknown>
+  capabilities: DeviceCapability[]
+  actions: DeviceAction[]
+}
+
+export interface DeviceActionResult {
+  action: string
+  status: string
+  detail: string
+  result?: unknown
+}
+
 export interface BackupExport {
   version: number
   settings: AppSettings
@@ -160,7 +223,6 @@ export interface Credential {
 
 export interface CredentialGroup {
   name: string
-  username: string
   password: string
   ha1: string
   tags: string[]

@@ -33,6 +33,13 @@ Current `0.0.4` highlights:
 - GitHub Actions workflow for publishing a `ShellyAdmin` container image to GHCR
 - Docker Compose aligned with the published `ghcr.io/buliwyf42/shellyadmin` image name
 
+Current working tree highlights beyond `v0.0.4`:
+
+- previewable bulk settings actions in Devices
+- per-device detail page with raw config/status snapshots and safe manual actions
+- documented `v1` API contract exposed at `/api/openapi/v1.json` and in the UI at `/docs`, covering the supported session, inventory, workflow, settings, backup, and audit routes
+- optional mDNS-assisted discovery toggle in Settings
+
 The target architecture is documented in [docs/ARCHITECTURE.md](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/docs/ARCHITECTURE.md).
 
 ## Goals
@@ -71,11 +78,17 @@ Use strong secrets for real installs. The `COOKIE_SECURE=false` example above is
 
 - Scan with staging and explicit add-to-inventory
 - Device inventory table with sortable columns and per-user column visibility
+- Bulk actions with preview/apply for timezone, MQTT, location, and 24-hour time settings
 - Auto-refresh in Devices view (30s, 1m, 5m)
 - Separate scan timeout and refresh timeout in Settings
+- Optional mDNS-assisted discovery in addition to subnet scanning
 - Per-device row actions in Devices view:
   - immediate refresh
   - delete/forget
+- Per-device detail view with:
+  - raw config/status snapshots
+  - discovered capabilities
+  - safe single-device actions (refresh, firmware check/update, reboot)
 - Stale row signal when the latest refresh attempt fails
 - Compliance status in Devices view with hover details
 - Gen-aware rendering for unsupported fields (for example WebSocket on Gen1)
@@ -92,13 +105,14 @@ Use strong secrets for real installs. The `COOKIE_SECURE=false` example above is
   - auth groups
   - device-group assignments
 - Audit logs view (debug log mode removed)
+- Documented API surface and OpenAPI JSON for the supported v1 routes
 
 ## Planned / In Progress
 
 - Export flows for devices, logs, templates, and jobs
-- Stronger preview/validation flows for all risky actions
 - Advanced-mode gating in UI settings
-- Additional Docker network guidance surfaced in UI
+- Broader action discovery for device components where protocol support is reliable
+- CLI after the external API contract settles
 
 ## Project Structure
 

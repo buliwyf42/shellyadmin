@@ -14,6 +14,7 @@
     { path: '/compliance', label: 'Compliance', icon: 'shield' },
     { path: '/logs', label: 'Logs', icon: 'list' },
     { path: '/settings', label: 'Settings', icon: 'gear' },
+    { path: '/docs', label: 'API Docs', icon: 'book' },
     { path: '/about', label: 'About', icon: 'info' },
   ] as const
 
@@ -29,7 +30,7 @@
 
   $: navVersion = runtimeVersion.backend_version || APP_VERSION
 
-  function iconPath(name: (typeof links)[number]['icon'] | 'logout'): string {
+  function iconPath(name: (typeof links)[number]['icon'] | 'logout' | 'resize'): string {
     switch (name) {
       case 'grid':
         return 'M3 3h4v4H3V3zm7 0h4v4h-4V3zm7 0h4v4h-4V3zM3 10h4v4H3v-4zm7 0h4v4h-4v-4zm7 0h4v4h-4v-4zM3 17h4v4H3v-4zm7 0h4v4h-4v-4zm7 0h4v4h-4v-4z'
@@ -47,11 +48,22 @@
         return 'M12 2l8 3v5c0 5.3-3.3 9.2-8 11-4.7-1.8-8-5.7-8-11V5l8-3zm0 2.1L6 6.3V10c0 4.3 2.5 7.5 6 9 3.5-1.5 6-4.7 6-9V6.3l-6-2.2zm-1 4.4h2v4h-2v-4zm0 5.5h2v2h-2v-2z'
       case 'list':
         return 'M4 5h2v2H4V5zm4 0h12v2H8V5zM4 11h2v2H4v-2zm4 0h12v2H8v-2zM4 17h2v2H4v-2zm4 0h12v2H8v-2z'
+      case 'book':
+        return 'M5 4.5A2.5 2.5 0 017.5 2H20v17H7.5A2.5 2.5 0 005 21.5V4.5zm2.5-1A1 1 0 006.5 4.5v14A3.5 3.5 0 017.5 18H18.5V3.5h-11z'
       case 'info':
         return 'M12 3a9 9 0 110 18 9 9 0 010-18zm0 1.5a7.5 7.5 0 100 15 7.5 7.5 0 000-15zm-1 5h2v7h-2v-7zm0-3h2v2h-2v-2z'
       case 'logout':
         return 'M10 4h-5v16h5v2H3V2h7v2zm4.6 3.4L13.2 8.8 15.4 11H8v2h7.4l-2.2 2.2 1.4 1.4L19.2 12l-4.6-4.6z'
+      case 'resize':
+        return 'M4 4h6v2H6v4H4V4zm10 0h6v6h-2V6h-4V4zM4 14h2v4h4v2H4v-6zm14 0h2v6h-6v-2h4v-4z'
     }
+  }
+
+  function isActive(path: string): boolean {
+    if (path === '/' && $currentPath.startsWith('/devices/')) {
+      return true
+    }
+    return $currentPath === path
   }
 
   async function logout() {
@@ -64,17 +76,14 @@
   <div class="container-fluid">
     <a href="/" class="brand text-decoration-none text-light fw-bold">
       <img src="/logo-mark.svg" alt="ShellyAdmin logo" class="brand-logo" />
-      <span class="brand-copy">
-        <span class="brand-name">ShellyAdmin</span>
-        <span class="brand-tagline">Trusted LAN fleet management</span>
-      </span>
+      <span class="brand-name">ShellyAdmin</span>
       <span class="brand-version">v{navVersion}</span>
     </a>
     <div class="topnav-main">
       {#each links as link}
         <a
           href={link.path}
-          class={`topnav-link ${$currentPath === link.path ? 'is-active' : ''}`}
+          class={`topnav-link ${isActive(link.path) ? 'is-active' : ''}`}
         >
           <span class="topnav-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" role="img">
@@ -86,16 +95,16 @@
       {/each}
     </div>
     <div class="topnav-side">
-      <div class="topnav-scale">
-        <label class="topnav-scale-label" for="nav-ui-scale">Size</label>
+      <label class="topnav-scale" for="nav-ui-scale" title="UI size">
+        <span class="topnav-scale-label">Size</span>
         <select id="nav-ui-scale" class="topnav-scale-select" bind:value={$uiScale}>
-          <option value="compact">Compact</option>
-          <option value="default">Default</option>
-          <option value="large">Large</option>
+          <option value="compact">S</option>
+          <option value="default">M</option>
+          <option value="large">L</option>
           <option value="xlarge">XL</option>
           <option value="xxlarge">XXL</option>
         </select>
-      </div>
+      </label>
       <button type="button" class="topnav-link logout" on:click={logout}>
         <span class="topnav-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" role="img">

@@ -34,6 +34,26 @@ func Evaluate(dev models.Device, rules models.ComplianceRules) (bool, []string) 
 			issues = append(issues, fmt.Sprintf("%s mismatch", label))
 		}
 	}
+	compareConfigString := func(rule, path, label string) {
+		if strings.TrimSpace(rule) == "" {
+			return
+		}
+		config := unmarshalMap(dev.RawConfig)
+		got, found := resolvePath(config, path)
+		if !found || strings.TrimSpace(got) != strings.TrimSpace(rule) {
+			issues = append(issues, fmt.Sprintf("%s mismatch", label))
+		}
+	}
+	compareConfigBool := func(rule *bool, path, label string) {
+		if rule == nil {
+			return
+		}
+		config := unmarshalMap(dev.RawConfig)
+		got, found := resolvePath(config, path)
+		if !found || got != strconv.FormatBool(*rule) {
+			issues = append(issues, fmt.Sprintf("%s mismatch", label))
+		}
+	}
 	compareFloat := func(rule, got *float64, label string) {
 		if rule == nil || got == nil {
 			return
@@ -59,7 +79,11 @@ func Evaluate(dev models.Device, rules models.ComplianceRules) (bool, []string) 
 		compareBoolPtr(rules.WSEnabled, dev.WSEnabled, "ws_enabled")
 		compareBool(rules.WSConnected, dev.WSConnected, "ws_connected")
 		compareString(rules.WSServer, dev.WSServer, "ws_server")
+		compareConfigString(rules.WSTLSMode, "ws.tls_mode", "ws_tls_mode")
+		compareConfigString(rules.WSSSLCa, "ws.ssl_ca", "ws_ssl_ca")
 		compareBoolPtr(rules.BLEGWEnabled, dev.BLEGWEnabled, "ble_gw_enabled")
+		compareConfigBool(rules.BLERPCEnabled, "ble.rpc.enable", "ble_rpc_enable")
+		compareConfigBool(rules.BLEObserver, "ble.observer.enable", "ble_observer_enable")
 	}
 	if !(dev.Gen <= 1 && strings.TrimSpace(dev.TZ) == "") {
 		compareString(rules.TZ, dev.TZ, "tz")
@@ -70,6 +94,7 @@ func Evaluate(dev models.Device, rules models.ComplianceRules) (bool, []string) 
 	compareString(rules.TimeFormat, dev.TimeFormat, "time_format")
 	compareBoolPtr(rules.EcoMode, dev.EcoMode, "eco_mode")
 	compareBoolPtr(rules.Discoverable, dev.Discoverable, "discoverable")
+	compareConfigString(rules.OTAAutoUpdate, "ota.auto_update", "ota_auto_update")
 	evaluateCustomRules(&issues, dev, rules.CustomRules, deviceName)
 
 	return len(issues) == 0, issues

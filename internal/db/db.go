@@ -252,6 +252,7 @@ func (db *DB) GetSettings() (models.AppSettings, error) {
 	if settings.RefreshTimeout == 0 {
 		settings.RefreshTimeout = 5
 	}
+	settings.Normalize()
 	return settings, nil
 }
 
@@ -293,6 +294,13 @@ func (db *DB) CompleteJob(id int64, status, result, errText string, done, total 
 	_, err := db.sql.Exec(`UPDATE jobs
 		SET status = ?, result = ?, error = ?, done = ?, total = ?, updated_at = ?
 		WHERE id = ?`, status, result, errText, done, total, now(), id)
+	return err
+}
+
+func (db *DB) InterruptJob(id int64, errText string) error {
+	_, err := db.sql.Exec(`UPDATE jobs
+		SET status = 'interrupted', error = ?, updated_at = ?
+		WHERE id = ? AND status = 'running'`, errText, now(), id)
 	return err
 }
 
@@ -432,7 +440,7 @@ func (db *DB) DeleteCredential(name string) error {
 }
 
 func (db *DB) ListCredentialGroups() ([]models.CredentialGroup, error) {
-	rows, err := db.sql.Query(`SELECT name, username, password, ha1, tags FROM credential_groups ORDER BY name ASC`)
+	rows, err := db.sql.Query(`SELECT name, password, ha1, tags FROM credential_groups ORDER BY name ASC`)
 	if err != nil {
 		return nil, err
 	}
@@ -441,7 +449,7 @@ func (db *DB) ListCredentialGroups() ([]models.CredentialGroup, error) {
 	for rows.Next() {
 		var g models.CredentialGroup
 		var tagsRaw string
-		if err := rows.Scan(&g.Name, &g.Username, &g.Password, &g.HA1, &tagsRaw); err != nil {
+		if err := rows.Scan(&g.Name, &g.Password, &g.HA1, &tagsRaw); err != nil {
 			return nil, err
 		}
 		_ = json.Unmarshal([]byte(tagsRaw), &g.Tags)
@@ -455,16 +463,15 @@ func (db *DB) SaveCredentialGroup(group models.CredentialGroup) error {
 	if err != nil {
 		return err
 	}
-	_, err = db.sql.Exec(`INSERT INTO credential_groups(name, credential_ref, username, password, ha1, tags, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	_, err = db.sql.Exec(`INSERT INTO credential_groups(name, credential_ref, password, ha1, tags, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(name) DO UPDATE SET
 			credential_ref=excluded.credential_ref,
-			username=excluded.username,
 			password=excluded.password,
 			ha1=excluded.ha1,
 			tags=excluded.tags,
 			updated_at=excluded.updated_at`,
-		group.Name, group.Name, group.Username, group.Password, group.HA1, string(tagsBody), now(), now())
+		group.Name, group.Name, group.Password, group.HA1, string(tagsBody), now(), now())
 	return err
 }
 

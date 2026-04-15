@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { APIError, api } from '../lib/api'
-  import { colVis, deviceColumns, devices, refreshInterval } from '../lib/stores'
+  import { colVis, deviceColumns, devices, navigate, refreshInterval } from '../lib/stores'
+  import { formatDateTime, formatRelativeDateTime } from '../lib/time'
   import type { Device } from '../lib/types'
   import ComplianceBadge from '../components/ComplianceBadge.svelte'
   import ErrorNotice from '../components/ErrorNotice.svelte'
@@ -86,6 +87,10 @@
     }
   }
 
+  function openDetail(device: Device) {
+    navigate(`/devices/${encodeURIComponent(device.mac)}`)
+  }
+
   function generationLabel(device: Device): string {
     if (device.gen <= 1) return 'Gen 1.x'
     return `Gen ${device.gen}.x`
@@ -126,41 +131,6 @@
     return device.gen >= 2
   }
 
-  function formatDateIntl(value: string): string {
-    if (!value) return 'n/a'
-    const date = new Date(value)
-    if (Number.isNaN(date.getTime())) return value
-    return new Intl.DateTimeFormat(undefined, {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
-    }).format(date)
-  }
-
-  function formatSeen(value: string): string {
-    if (!value) return 'n/a'
-    const date = new Date(value)
-    if (Number.isNaN(date.getTime())) return value
-    const age = Date.now() - date.getTime()
-    if (age < 0) return formatDateIntl(value)
-    if (age < 60_000) return 'just now'
-    if (age < 3_600_000) {
-      const minutes = Math.floor(age / 60_000)
-      return `${minutes}m ago`
-    }
-    if (age < 86_400_000) {
-      const hours = Math.floor(age / 3_600_000)
-      const minutes = Math.floor((age % 3_600_000) / 60_000)
-      if (minutes === 0) return `${hours}h ago`
-      return `${hours}h ${minutes}m ago`
-    }
-    return formatDateIntl(value)
-  }
-
   function refreshState(device: Device): 'fresh' | 'stale' {
     return device.last_refresh_ok ? 'fresh' : 'stale'
   }
@@ -175,10 +145,10 @@
 
   function refreshStateTitle(device: Device): string {
     if (device.last_refresh_ok) {
-      return `Last successful refresh: ${formatDateIntl(device.last_seen)}`
+      return `Last successful refresh: ${formatDateTime(device.last_seen)}`
     }
-    const lastSuccess = device.last_seen ? formatDateIntl(device.last_seen) : 'never'
-    const lastAttempt = device.last_refresh_attempt ? formatDateIntl(device.last_refresh_attempt) : 'unknown'
+    const lastSuccess = device.last_seen ? formatDateTime(device.last_seen) : 'never'
+    const lastAttempt = device.last_refresh_attempt ? formatDateTime(device.last_refresh_attempt) : 'unknown'
     const reason = device.last_refresh_error || 'latest refresh did not return device data'
     return `Latest refresh failed: ${reason}. Last attempt: ${lastAttempt}. Last successful refresh: ${lastSuccess}.`
   }
@@ -409,11 +379,11 @@
           {#if $colVis.coords}<td>{#if formatCoords(device) !== 'n/a'}{formatCoords(device)}{:else}<span class="text-secondary">n/a</span>{/if}</td>{/if}
           {#if $colVis.eco_mode}<td><span class={`badge ${statusBadgeClass(device.eco_mode)}`}>{statusText(device.eco_mode)}</span></td>{/if}
           {#if $colVis.discoverable}<td><span class={`badge ${statusBadgeClass(device.discoverable)}`}>{statusText(device.discoverable)}</span></td>{/if}
-          {#if $colVis.first_seen}<td title={formatDateIntl(device.first_seen)}>{formatSeen(device.first_seen)}</td>{/if}
+          {#if $colVis.first_seen}<td title={formatDateTime(device.first_seen)}>{formatRelativeDateTime(device.first_seen)}</td>{/if}
           {#if $colVis.last_seen}
             <td title={refreshStateTitle(device)}>
               {#if device.last_seen}
-                {formatSeen(device.last_seen)}
+                {formatRelativeDateTime(device.last_seen)}
               {:else}
                 <span class="text-secondary">never</span>
               {/if}
@@ -422,6 +392,12 @@
           {#if $colVis.compliance}<td><ComplianceBadge compliant={device.compliant} issues={device.compliance_issues} /></td>{/if}
           <td class="text-end">
             <div class="d-flex justify-content-end gap-2">
+              <button
+                class="btn btn-sm btn-outline-light row-action-btn"
+                title="Open device detail"
+                on:click={() => openDetail(device)}
+                disabled={rowBusy[device.mac]?.refresh || rowBusy[device.mac]?.remove}
+              >⋯</button>
               <button
                 class="btn btn-sm btn-outline-light row-action-btn"
                 title="Refresh this device now"
@@ -511,8 +487,9 @@
   }
 
   .toolbar-select {
-    width: var(--toolbar-control-width-sm);
-    flex: 0 0 var(--toolbar-control-width-sm);
+    width: 18rem;
+    min-width: 18rem;
+    flex: 0 0 18rem;
   }
 
   .page-hero-controls :global(.form-control),
@@ -520,6 +497,10 @@
   .page-hero-controls :global(.btn) {
     min-height: var(--control-height-sm);
     font-size: 0.76rem;
+  }
+
+  .page-hero-controls :global(.form-select) {
+    padding-right: 2rem;
   }
 
   .page-hero-controls :global(.btn) {

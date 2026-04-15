@@ -1,4 +1,4 @@
-import type { AppSettings, BackupExport, Credential, CredentialGroup, Device, FirmwareStatus, ImportReport, LogEntry, ScanStatus, TemplateRecord, VersionInfo } from './types'
+import type { AppSettings, BackupExport, BulkActionPreview, BulkActionResult, Credential, CredentialGroup, Device, DeviceAction, DeviceActionResult, DeviceDetail, FirmwareStatus, ImportReport, LogEntry, ScanStatus, TemplateRecord, VersionInfo } from './types'
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 let csrfToken = ''
@@ -73,6 +73,12 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
     const message = (err as { error?: string }).error || res.statusText
     throw new APIError(method, path, res.status, message, err)
   }
+  const contentType = res.headers.get('Content-Type') || ''
+  if (!contentType.toLowerCase().includes('application/json')) {
+    const bodyText = await res.text().catch(() => '')
+    const snippet = bodyText.trim().slice(0, 160) || 'empty response body'
+    throw new APIError(method, path, res.status, 'expected JSON response but received non-JSON content', { content_type: contentType || 'unknown', body_snippet: snippet })
+  }
   return res.json()
 }
 
@@ -80,10 +86,14 @@ export const api = {
   login: (username: string, password: string) => req<{ ok: true; csrf_token?: string }>('POST', '/api/login', { username, password }),
   logout: () => req<{ ok: true }>('POST', '/api/logout', {}),
   getDevices: () => req<Device[]>('GET', '/api/devices'),
+  getDeviceDetail: (target: string) => req<DeviceDetail>('GET', `/api/devices/${encodeURIComponent(target)}`),
+  listDeviceActions: (target: string) => req<{ actions: DeviceAction[] }>('GET', `/api/devices/${encodeURIComponent(target)}/actions`),
+  runDeviceAction: (target: string, action: string, payload: { stage?: string } = {}) => req<DeviceActionResult>('POST', `/api/devices/${encodeURIComponent(target)}/actions/${encodeURIComponent(action)}`, payload),
   refreshDevices: () => req<Device[]>('POST', '/api/devices/refresh', {}),
   refreshDevice: (target: string) => req<Device[]>('POST', '/api/devices/refresh-one', { target }),
   forgetDevice: (target: string) => req<{ ok: true }>('POST', '/api/devices/forget', { target }),
-  bulk: (payload: unknown) => req<{ results: Array<{ mac: string; ip: string; status: string }> }>('POST', '/api/bulk', payload),
+  previewBulk: (payload: unknown) => req<{ dry_run: true; preview: BulkActionPreview }>('POST', '/api/bulk', payload),
+  bulk: (payload: unknown) => req<{ dry_run: false; results: BulkActionResult[] }>('POST', '/api/bulk', payload),
   scanStart: () => req<{ status: string }>('POST', '/api/scan/start', {}),
   scanStatus: () => req<ScanStatus>('GET', '/api/scan/status'),
   getVersion: () => req<VersionInfo>('GET', '/api/version'),
@@ -110,4 +120,5 @@ export const api = {
   clearLogs: () => req<{ ok: true; deleted: number }>('DELETE', '/api/logs'),
   exportBackup: (includeSecrets = false, confirm = '') => req<BackupExport>('GET', `/api/backup/export?include_secrets=${includeSecrets ? 'true' : 'false'}&confirm=${encodeURIComponent(confirm)}`),
   importBackup: (data: BackupExport, apply: boolean) => req<ImportReport>('POST', '/api/backup/import', { data, apply }),
+  getOpenAPIV1: () => req<Record<string, unknown>>('GET', '/api/openapi/v1.json'),
 }

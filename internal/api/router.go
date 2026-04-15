@@ -1,7 +1,6 @@
 package api
 
 import (
-	"embed"
 	"io"
 	"io/fs"
 	"net/http"
@@ -24,7 +23,7 @@ type Config struct {
 	DataDir        string
 	BackendVersion string
 	BackendCommit  string
-	StaticFS       embed.FS
+	StaticFS       fs.FS
 	HasStatic      bool
 	DevStatic      string
 }
@@ -44,61 +43,31 @@ func NewRouter(database *db.DB, cfg Config) *gin.Engine {
 
 	h := NewHandler(database, cfg)
 
-	r.GET("/health", h.Health)
 	r.GET("/login", func(c *gin.Context) {
 		session := sessions.Default(c)
 		if session.Get("user") != nil {
 			c.Redirect(http.StatusFound, "/")
 			return
 		}
-		serveSPA(c, cfg)
+		serveSPAIndex(c, cfg)
 	})
 	r.POST("/login", middleware.LoginRateLimit(), h.Login)
-	r.POST("/api/login", middleware.LoginRateLimit(), h.Login)
 	r.POST("/logout", middleware.RequireAuth(), middleware.RequireCSRF(), h.Logout)
-	r.POST("/api/logout", middleware.RequireAuth(), middleware.RequireCSRF(), h.Logout)
 
 	auth := r.Group("/")
 	auth.Use(middleware.RequireAuth())
 	auth.Use(middleware.APIRateLimit())
 	auth.Use(middleware.RequireCSRF())
-	auth.GET("/api/csrf-token", h.CSRFToken)
-	auth.GET("/api/version", h.Version)
-	auth.GET("/api/devices", h.GetDevices)
-	auth.POST("/api/devices/refresh", h.RefreshDevices)
-	auth.POST("/api/devices/refresh-one", h.RefreshDevice)
-	auth.POST("/api/devices/forget", h.ForgetDevice)
-	auth.POST("/api/bulk", h.BulkAction)
-	auth.POST("/api/scan/start", h.ScanStart)
-	auth.GET("/api/scan/status", h.ScanStatus)
-	auth.POST("/api/scan/confirm", h.ScanConfirm)
-	auth.POST("/api/firmware/check", h.FirmwareCheck)
-	auth.GET("/api/firmware/status", h.FirmwareStatus)
-	auth.POST("/api/firmware/update", h.FirmwareUpdate)
-	auth.POST("/api/provision", h.Provision)
-	auth.GET("/api/settings", h.GetSettings)
-	auth.POST("/api/settings", h.SaveSettings)
-	auth.GET("/api/templates", h.ListTemplates)
-	auth.GET("/api/templates/:name", h.GetTemplate)
-	auth.POST("/api/templates/:name", h.SaveTemplate)
-	auth.DELETE("/api/templates/:name", h.DeleteTemplate)
-	auth.GET("/api/credentials", h.ListCredentials)
-	auth.POST("/api/credentials", h.SaveCredential)
-	auth.DELETE("/api/credentials/:name", h.DeleteCredential)
-	auth.GET("/api/credential-groups", h.ListCredentialGroups)
-	auth.POST("/api/credential-groups", h.SaveCredentialGroup)
-	auth.DELETE("/api/credential-groups/:name", h.DeleteCredentialGroup)
-	auth.GET("/api/credential-groups/assignments", h.GetCredentialGroupAssignments)
-	auth.POST("/api/credential-groups/assignments", h.SaveCredentialGroupAssignments)
-	auth.GET("/api/logs", h.GetLogs)
-	auth.DELETE("/api/logs", h.DeleteLogs)
-	auth.GET("/api/backup/export", h.ExportBackup)
-	auth.POST("/api/backup/import", h.ImportBackup)
+	registerDocumentedAPIRoutes(r, auth, h)
 	registerAppRoutes(auth, cfg)
 
 	r.NoRoute(func(c *gin.Context) {
-		if strings.HasPrefix(c.Request.URL.Path, "/assets/") || strings.Contains(c.Request.URL.Path, ".") {
-			serveSPA(c, cfg)
+		if strings.HasPrefix(c.Request.URL.Path, "/api/") {
+			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "not found"})
+			return
+		}
+		if isStaticAssetPath(c.Request.URL.Path) {
+			serveStaticOr404(c, cfg)
 			return
 		}
 		session := sessions.Default(c)
@@ -106,39 +75,67 @@ func NewRouter(database *db.DB, cfg Config) *gin.Engine {
 			c.Redirect(http.StatusFound, "/login")
 			return
 		}
-		serveSPA(c, cfg)
+		serveSPAIndex(c, cfg)
 	})
 	return r
 }
 
 func registerAppRoutes(auth *gin.RouterGroup, cfg Config) {
-	for _, path := range []string{"/", "/scan", "/firmware", "/provision", "/groups", "/compliance", "/logs", "/settings", "/about"} {
+	for _, path := range []string{"/", "/scan", "/firmware", "/provision", "/groups", "/compliance", "/logs", "/settings", "/about", "/docs", "/devices/:target"} {
 		auth.GET(path, func(c *gin.Context) {
-			serveSPA(c, cfg)
+			serveSPAIndex(c, cfg)
 		})
 	}
 }
 
-func serveSPA(c *gin.Context, cfg Config) {
-	if cfg.HasStatic {
-		sub, err := fs.Sub(cfg.StaticFS, "dist")
-		if err == nil {
-			requestPath := strings.TrimPrefix(path.Clean(c.Request.URL.Path), "/")
-			if requestPath == "" || requestPath == "." {
-				requestPath = "index.html"
-			}
-			if info, statErr := fs.Stat(sub, requestPath); statErr == nil && !info.IsDir() {
-				http.FileServer(http.FS(sub)).ServeHTTP(c.Writer, c.Request)
+func isStaticAssetPath(requestPath string) bool {
+	if strings.HasPrefix(requestPath, "/assets/") {
+		return true
+	}
+	cleanPath := path.Clean(requestPath)
+	return path.Ext(cleanPath) != ""
+}
+
+func staticSubFS(cfg Config) (fs.FS, error) {
+	if !cfg.HasStatic || cfg.StaticFS == nil {
+		return nil, fs.ErrNotExist
+	}
+	return fs.Sub(cfg.StaticFS, "dist")
+}
+
+func cleanStaticPath(requestPath string) string {
+	cleanPath := strings.TrimPrefix(path.Clean(requestPath), "/")
+	if cleanPath == "" || cleanPath == "." {
+		return "index.html"
+	}
+	return cleanPath
+}
+
+func serveStaticOr404(c *gin.Context, cfg Config) {
+	sub, err := staticSubFS(cfg)
+	if err != nil {
+		c.Status(http.StatusNotFound)
+		return
+	}
+	requestPath := cleanStaticPath(c.Request.URL.Path)
+	info, statErr := fs.Stat(sub, requestPath)
+	if statErr != nil || info.IsDir() {
+		c.Status(http.StatusNotFound)
+		return
+	}
+	http.FileServer(http.FS(sub)).ServeHTTP(c.Writer, c.Request)
+}
+
+func serveSPAIndex(c *gin.Context, cfg Config) {
+	sub, err := staticSubFS(cfg)
+	if err == nil {
+		indexFile, openErr := sub.Open("index.html")
+		if openErr == nil {
+			defer indexFile.Close()
+			body, readErr := io.ReadAll(indexFile)
+			if readErr == nil {
+				c.Data(http.StatusOK, "text/html; charset=utf-8", body)
 				return
-			}
-			indexFile, openErr := sub.Open("index.html")
-			if openErr == nil {
-				defer indexFile.Close()
-				body, readErr := io.ReadAll(indexFile)
-				if readErr == nil {
-					c.Data(http.StatusOK, "text/html; charset=utf-8", body)
-					return
-				}
 			}
 		}
 	}

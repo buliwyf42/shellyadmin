@@ -3,6 +3,7 @@
   import Navbar from './components/Navbar.svelte'
   import LoginPage from './pages/Login.svelte'
   import DevicesPage from './pages/Devices.svelte'
+  import DeviceDetailPage from './pages/DeviceDetail.svelte'
   import ScanPage from './pages/Scan.svelte'
   import FirmwarePage from './pages/Firmware.svelte'
   import ProvisionPage from './pages/Provision.svelte'
@@ -11,6 +12,7 @@
   import SettingsPage from './pages/Settings.svelte'
   import LogsPage from './pages/Logs.svelte'
   import AboutPage from './pages/About.svelte'
+  import DocsPage from './pages/Docs.svelte'
 
   const routes = {
     '/login': LoginPage,
@@ -23,9 +25,15 @@
     '/logs': LogsPage,
     '/settings': SettingsPage,
     '/about': AboutPage,
+    '/docs': DocsPage,
   } as const
 
-  $: Page = routes[$currentPath as keyof typeof routes] ?? DevicesPage
+  function resolvePage(path: string) {
+    if (path.startsWith('/devices/')) return DeviceDetailPage
+    return routes[path as keyof typeof routes] ?? DevicesPage
+  }
+
+  $: Page = resolvePage($currentPath)
   $: showShell = $currentPath !== '/login'
   $: if (typeof document !== 'undefined') {
     document.documentElement.dataset.uiScale = $uiScale

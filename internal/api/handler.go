@@ -77,6 +77,38 @@ func (h *Handler) GetDevices(c *gin.Context) {
 	c.JSON(http.StatusOK, devices)
 }
 
+func (h *Handler) GetDeviceDetail(c *gin.Context) {
+	detail, err := h.service.GetDeviceDetail(c.Param("target"))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, detail)
+}
+
+func (h *Handler) ListDeviceActions(c *gin.Context) {
+	actions, err := h.service.ListDeviceActions(c.Param("target"))
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"actions": actions})
+}
+
+func (h *Handler) ExecuteDeviceAction(c *gin.Context) {
+	var req services.DeviceActionRequest
+	if err := decodeJSON(c, &req, 4*1024); err != nil && !errors.Is(err, io.EOF) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	result, err := h.service.ExecuteDeviceAction(c.Request.Context(), c.Param("target"), c.Param("action"), req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
 func (h *Handler) CSRFToken(c *gin.Context) {
 	session := sessions.Default(c)
 	nonce, _ := session.Get("nonce").(string)
@@ -136,24 +168,26 @@ func (h *Handler) ForgetDevice(c *gin.Context) {
 }
 
 func (h *Handler) BulkAction(c *gin.Context) {
-	var req struct {
-		Action  string   `json:"action"`
-		MACs    []string `json:"macs"`
-		Value   string   `json:"value"`
-		Lat     float64  `json:"lat"`
-		Lon     float64  `json:"lon"`
-		Enabled *bool    `json:"enabled"`
-	}
+	var req services.BulkActionRequest
 	if err := decodeJSON(c, &req, 16*1024); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 		return
 	}
-	results, err := h.service.BulkAction(c.Request.Context(), req.Action, req.MACs, req.Value, req.Lat, req.Lon, req.Enabled)
+	if req.DryRun {
+		preview, err := h.service.PreviewBulkAction(req)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"dry_run": true, "preview": preview})
+		return
+	}
+	results, err := h.service.BulkAction(c.Request.Context(), req)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"results": results})
+	c.JSON(http.StatusOK, gin.H{"dry_run": false, "results": results})
 }
 
 func (h *Handler) ScanStart(c *gin.Context) {
@@ -449,6 +483,10 @@ func (h *Handler) ImportBackup(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, report)
+}
+
+func (h *Handler) OpenAPIV1(c *gin.Context) {
+	c.JSON(http.StatusOK, openAPIV1Spec())
 }
 
 func (h *Handler) logFn(level, msg string) {

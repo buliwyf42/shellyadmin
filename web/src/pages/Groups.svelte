@@ -10,7 +10,6 @@
   let selected = new Set<string>()
 
   let groupName = ''
-  let groupUsername = 'admin'
   let groupPassword = ''
   let groupHA1 = ''
   let groupTags = ''
@@ -75,15 +74,14 @@
 
   function editGroup(group: CredentialGroup) {
     groupName = group.name
-    groupUsername = group.username
     groupPassword = group.password
     groupHA1 = group.ha1
     groupTags = (group.tags || []).join(', ')
   }
 
   async function saveGroup() {
-    if (!groupName.trim() || !groupUsername.trim()) {
-      error = 'Group name and username are required'
+    if (!groupName.trim()) {
+      error = 'Group name is required'
       errorDetails = ''
       return
     }
@@ -98,7 +96,6 @@
     try {
       await api.saveCredentialGroup({
         name: groupName.trim(),
-        username: groupUsername.trim(),
         password: groupPassword,
         ha1: groupHA1.trim(),
         tags: groupTags.split(',').map((item) => item.trim()).filter(Boolean),
@@ -122,7 +119,6 @@
       if (assignGroupName === name) assignGroupName = ''
       if (groupName === name) {
         groupName = ''
-        groupUsername = 'admin'
         groupPassword = ''
         groupHA1 = ''
         groupTags = ''
@@ -181,13 +177,13 @@
     <div class="card bg-dark border-secondary">
       <div class="card-body">
         <h2 class="h5">Auth Groups</h2>
-        <p class="text-secondary mb-3">Each group contains its own credentials. Group assignments are kept for auth-required device workflows.</p>
+        <p class="text-secondary mb-3">Password-first groups for Gen2+ devices. The system keeps any compatibility username handling behind the scenes.</p>
         <div class="d-flex flex-column gap-2 mb-3">
           {#if groups.length === 0}
             <div class="text-secondary">No groups created yet.</div>
           {:else}
             {#each groups as group}
-              <div class="border rounded p-2">
+              <div class="settings-section-card">
                 <div class="d-flex justify-content-between align-items-center gap-2">
                   <strong>{group.name}</strong>
                   <div class="d-flex gap-2">
@@ -195,29 +191,35 @@
                     <button class="btn btn-sm btn-outline-danger" on:click={() => removeGroup(group.name)} disabled={saving}>Delete</button>
                   </div>
                 </div>
-                <div class="text-secondary">{group.username}</div>
+                <div class="text-secondary">{group.password ? 'Password stored' : 'HA1 only'}</div>
               </div>
             {/each}
           {/if}
         </div>
-        <label class="form-label" for="group-name">Group name</label>
-        <input id="group-name" class="form-control mb-2" placeholder="Example: site-a" bind:value={groupName} />
-
-        <label class="form-label" for="group-username">Group username</label>
-        <input id="group-username" class="form-control mb-2" placeholder="Usually admin" bind:value={groupUsername} />
-
-        <label class="form-label" for="group-password">Group password</label>
-        <input id="group-password" class="form-control mb-2" type="password" placeholder="Leave empty if HA1 is set" bind:value={groupPassword} />
-
-        <label class="form-label" for="group-ha1">Group HA1 (optional)</label>
-        <input id="group-ha1" class="form-control mb-2" placeholder="Use when password is not available" bind:value={groupHA1} />
-
-        <label class="form-label" for="group-tags">Group tags (optional)</label>
-        <input id="group-tags" class="form-control mb-3" placeholder="Comma-separated labels" bind:value={groupTags} />
+        <div class="settings-section-card">
+          <div class="row g-2">
+            <div class="col-md-12">
+              <label class="form-label" for="group-name">Group name</label>
+              <input id="group-name" class="form-control mb-2" placeholder="Example: site-a" bind:value={groupName} />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="group-password">Device password</label>
+              <input id="group-password" class="form-control mb-2" type="password" placeholder="New device password" bind:value={groupPassword} />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="group-ha1">Group HA1 (optional)</label>
+              <input id="group-ha1" class="form-control mb-2" placeholder="Use when password is not available" bind:value={groupHA1} />
+            </div>
+            <div class="col-md-12">
+              <label class="form-label" for="group-tags">Group tags (optional)</label>
+              <input id="group-tags" class="form-control" placeholder="Comma-separated labels" bind:value={groupTags} />
+            </div>
+          </div>
+        </div>
 
         <div class="d-flex gap-2 flex-wrap">
           <button class="btn btn-outline-light" on:click={saveGroup} disabled={saving}>Save Group</button>
-          <button class="btn btn-outline-light" on:click={() => { groupName = ''; groupUsername = 'admin'; groupPassword = ''; groupHA1 = ''; groupTags = '' }} disabled={saving}>Clear</button>
+          <button class="btn btn-outline-light" on:click={() => { groupName = ''; groupPassword = ''; groupHA1 = ''; groupTags = '' }} disabled={saving}>Clear</button>
         </div>
       </div>
     </div>
@@ -271,7 +273,7 @@
                     <td>{device.ip}</td>
                     <td class="font-monospace">{device.mac}</td>
                     <td>{groupName || 'none'}</td>
-                    <td>{group ? `${group.name} (${group.username})` : 'none'}</td>
+                    <td>{group ? `${group.name} (password)` : 'none'}</td>
                   </tr>
                 {/each}
               </tbody>

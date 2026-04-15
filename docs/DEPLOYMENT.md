@@ -110,9 +110,9 @@ Important note:
 
 - discovery behavior may differ depending on Docker networking
 - host networking may be more reliable in some LAN environments
+- mDNS-assisted discovery usually needs multicast visibility and therefore benefits from host networking on Linux Docker hosts
 - longer device refresh timeouts may be useful when weaker Wi-Fi links delay refresh responses
-
-The UI should eventually warn when Docker networking may limit discovery.
+- if mDNS discovery appears empty while subnet scanning still works, bridge networking is the first thing to check
 
 ## Reverse Proxy
 

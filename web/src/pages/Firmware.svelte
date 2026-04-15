@@ -48,14 +48,20 @@
   }
 </script>
 
-<div class="d-flex gap-2 mb-3">
-  <select class="form-select toolbar-select-md" bind:value={stage}>
-    <option value="stable">Stable</option>
-    <option value="beta">Beta</option>
-  </select>
-  <button class="btn btn-warning text-dark" on:click={start}>Check Firmware</button>
-  <button class="btn btn-outline-light" on:click={updateSelected} disabled={selected.size === 0}>Update {selected.size}</button>
-</div>
+<section class="page-hero">
+  <div class="page-hero-stack">
+    <span class="page-kicker">Firmware</span>
+    <h1 class="h5 mb-0">Fleet firmware workflow</h1>
+  </div>
+  <div class="page-toolbar">
+    <select class="form-select toolbar-select-md" bind:value={stage}>
+      <option value="stable">Stable</option>
+      <option value="beta">Beta</option>
+    </select>
+    <button class="btn btn-warning text-dark" on:click={start}>Check Firmware</button>
+    <button class="btn btn-outline-light" on:click={updateSelected} disabled={selected.size === 0}>Update {selected.size}</button>
+  </div>
+</section>
 
 <ErrorNotice summary={error} details={errorDetails} />
 

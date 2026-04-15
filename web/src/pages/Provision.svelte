@@ -39,6 +39,12 @@
   let sysSNTP = 'time.cloudflare.com'
   let sysTimeFormatEnabled = false
   let sysTimeFormat: '24h' | '12h' = '24h'
+  let sysDebugWSEnabled = false
+  let sysDebugWS = false
+  let sysDebugUDPHostEnabled = false
+  let sysDebugUDPHost = ''
+  let sysRPCUDPPortEnabled = false
+  let sysRPCUDPPort = '0'
   let sysEcoEnabled = false
   let sysEco = false
   let sysDiscoverableEnabled = false
@@ -75,6 +81,8 @@
   let wsEnable = true
   let wsServerEnabled = false
   let wsServer = 'ws://ha.home:8123/api/shelly/ws'
+  let wsTLSModeEnabled = false
+  let wsTLSMode: 'no_validation' | 'default' | 'user' = 'default'
   let wsSSLCAEnabled = false
   let wsSSLCA = ''
 
@@ -97,6 +105,8 @@
   let otaEnabled = false
   let otaStageEnabled = false
   let otaStage: 'stable' | 'beta' = 'stable'
+  let otaAutoUpdateEnabled = false
+  let otaAutoUpdate: 'off' | 'stable' | 'beta' = 'off'
 
   let authEnabled = false
   let authPassEnabled = false
@@ -130,13 +140,13 @@
     errorDetails = String(err)
   }
 
-  $: sysExpanded = sysEnabled || sysNameEnabled || sysTZEnabled || sysLatEnabled || sysLonEnabled || sysSNTPEnabled || sysTimeFormatEnabled || sysEcoEnabled || sysDiscoverableEnabled
+  $: sysExpanded = sysEnabled || sysNameEnabled || sysTZEnabled || sysLatEnabled || sysLonEnabled || sysSNTPEnabled || sysTimeFormatEnabled || sysDebugWSEnabled || sysDebugUDPHostEnabled || sysRPCUDPPortEnabled || sysEcoEnabled || sysDiscoverableEnabled
   $: mqttExpanded = mqttEnabled || mqttEnableField || mqttServerEnabled || mqttClientIDEnabled || mqttTopicPrefixEnabled || mqttUserEnabled || mqttPassEnabled || mqttSSLCAEnabled || mqttRPCNtfEnabled || mqttStatusNtfEnabled || mqttEnableRPCEnabled || mqttEnableControlEnabled || mqttUseClientCertEnabled
-  $: wsExpanded = wsEnabled || wsEnableField || wsServerEnabled || wsSSLCAEnabled
+  $: wsExpanded = wsEnabled || wsEnableField || wsServerEnabled || wsTLSModeEnabled || wsSSLCAEnabled
   $: bleExpanded = bleEnabled || bleEnableField || bleRPCEnabledField || bleObserverEnabledField
   $: matterExpanded = matterEnabled || matterEnableField
   $: cloudExpanded = cloudEnabled || cloudEnableField
-  $: otaExpanded = otaEnabled || otaStageEnabled
+  $: otaExpanded = otaEnabled || otaStageEnabled || otaAutoUpdateEnabled
   $: authExpanded = authEnabled || authPassEnabled
   $: wifiExpanded = wifiEnabled || wifiSTAEnabled || wifiSSIDEnabled || wifiPassEnabled
   $: sysVisible = sysExpanded || sysOpen
@@ -386,6 +396,8 @@
       const deviceCfg: Record<string, unknown> = {}
       const location: Record<string, unknown> = {}
       const sntp: Record<string, unknown> = {}
+      const dbg: Record<string, unknown> = {}
+      const rpcUDP: Record<string, unknown> = {}
 
       if (sysNameEnabled) {
         sys.name = sysName
@@ -399,6 +411,12 @@
       }
       if (sysSNTPEnabled) sntp.server = sysSNTP
       if (sysTimeFormatEnabled) sys.clock_mode = sysTimeFormat === '12h' ? 1 : 0
+      if (sysDebugWSEnabled) dbg.websocket_enable = sysDebugWS
+      if (sysDebugUDPHostEnabled && sysDebugUDPHost.trim()) dbg.udp_addr = sysDebugUDPHost.trim()
+      if (sysRPCUDPPortEnabled) {
+        const port = maybeNum(sysRPCUDPPort)
+        rpcUDP.port = port === undefined ? 0 : port
+      }
       if (sysLatEnabled) {
         const lat = maybeNum(sysLat)
         if (lat !== undefined) {
@@ -416,6 +434,8 @@
       if (Object.keys(deviceCfg).length > 0) sys.device = deviceCfg
       if (Object.keys(location).length > 0) sys.location = location
       if (Object.keys(sntp).length > 0) sys.sntp = sntp
+      if (Object.keys(dbg).length > 0) sys.dbg = dbg
+      if (Object.keys(rpcUDP).length > 0) sys.rpc_udp = rpcUDP
       if (Object.keys(sys).length > 0) out.sys = sys
     }
 
@@ -443,7 +463,8 @@
       const ws: Record<string, unknown> = {}
       if (wsEnableField) ws.enable = wsEnable
       if (wsServerEnabled) ws.server = wsServer
-      if (wsSSLCAEnabled) ws.ssl_ca = wsSSLCA
+      if (wsTLSModeEnabled) ws.tls_mode = wsTLSMode
+      if (wsSSLCAEnabled && wsTLSMode === 'user') ws.ssl_ca = wsSSLCA
       if (Object.keys(ws).length > 0) out.ws = ws
     }
 
@@ -470,6 +491,7 @@
     if (otaEnabled) {
       const ota: Record<string, unknown> = {}
       if (otaStageEnabled) ota.stage = otaStage
+      if (otaAutoUpdateEnabled) ota.auto_update = otaAutoUpdate
       if (Object.keys(ota).length > 0) out.ota = ota
     }
 
@@ -691,6 +713,9 @@
                     <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysLonEnabled} disabled={!sysEnabled} />Longitude</label><input class="form-control" bind:value={sysLon} disabled={!sysEnabled || !sysLonEnabled} /></div>
                     <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysSNTPEnabled} disabled={!sysEnabled} />SNTP Server</label><input class="form-control" bind:value={sysSNTP} disabled={!sysEnabled || !sysSNTPEnabled} /></div>
                     <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysTimeFormatEnabled} disabled={!sysEnabled} />Time Format</label><select class="form-select" bind:value={sysTimeFormat} disabled={!sysEnabled || !sysTimeFormatEnabled}><option value="24h">24h</option><option value="12h">12h</option></select></div>
+                    <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysDebugWSEnabled} disabled={!sysEnabled} />Debug WebSocket (stream logs)</label><select class="form-select" bind:value={sysDebugWS} disabled={!sysEnabled || !sysDebugWSEnabled}><option value={true}>On</option><option value={false}>Off</option></select></div>
+                    <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysDebugUDPHostEnabled} disabled={!sysEnabled} />Debug UDP Host</label><input class="form-control" placeholder="host:port" bind:value={sysDebugUDPHost} disabled={!sysEnabled || !sysDebugUDPHostEnabled} /></div>
+                    <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysRPCUDPPortEnabled} disabled={!sysEnabled} />RPC UDP Port (0=off)</label><input class="form-control" type="number" min="0" bind:value={sysRPCUDPPort} disabled={!sysEnabled || !sysRPCUDPPortEnabled} /></div>
                     <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysEcoEnabled} disabled={!sysEnabled} />Eco Mode</label><select class="form-select" bind:value={sysEco} disabled={!sysEnabled || !sysEcoEnabled}><option value={true}>On</option><option value={false}>Off</option></select></div>
                     <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysDiscoverableEnabled} disabled={!sysEnabled} />Discoverable</label><select class="form-select" bind:value={sysDiscoverable} disabled={!sysEnabled || !sysDiscoverableEnabled}><option value={true}>On</option><option value={false}>Off</option></select></div>
                   </div>
@@ -733,7 +758,8 @@
                   <div class="row g-2">
                     <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={wsEnableField} disabled={!wsEnabled} />Enable WebSocket</label><select class="form-select" bind:value={wsEnable} disabled={!wsEnabled || !wsEnableField}><option value={true}>On</option><option value={false}>Off</option></select></div>
                     <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={wsServerEnabled} disabled={!wsEnabled} />Server URL</label><input class="form-control" bind:value={wsServer} disabled={!wsEnabled || !wsServerEnabled} /></div>
-                    <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={wsSSLCAEnabled} disabled={!wsEnabled} />SSL CA</label><input class="form-control" bind:value={wsSSLCA} disabled={!wsEnabled || !wsSSLCAEnabled} /></div>
+                    <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={wsTLSModeEnabled} disabled={!wsEnabled} />Connection type</label><select class="form-select" bind:value={wsTLSMode} disabled={!wsEnabled || !wsTLSModeEnabled}><option value="no_validation">TLS no validation</option><option value="default">Default TLS</option><option value="user">User TLS</option></select></div>
+                    <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={wsSSLCAEnabled} disabled={!wsEnabled} />SSL CA</label><input class="form-control" placeholder="* or ca.pem" bind:value={wsSSLCA} disabled={!wsEnabled || !wsSSLCAEnabled || wsTLSMode !== 'user'} /></div>
                   </div>
                 {/if}
               </div>
@@ -792,6 +818,7 @@
                 {#if otaVisible}
                   <div class="row g-2">
                     <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={otaStageEnabled} disabled={!otaEnabled} />Stage</label><select class="form-select" bind:value={otaStage} disabled={!otaEnabled || !otaStageEnabled}><option value="stable">Stable</option><option value="beta">Beta</option></select></div>
+                    <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={otaAutoUpdateEnabled} disabled={!otaEnabled} />Update automatically</label><select class="form-select" bind:value={otaAutoUpdate} disabled={!otaEnabled || !otaAutoUpdateEnabled}><option value="off">Disable auto update</option><option value="stable">Enable update to stable version</option><option value="beta">Enable update to beta version</option></select><div class="text-secondary mt-2">BETA firmware may cause instability</div></div>
                   </div>
                 {/if}
               </div>
