@@ -39,6 +39,13 @@ http://<dev-host>:5173
 
 Use the Go app directly on `8080` when testing embedded production assets.
 
+For UI consistency checks, verify both:
+
+- the Devices table `Last Success` column
+- the per-device detail `Last Success` field
+
+Both should follow the same locale-aware relative/absolute time policy from ADR-0007.
+
 ## Production Build
 
 ```bash
@@ -87,5 +94,5 @@ The architecture is documented, but some product-facing pieces are still in prog
 
 - export flows (devices, logs, templates, jobs)
 - advanced mode gating in settings
-- Docker networking guidance surfaced in UI
 - richer preview/dry-run flows for risky operations
+- broader action discovery for device components where protocol support is reliable

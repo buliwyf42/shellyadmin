@@ -37,6 +37,7 @@ Current working tree highlights beyond `v0.0.4`:
 
 - previewable bulk settings actions in Devices
 - per-device detail page with raw config/status snapshots and safe manual actions
+- locale-aware `Last Success` presentation shared between Devices and per-device detail
 - documented `v1` API contract exposed at `/api/openapi/v1.json` and in the UI at `/docs`, covering the supported session, inventory, workflow, settings, backup, and audit routes
 - optional mDNS-assisted discovery toggle in Settings
 
@@ -89,6 +90,7 @@ Use strong secrets for real installs. The `COOKIE_SECURE=false` example above is
   - raw config/status snapshots
   - discovered capabilities
   - safe single-device actions (refresh, firmware check/update, reboot)
+- Locale-aware relative/absolute time presentation in both Devices and per-device detail
 - Stale row signal when the latest refresh attempt fails
 - Compliance status in Devices view with hover details
 - Gen-aware rendering for unsupported fields (for example WebSocket on Gen1)

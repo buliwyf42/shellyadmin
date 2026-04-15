@@ -123,7 +123,15 @@ Optional:
   - configurable refresh timeout
   - per-row refresh/delete actions
   - stale/fresh signal based on latest refresh outcome
+- Time presentation follows ADR-0007:
+  - locale-aware display in Devices
+  - the per-device detail page reuses the same `Last Success` formatting policy
 - Per-device compliance details are shown via the compliance badge hover in Devices.
+- Per-device detail is the secondary operational surface:
+  - status summary
+  - capabilities
+  - safe single-device actions
+  - raw config/status snapshots for troubleshooting
 - Provision, Auth Groups, and Compliance follow a shared two-column layout:
   - left: settings/rules/groups
   - right: device list

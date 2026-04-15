@@ -5,6 +5,9 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 - Public repo readiness work: root security/contributing docs, issue templates, changelog, and local-artifact ignore rules
+- Added per-device detail and API docs pages to the embedded UI
+- Standardized `Last Success` time presentation across Devices and per-device detail
+- Expanded the documented OpenAPI v1 route surface and tightened missing-asset handling
 
 ## [0.0.4] - 2026-04-14
 
