@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.0.5] - 2026-04-15
+
 - Public repo readiness work: root security/contributing docs, issue templates, changelog, and local-artifact ignore rules
 - Added per-device detail and API docs pages to the embedded UI
 - Standardized `Last Success` time presentation across Devices and per-device detail
