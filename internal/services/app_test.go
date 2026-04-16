@@ -1,6 +1,7 @@
 package services
 
 import (
+	"net/netip"
 	"testing"
 	"time"
 
@@ -74,5 +75,41 @@ func TestSaveCredentialGroupUsesAdminCompatibilityUsername(t *testing.T) {
 	}
 	if credentials[0].Username != "admin" {
 		t.Fatalf("credential username = %q, want admin", credentials[0].Username)
+	}
+}
+
+func TestIsProvisionTargetAllowed(t *testing.T) {
+	cases := []struct {
+		addr    string
+		allowed bool
+	}{
+		// Allowed: RFC1918 private
+		{"192.168.1.1", true},
+		{"10.0.0.1", true},
+		{"172.16.0.1", true},
+		// Allowed: link-local
+		{"169.254.1.1", true},
+		// Allowed: IPv6 ULA
+		{"fd00::1", true},
+		// Allowed: IPv6 link-local
+		{"fe80::1", true},
+		// Blocked: loopback
+		{"127.0.0.1", false},
+		{"::1", false},
+		// Blocked: unspecified
+		{"0.0.0.0", false},
+		// Blocked: multicast
+		{"224.0.0.1", false},
+		{"ff02::1", false},
+		// Blocked: public internet
+		{"8.8.8.8", false},
+		{"1.1.1.1", false},
+	}
+	for _, tc := range cases {
+		addr := netip.MustParseAddr(tc.addr)
+		got := isProvisionTargetAllowed(addr)
+		if got != tc.allowed {
+			t.Errorf("isProvisionTargetAllowed(%q) = %v, want %v", tc.addr, got, tc.allowed)
+		}
 	}
 }

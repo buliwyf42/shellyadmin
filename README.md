@@ -102,10 +102,11 @@ Use strong secrets for real installs. The `COOKIE_SECURE=false` example above is
 
 ## Planned / In Progress
 
-- Export flows for devices, logs, templates, and jobs
+- Per-device and per-job export flows (settings/template/group backup export already works)
 - Advanced-mode gating in UI settings
 - Broader action discovery for device components where protocol support is reliable
 - CLI after the external API contract settles
+- API stability guarantee (v0.x may have breaking changes; semver will apply from v1.0.0)
 
 ## Project Structure
 
