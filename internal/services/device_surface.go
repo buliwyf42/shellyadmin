@@ -319,7 +319,7 @@ func validateBulkAction(req BulkActionRequest) error {
 		if req.Lat < -90 || req.Lat > 90 || req.Lon < -180 || req.Lon > 180 {
 			return errors.New("location requires valid latitude/longitude")
 		}
-	case "set_timezone", "set_mqtt_server":
+	case "set_timezone", "set_mqtt_server", "set_sntp_server":
 		if strings.TrimSpace(req.Value) == "" {
 			return fmt.Errorf("%s requires value", req.Action)
 		}
@@ -351,6 +351,9 @@ func applyBulkAction(ctx context.Context, req BulkActionRequest, device models.D
 	case "set_24h":
 		ok := setters.SetTimeFormat24h(ctx, device.IP, device.Gen, timeout)
 		return ok, "set time format to 24h"
+	case "set_sntp_server":
+		ok := setters.SetSNTPServer(ctx, device.IP, req.Value, device.Gen, timeout)
+		return ok, fmt.Sprintf("set SNTP server to %s", req.Value)
 	default:
 		return false, "unsupported action"
 	}
@@ -368,6 +371,8 @@ func bulkActionSummary(req BulkActionRequest) string {
 		return fmt.Sprintf("Set MQTT %s on the selected devices.", ternary(*req.Enabled, "enabled", "disabled"))
 	case "set_24h":
 		return "Set 24-hour time format on the selected devices."
+	case "set_sntp_server":
+		return fmt.Sprintf("Set SNTP server to %s on the selected devices.", req.Value)
 	default:
 		return "Apply a bulk action to the selected devices."
 	}
@@ -375,7 +380,7 @@ func bulkActionSummary(req BulkActionRequest) string {
 
 func bulkActionWarnings(req BulkActionRequest) []string {
 	switch req.Action {
-	case "set_location", "set_timezone", "set_mqtt_server", "set_mqtt_enabled", "set_24h":
+	case "set_location", "set_timezone", "set_mqtt_server", "set_mqtt_enabled", "set_24h", "set_sntp_server":
 		return []string{"Changes are sent directly to the devices and should be followed by a refresh to confirm the final state."}
 	default:
 		return nil
@@ -436,7 +441,7 @@ func ternary[T any](condition bool, yes, no T) T {
 }
 
 func SortedBulkActions() []string {
-	actions := []string{"set_24h", "set_location", "set_mqtt_enabled", "set_mqtt_server", "set_timezone"}
+	actions := []string{"set_24h", "set_location", "set_mqtt_enabled", "set_mqtt_server", "set_sntp_server", "set_timezone"}
 	slices.Sort(actions)
 	return actions
 }

@@ -387,10 +387,23 @@
     return acc
   }, {} as Record<string, number>)
 
-  function maybeNum(raw: string): number | undefined {
+  function maybeNum(raw: string | number): number | undefined {
+    if (typeof raw === 'number') return Number.isFinite(raw) ? raw : undefined
     if (raw.trim() === '') return undefined
     const n = Number(raw)
     return Number.isFinite(n) ? n : undefined
+  }
+
+  function isTLSServerURL(raw: string): boolean {
+    return raw.trim().toLowerCase().startsWith('wss://')
+  }
+
+  function inferWSTLSMode(server: string | undefined, sslCA: string | undefined, explicitMode: string | undefined): 'no_validation' | 'default' | 'user' | undefined {
+    if (explicitMode === 'no_validation' || explicitMode === 'default' || explicitMode === 'user') return explicitMode
+    if (!server || !isTLSServerURL(server)) return undefined
+    if (sslCA === '*') return 'no_validation'
+    if (sslCA && sslCA.trim() !== '') return 'user'
+    return 'default'
   }
 
   function resetFormState() {
@@ -521,15 +534,16 @@
       }
       switch (section) {
         case 'sys': {
-          if (!hasOnlyKeys(record, ['name', 'device', 'tz', 'location', 'sntp', 'clock_mode', 'dbg', 'rpc_udp', 'lat', 'lng'])) {
+          if (!hasOnlyKeys(record, ['name', 'device', 'tz', 'location', 'sntp', 'clock_mode', 'dbg', 'debug', 'rpc_udp', 'lat', 'lng', 'lon', 'profile', 'addon_type'])) {
             return { ok: false, reason: 'Template sys section contains fields the form cannot represent.' }
           }
           const device = record.device ? asRecord(record.device) : null
           const location = record.location ? asRecord(record.location) : null
           const sntp = record.sntp ? asRecord(record.sntp) : null
           const dbg = record.dbg ? asRecord(record.dbg) : null
+          const debug = record.debug ? asRecord(record.debug) : null
           const rpcUDP = record.rpc_udp ? asRecord(record.rpc_udp) : null
-          if ((record.device && !device) || (record.location && !location) || (record.sntp && !sntp) || (record.dbg && !dbg) || (record.rpc_udp && !rpcUDP)) {
+          if ((record.device && !device) || (record.location && !location) || (record.sntp && !sntp) || (record.dbg && !dbg) || (record.debug && !debug) || (record.rpc_udp && !rpcUDP)) {
             return { ok: false, reason: 'Template sys section contains nested values the form cannot represent.' }
           }
           if (device && !hasOnlyKeys(device, ['name', 'eco_mode', 'discoverable'])) {
@@ -544,7 +558,18 @@
           if (dbg && !hasOnlyKeys(dbg, ['websocket_enable', 'udp_addr'])) {
             return { ok: false, reason: 'Template sys.dbg section contains unsupported fields.' }
           }
-          if (rpcUDP && !hasOnlyKeys(rpcUDP, ['port'])) {
+          const debugWS = debug && debug.websocket ? asRecord(debug.websocket) : null
+          const debugUDP = debug && debug.udp ? asRecord(debug.udp) : null
+          if ((debug && debug.websocket && !debugWS) || (debug && debug.udp && !debugUDP)) {
+            return { ok: false, reason: 'Template sys.debug section contains unsupported nested values.' }
+          }
+          if (debugWS && !hasOnlyKeys(debugWS, ['enable'])) {
+            return { ok: false, reason: 'Template sys.debug.websocket section contains unsupported fields.' }
+          }
+          if (debugUDP && !hasOnlyKeys(debugUDP, ['addr'])) {
+            return { ok: false, reason: 'Template sys.debug.udp section contains unsupported fields.' }
+          }
+          if (rpcUDP && !hasOnlyKeys(rpcUDP, ['port', 'listen_port'])) {
             return { ok: false, reason: 'Template sys.rpc_udp section contains unsupported fields.' }
           }
 
@@ -576,7 +601,7 @@
             sysLatEnabled = true
             sysLat = String(topLat ?? nestedLat ?? '')
           }
-          const topLon = numberField(record, 'lng')
+          const topLon = numberField(record, 'lng') ?? numberField(record, 'lon')
           const nestedLon = location ? numberField(location, 'lon') : undefined
           if (topLon !== undefined || nestedLon !== undefined) {
             if (topLon !== undefined && nestedLon !== undefined && topLon !== nestedLon) {
@@ -598,17 +623,21 @@
             sysTimeFormatEnabled = true
             sysTimeFormat = clockMode === 1 ? '12h' : '24h'
           }
-          const debugWS = dbg ? boolField(dbg, 'websocket_enable') : undefined
-          if (debugWS !== undefined) {
+          const legacyDebugWS = dbg ? boolField(dbg, 'websocket_enable') : undefined
+          const nestedDebugWebsocket = debugWS ? boolField(debugWS, 'enable') : undefined
+          const finalDebugWS = legacyDebugWS !== undefined ? legacyDebugWS : nestedDebugWebsocket
+          if (finalDebugWS !== undefined) {
             sysDebugWSEnabled = true
-            sysDebugWS = debugWS
+            sysDebugWS = finalDebugWS
           }
-          const debugUDPHost = dbg ? stringField(dbg, 'udp_addr') : undefined
+          const legacyDebugUDPHost = dbg ? stringField(dbg, 'udp_addr') : undefined
+          const nestedDebugUDPHost = debugUDP ? stringField(debugUDP, 'addr') : undefined
+          const debugUDPHost = legacyDebugUDPHost ?? nestedDebugUDPHost
           if (debugUDPHost !== undefined) {
             sysDebugUDPHostEnabled = true
             sysDebugUDPHost = debugUDPHost
           }
-          const rpcUDPPort = rpcUDP ? numberField(rpcUDP, 'port') : undefined
+          const rpcUDPPort = rpcUDP ? (numberField(rpcUDP, 'listen_port') ?? numberField(rpcUDP, 'port')) : undefined
           if (rpcUDPPort !== undefined) {
             sysRPCUDPPortEnabled = true
             sysRPCUDPPort = String(rpcUDPPort)
@@ -705,9 +734,6 @@
           if (tlsMode !== undefined && tlsMode !== 'no_validation' && tlsMode !== 'default' && tlsMode !== 'user') {
             return { ok: false, reason: 'Template ws tls_mode is not representable in the form.' }
           }
-          if (record.ssl_ca !== undefined && tlsMode !== 'user') {
-            return { ok: false, reason: 'Template ws ssl_ca requires user TLS mode to be represented in the form.' }
-          }
           wsEnabled = true
           const wsEnableValue = boolField(record, 'enable')
           if (wsEnableValue !== undefined) {
@@ -719,12 +745,13 @@
             wsServerEnabled = true
             wsServer = wsServerValue
           }
-          if (tlsMode !== undefined) {
-            wsTLSModeEnabled = true
-            wsTLSMode = tlsMode
-          }
           const wsSSLCAValue = stringField(record, 'ssl_ca')
-          if (wsSSLCAValue !== undefined) {
+          const inferredTLSMode = inferWSTLSMode(wsServerValue, wsSSLCAValue, tlsMode)
+          if (inferredTLSMode !== undefined) {
+            wsTLSModeEnabled = true
+            wsTLSMode = inferredTLSMode
+          }
+          if (wsSSLCAValue !== undefined && wsSSLCAValue !== '*') {
             wsSSLCAEnabled = true
             wsSSLCA = wsSSLCAValue
           }
@@ -863,45 +890,41 @@
       const deviceCfg: Record<string, unknown> = {}
       const location: Record<string, unknown> = {}
       const sntp: Record<string, unknown> = {}
-      const dbg: Record<string, unknown> = {}
+      const debug: Record<string, unknown> = {}
+      const debugWS: Record<string, unknown> = {}
+      const debugUDP: Record<string, unknown> = {}
       const rpcUDP: Record<string, unknown> = {}
 
-      if (sysNameEnabled) {
-        sys.name = sysName
-        deviceCfg.name = sysName
-      }
+      if (sysNameEnabled) deviceCfg.name = sysName
       if (sysEcoEnabled) deviceCfg.eco_mode = sysEco
       if (sysDiscoverableEnabled) deviceCfg.discoverable = sysDiscoverable
-      if (sysTZEnabled) {
-        sys.tz = sysTZ
-        location.tz = sysTZ
-      }
+      if (sysTZEnabled) location.tz = sysTZ
       if (sysSNTPEnabled) sntp.server = sysSNTP
       if (sysTimeFormatEnabled) sys.clock_mode = sysTimeFormat === '12h' ? 1 : 0
-      if (sysDebugWSEnabled) dbg.websocket_enable = sysDebugWS
-      if (sysDebugUDPHostEnabled && sysDebugUDPHost.trim()) dbg.udp_addr = sysDebugUDPHost.trim()
+      if (sysDebugWSEnabled) debugWS.enable = sysDebugWS
+      if (sysDebugUDPHostEnabled && sysDebugUDPHost.trim()) debugUDP.addr = sysDebugUDPHost.trim()
       if (sysRPCUDPPortEnabled) {
         const port = maybeNum(sysRPCUDPPort)
-        rpcUDP.port = port === undefined ? 0 : port
+        rpcUDP.listen_port = port === undefined ? 0 : port
       }
       if (sysLatEnabled) {
         const lat = maybeNum(sysLat)
         if (lat !== undefined) {
-          sys.lat = lat
           location.lat = lat
         }
       }
       if (sysLonEnabled) {
         const lon = maybeNum(sysLon)
         if (lon !== undefined) {
-          sys.lng = lon
           location.lon = lon
         }
       }
       if (Object.keys(deviceCfg).length > 0) sys.device = deviceCfg
       if (Object.keys(location).length > 0) sys.location = location
       if (Object.keys(sntp).length > 0) sys.sntp = sntp
-      if (Object.keys(dbg).length > 0) sys.dbg = dbg
+      if (Object.keys(debugWS).length > 0) debug.websocket = debugWS
+      if (Object.keys(debugUDP).length > 0) debug.udp = debugUDP
+      if (Object.keys(debug).length > 0) sys.debug = debug
       if (Object.keys(rpcUDP).length > 0) sys.rpc_udp = rpcUDP
       if (Object.keys(sys).length > 0) out.sys = sys
     }
@@ -917,7 +940,7 @@
       if (mqttTopicPrefixEnabled) mqtt.topic_prefix = mqttTopicPrefix
       if (mqttUserEnabled) mqtt.user = mqttUser
       if (mqttPassEnabled) mqtt.pass = mqttPass
-      if (mqttSSLCAEnabled) mqtt.ssl_ca = mqttSSLCA
+      if (mqttSSLCAEnabled && mqttSSLCA !== '') mqtt.ssl_ca = mqttSSLCA
       if (mqttRPCNtfEnabled) mqtt.rpc_ntf = mqttRPCNtf
       if (mqttStatusNtfEnabled) mqtt.status_ntf = mqttStatusNtf
       if (mqttEnableRPCEnabled) mqtt.enable_rpc = mqttEnableRPC
@@ -930,8 +953,10 @@
       const ws: Record<string, unknown> = {}
       if (wsEnableField) ws.enable = wsEnable
       if (wsServerEnabled) ws.server = wsServer
-      if (wsTLSModeEnabled) ws.tls_mode = wsTLSMode
-      if (wsSSLCAEnabled && wsTLSMode === 'user') ws.ssl_ca = wsSSLCA
+      if (isTLSServerURL(wsServer)) {
+        if (wsTLSModeEnabled) ws.tls_mode = wsTLSMode
+        if (wsSSLCAEnabled && wsTLSMode === 'user') ws.ssl_ca = wsSSLCA
+      }
       if (Object.keys(ws).length > 0) out.ws = ws
     }
 
@@ -1000,6 +1025,38 @@
       await api.saveTemplate(templateName.trim(), body, selectedTemplateCredentialRef)
       templateNames = await api.listTemplates()
       selectedTemplate = templateName.trim()
+      error = ''
+      errorDetails = ''
+    } catch (err) {
+      captureError(err)
+    }
+  }
+
+  async function deleteCurrentTemplate() {
+    if (!selectedTemplate) return
+    const name = selectedTemplate
+    try {
+      await api.deleteTemplate(name)
+      templateNames = await api.listTemplates()
+      selectedTemplate = ''
+      templateName = ''
+      error = ''
+      errorDetails = ''
+    } catch (err) {
+      captureError(err)
+    }
+  }
+
+  async function renameCurrentTemplate() {
+    const oldName = selectedTemplate
+    const newName = templateName.trim()
+    if (!oldName || !newName || oldName === newName) return
+    try {
+      const body = viewMode === 'json' ? jsonText : JSON.stringify(buildTemplate(), null, 2)
+      await api.saveTemplate(newName, body, selectedTemplateCredentialRef)
+      await api.deleteTemplate(oldName)
+      templateNames = await api.listTemplates()
+      selectedTemplate = newName
       error = ''
       errorDetails = ''
     } catch (err) {
@@ -1153,6 +1210,7 @@
             {/each}
           </select>
           <button class="btn btn-sm btn-outline-light" on:click={loadCurrentTemplate} disabled={!selectedTemplate}>Load</button>
+          <button class="btn btn-sm btn-outline-danger" on:click={deleteCurrentTemplate} disabled={!selectedTemplate}>Delete</button>
           <input class="form-control toolbar-input-md" placeholder="template name" bind:value={templateName} />
           <select class="form-select toolbar-select-md" bind:value={selectedTemplateCredentialRef}>
             <option value="">credential: none</option>
@@ -1161,6 +1219,7 @@
             {/each}
           </select>
           <button class="btn btn-sm btn-outline-light" on:click={saveCurrentTemplate}>Save</button>
+          <button class="btn btn-sm btn-outline-secondary" on:click={renameCurrentTemplate} disabled={!selectedTemplate || !templateName.trim() || selectedTemplate === templateName.trim()}>Rename</button>
         </div>
         {#if groupCredentialHint}
           <span class="text-secondary">{groupCredentialHint}</span>
@@ -1189,13 +1248,13 @@
                   <div class="row g-2">
                     <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysNameEnabled} disabled={!sysEnabled} />Device Name</label><input class="form-control" bind:value={sysName} disabled={!sysEnabled || !sysNameEnabled} /></div>
                     <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysTZEnabled} disabled={!sysEnabled} />Timezone</label><input class="form-control" bind:value={sysTZ} disabled={!sysEnabled || !sysTZEnabled} /></div>
-                    <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysLatEnabled} disabled={!sysEnabled} />Latitude</label><input class="form-control" bind:value={sysLat} disabled={!sysEnabled || !sysLatEnabled} /></div>
-                    <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysLonEnabled} disabled={!sysEnabled} />Longitude</label><input class="form-control" bind:value={sysLon} disabled={!sysEnabled || !sysLonEnabled} /></div>
                     <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysSNTPEnabled} disabled={!sysEnabled} />SNTP Server</label><input class="form-control" bind:value={sysSNTP} disabled={!sysEnabled || !sysSNTPEnabled} /></div>
                     <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysTimeFormatEnabled} disabled={!sysEnabled} />Time Format</label><select class="form-select" bind:value={sysTimeFormat} disabled={!sysEnabled || !sysTimeFormatEnabled}><option value="24h">24h</option><option value="12h">12h</option></select></div>
                     <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysDebugWSEnabled} disabled={!sysEnabled} />Debug WebSocket (stream logs)</label><select class="form-select" bind:value={sysDebugWS} disabled={!sysEnabled || !sysDebugWSEnabled}><option value={true}>On</option><option value={false}>Off</option></select></div>
                     <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysDebugUDPHostEnabled} disabled={!sysEnabled} />Debug UDP Host</label><input class="form-control" placeholder="host:port" bind:value={sysDebugUDPHost} disabled={!sysEnabled || !sysDebugUDPHostEnabled} /></div>
                     <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysRPCUDPPortEnabled} disabled={!sysEnabled} />RPC UDP Port (0=off)</label><input class="form-control" type="number" min="0" bind:value={sysRPCUDPPort} disabled={!sysEnabled || !sysRPCUDPPortEnabled} /></div>
+                    <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysLatEnabled} disabled={!sysEnabled} />Latitude</label><input class="form-control" type="number" step="0.0001" bind:value={sysLat} disabled={!sysEnabled || !sysLatEnabled} /></div>
+                    <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysLonEnabled} disabled={!sysEnabled} />Longitude</label><input class="form-control" type="number" step="0.0001" bind:value={sysLon} disabled={!sysEnabled || !sysLonEnabled} /></div>
                     <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysEcoEnabled} disabled={!sysEnabled} />Eco Mode</label><select class="form-select" bind:value={sysEco} disabled={!sysEnabled || !sysEcoEnabled}><option value={true}>On</option><option value={false}>Off</option></select></div>
                     <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysDiscoverableEnabled} disabled={!sysEnabled} />Discoverable</label><select class="form-select" bind:value={sysDiscoverable} disabled={!sysEnabled || !sysDiscoverableEnabled}><option value={true}>On</option><option value={false}>Off</option></select></div>
                   </div>
@@ -1217,7 +1276,7 @@
                     <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttTopicPrefixEnabled} disabled={!mqttEnabled} />Topic Prefix</label><input class="form-control" bind:value={mqttTopicPrefix} disabled={!mqttEnabled || !mqttTopicPrefixEnabled} /></div>
                     <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttUserEnabled} disabled={!mqttEnabled} />Username</label><input class="form-control" bind:value={mqttUser} disabled={!mqttEnabled || !mqttUserEnabled} /></div>
                     <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttPassEnabled} disabled={!mqttEnabled} />Password</label><input class="form-control" type="password" bind:value={mqttPass} disabled={!mqttEnabled || !mqttPassEnabled} /></div>
-                    <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttSSLCAEnabled} disabled={!mqttEnabled} />SSL CA</label><input class="form-control" bind:value={mqttSSLCA} disabled={!mqttEnabled || !mqttSSLCAEnabled} /></div>
+                    <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttSSLCAEnabled} disabled={!mqttEnabled} />SSL CA</label><select class="form-select" bind:value={mqttSSLCA} disabled={!mqttEnabled || !mqttSSLCAEnabled}><option value="">— none (no TLS) —</option><option value="*">* (disable cert validation)</option><option value="ca.pem">ca.pem (built-in CA)</option><option value="user_ca.pem">user_ca.pem (user CA)</option></select></div>
                     <div class="col-md-3"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttRPCNtfEnabled} disabled={!mqttEnabled} />RPC notifications</label><select class="form-select" bind:value={mqttRPCNtf} disabled={!mqttEnabled || !mqttRPCNtfEnabled}><option value={true}>On</option><option value={false}>Off</option></select></div>
                     <div class="col-md-3"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttStatusNtfEnabled} disabled={!mqttEnabled} />Status updates</label><select class="form-select" bind:value={mqttStatusNtf} disabled={!mqttEnabled || !mqttStatusNtfEnabled}><option value={true}>On</option><option value={false}>Off</option></select></div>
                     <div class="col-md-3"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttEnableRPCEnabled} disabled={!mqttEnabled} />Enable RPC</label><select class="form-select" bind:value={mqttEnableRPC} disabled={!mqttEnabled || !mqttEnableRPCEnabled}><option value={true}>On</option><option value={false}>Off</option></select></div>
@@ -1241,6 +1300,9 @@
                     <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={wsTLSModeEnabled} disabled={!wsEnabled} />Connection type</label><select class="form-select" bind:value={wsTLSMode} disabled={!wsEnabled || !wsTLSModeEnabled}><option value="no_validation">TLS no validation</option><option value="default">Default TLS</option><option value="user">User TLS</option></select></div>
                     <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={wsSSLCAEnabled} disabled={!wsEnabled} />SSL CA</label><input class="form-control" placeholder="* or ca.pem" bind:value={wsSSLCA} disabled={!wsEnabled || !wsSSLCAEnabled || wsTLSMode !== 'user'} /></div>
                   </div>
+                  {#if wsServerEnabled && wsServer && !isTLSServerURL(wsServer)}
+                    <div class="form-text mt-2">TLS settings are ignored for plain <code>ws://</code> endpoints. Use <code>wss://</code> for TLS.</div>
+                  {/if}
                 {/if}
               </div>
             </div>

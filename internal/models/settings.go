@@ -21,6 +21,8 @@ type ComplianceRules struct {
 	MQTTStatusNtf   *bool        `json:"mqtt_status_ntf"`
 	MQTTEnableRPC   *bool        `json:"mqtt_enable_rpc"`
 	MQTTEnableCtrl  *bool        `json:"mqtt_enable_control"`
+	MQTTConnected   *bool        `json:"mqtt_connected"`
+	CloudEnabled    *bool        `json:"cloud_enabled"`
 	CloudConnected  *bool        `json:"cloud_connected"`
 	WSEnabled       *bool        `json:"ws_enabled"`
 	WSConnected     *bool        `json:"ws_connected"`

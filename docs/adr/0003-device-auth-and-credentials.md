@@ -16,9 +16,9 @@ Current probing is largely unauthenticated, but future device-level authenticati
 - Template binding uses exactly one primary credential reference.
 - Auth group credential fields:
   - `name`
-  - `username`
   - `password` and/or `ha1`
   - optional tags
+- Auth group UX is password-first; any compatibility username handling remains internal rather than operator-managed.
 - Group assignments map device `mac -> group_name`.
 - Precheck behavior for mixed targets:
   - skip obviously incompatible devices using known criteria (generation/model/auth state)
@@ -31,4 +31,5 @@ Current probing is largely unauthenticated, but future device-level authenticati
 
 - The system can surface auth mismatch state without turning unreachable/auth failures into generic offline noise.
 - Group-contained credentials avoid extra indirection when assigning auth behavior by device set.
+- Operator-facing auth group management stays simpler because compatibility username handling is not exposed as a first-class field.
 - Section-level tolerance preserves partial progress while still exposing failure detail.

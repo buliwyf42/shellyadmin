@@ -5,10 +5,6 @@
   import ErrorNotice from '../components/ErrorNotice.svelte'
 
   let settings: AppSettings = { subnets: [], scan_timeout: 2, refresh_timeout: 5, scan_concurrency: 64, enable_mdns: false, compliance: {} }
-  let templateNames: string[] = []
-  let newTemplateName = ''
-  let newTemplateContent = '{\n  "mqtt": {\n    "enable": true\n  }\n}'
-  let newTemplateCredentialRef = ''
   let credentials: Credential[] = []
   let error = ''
   let errorDetails = ''
@@ -54,7 +50,6 @@
     clearMessages()
     try {
       settings = await api.getSettings()
-      templateNames = await api.listTemplates()
       credentials = await api.listCredentials()
     } catch (err) {
       captureError(err)
@@ -66,30 +61,6 @@
     try {
       await api.saveSettings(settings)
       setStatus('Settings saved')
-    } catch (err) {
-      captureError(err)
-    }
-  }
-
-  async function createTemplate() {
-    clearMessages()
-    try {
-      await api.saveTemplate(newTemplateName, newTemplateContent, newTemplateCredentialRef)
-      newTemplateName = ''
-      newTemplateCredentialRef = ''
-      await load()
-      setStatus('Template saved')
-    } catch (err) {
-      captureError(err)
-    }
-  }
-
-  async function removeTemplate(name: string) {
-    clearMessages()
-    try {
-      await api.deleteTemplate(name)
-      await load()
-      setStatus('Template deleted')
     } catch (err) {
       captureError(err)
     }
@@ -165,32 +136,6 @@
         </label>
         <p class="text-secondary mt-2 mb-0">Tune discovery, refresh, and concurrency here. mDNS works best on hosts that can receive local multicast traffic; Docker setups may need host networking for reliable results.</p>
         <button class="btn btn-warning text-dark mt-3" on:click={saveSettings}>Save Settings</button>
-      </div>
-    </div>
-  </div>
-  <div class="col-lg-6">
-    <div class="card bg-dark border-secondary">
-      <div class="card-body">
-        <h2 class="h5">Templates</h2>
-        <div class="d-flex flex-column gap-2 mb-3">
-          {#each templateNames as name}
-            <div class="d-flex justify-content-between align-items-center border rounded p-2">
-              <span>{name}</span>
-              <button class="btn btn-sm btn-outline-danger" on:click={() => removeTemplate(name)}>Delete</button>
-            </div>
-          {/each}
-        </div>
-        <input class="form-control mb-2" placeholder="Template name" bind:value={newTemplateName} />
-        <label class="form-label" for="template-credential-ref">Default credential for this template (optional)</label>
-        <select id="template-credential-ref" class="form-select mb-2" bind:value={newTemplateCredentialRef}>
-          <option value="">none</option>
-          {#each credentials as credential}
-            <option value={credential.name}>{credential.name}</option>
-          {/each}
-        </select>
-        <p class="text-secondary mb-2">Used during provisioning when devices require authentication. If empty, no credential is auto-selected.</p>
-        <textarea class="form-control font-monospace mb-2" rows="8" bind:value={newTemplateContent}></textarea>
-        <button class="btn btn-outline-light" on:click={createTemplate} disabled={!newTemplateName}>Create Template</button>
       </div>
     </div>
   </div>
