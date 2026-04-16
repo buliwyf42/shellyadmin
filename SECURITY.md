@@ -10,8 +10,8 @@ Security fixes are best-effort while the project is in active early development.
 
 | Version | Supported |
 | --- | --- |
-| `v0.0.4` | Yes |
-| `v0.0.3` | Best effort |
+| `v0.0.6` | Yes |
+| `v0.0.5` | Best effort |
 | Older versions | No |
 
 ## Reporting a Vulnerability
