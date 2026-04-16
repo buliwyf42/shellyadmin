@@ -141,4 +141,4 @@ Optional:
   - Settings no longer exposes a Templates section
 - Provision and Compliance share a common section and field ordering policy (see ADR-0008):
   - section order: sys → mqtt → cloud → ws → ble → wifi → ota
-  - sys field order: name (provision only) → tz → sntp → time_format → debug_ws → debug_udp → rpc_udp → lat → lon → eco → discoverable
+  - sys field order: name (provision only) → tz → sntp → debug_ws → debug_udp → rpc_udp → lat → lon → eco → discoverable

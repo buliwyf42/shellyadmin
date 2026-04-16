@@ -15,7 +15,7 @@ It is designed as a single-container deployment with:
 ## Status
 
 This repository is under active development.
-Current UI/API baseline is `v0.0.6`.
+Current UI/API baseline is `v0.0.7`.
 
 Public support posture:
 
@@ -24,21 +24,13 @@ Public support posture:
 - not intended for direct internet exposure
 - not yet positioned as a multi-user or HA-ready platform
 
-Current `v0.0.6` highlights:
-
-- fixed lat/lon values being silently dropped when saving provisioning templates
-- template management (load, save, delete, rename) consolidated onto the Provision page
-- Settings no longer has a redundant Templates section
-- Provision and Compliance pages now share a common section and field ordering
-- extended provisioner, scanner, compliance, and setter internals
-
 The target architecture is documented in [docs/ARCHITECTURE.md](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/docs/ARCHITECTURE.md).
 
 ## Goals
 
 - Easy to run in Docker
 - Optimized for a single trusted operator on a LAN
-- Supports both Gen1 and Gen2+ Shelly devices
+- Supports Gen2+ Shelly devices
 - Keeps risky actions manual and previewed
 
 ## Quick Start
@@ -70,7 +62,7 @@ Use strong secrets for real installs. The `COOKIE_SECURE=false` example above is
 
 - Scan with staging and explicit add-to-inventory
 - Device inventory table with sortable columns and per-user column visibility
-- Bulk actions with preview/apply for timezone, MQTT, location, and 24-hour time settings
+- Bulk actions with preview/apply for timezone, MQTT, location, and SNTP settings
 - Auto-refresh in Devices view (30s, 1m, 5m)
 - Separate scan timeout and refresh timeout in Settings
 - Optional mDNS-assisted discovery in addition to subnet scanning
@@ -84,7 +76,6 @@ Use strong secrets for real installs. The `COOKIE_SECURE=false` example above is
 - Locale-aware relative/absolute time presentation in both Devices and per-device detail
 - Stale row signal when the latest refresh attempt fails
 - Compliance status in Devices view with hover details
-- Gen-aware rendering for unsupported fields (for example WebSocket on Gen1)
 - Manual firmware check and update flow
 - Guided provisioning form plus JSON mode with template management (load, save, delete, rename) in-context
 - Auth Groups page:
