@@ -31,6 +31,7 @@ The current accepted decision set includes:
 - [ADR-0005 Data, Migration, and Compatibility Policy](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/docs/adr/0005-data-migrations-and-compatibility.md)
 - [ADR-0006 Backup, Export/Import, and Secret Handling](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/docs/adr/0006-backup-export-import-and-secrets.md)
 - [ADR-0007 UI Time and Error Presentation Policy](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/docs/adr/0007-ui-time-and-error-presentation.md)
+- [ADR-0008 Provision/Compliance UI Alignment and Template Management Consolidation](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/docs/adr/0008-provision-compliance-ui-alignment.md)
 
 ## Layers
 
@@ -135,3 +136,9 @@ Optional:
 - Provision, Auth Groups, and Compliance follow a shared two-column layout:
   - left: settings/rules/groups
   - right: device list
+- Template management lives entirely on the Provision page (see ADR-0008):
+  - load, edit, save, delete, and rename templates in-context
+  - Settings no longer exposes a Templates section
+- Provision and Compliance share a common section and field ordering policy (see ADR-0008):
+  - section order: sys → mqtt → cloud → ws → ble → wifi → ota
+  - sys field order: name (provision only) → tz → sntp → time_format → debug_ws → debug_udp → rpc_udp → lat → lon → eco → discoverable
