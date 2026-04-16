@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.0.7] - 2026-04-16
+
+- Fix `RandomSecret()` to panic instead of silently returning a hardcoded fallback when `crypto/rand` is unavailable
+- Upgrade `golang.org/x/crypto` to v0.45.0 and `golang.org/x/net` to v0.47.0 (resolves all 5 Dependabot alerts)
+- Add CI workflow: `go test ./...` and frontend build run on every push and PR to main
+- Add tests for `isProvisionTargetAllowed()` covering all address categories
+- Bump frontend package version to match release
+
 ## [0.0.6] - 2026-04-16
 
 - Fixed lat/lon values being silently dropped when saving provisioning templates (inputs now use `type=number`)
