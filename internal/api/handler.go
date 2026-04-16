@@ -496,7 +496,7 @@ func (h *Handler) logFn(level, msg string) {
 func RandomSecret() string {
 	buf := make([]byte, 32)
 	if _, err := rand.Read(buf); err != nil {
-		return "dev-secret-change-me"
+		panic("crypto/rand unavailable: " + err.Error())
 	}
 	return hex.EncodeToString(buf)
 }
