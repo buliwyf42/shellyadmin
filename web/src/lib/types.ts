@@ -20,7 +20,6 @@ export interface Device {
   lat: number | null
   lon: number | null
   tz: string
-  time_format: string
   sntp_server: string
   ws_enabled: boolean | null
   ws_server: string
@@ -65,7 +64,6 @@ export interface ComplianceRules {
   sntp_server?: string
   lat?: number | null
   lon?: number | null
-  time_format?: string
   ota_auto_update?: 'off' | 'stable' | 'beta' | ''
   sys_debug_websocket?: boolean | null
   sys_debug_udp_host?: string

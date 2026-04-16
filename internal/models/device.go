@@ -23,7 +23,6 @@ type Device struct {
 	Lat               *float64 `json:"lat"`
 	Lon               *float64 `json:"lon"`
 	TZ                string   `json:"tz"`
-	TimeFormat        string   `json:"time_format"`
 	SNTPServer        string   `json:"sntp_server"`
 	WSEnabled         *bool    `json:"ws_enabled"`
 	WSServer          string   `json:"ws_server"`

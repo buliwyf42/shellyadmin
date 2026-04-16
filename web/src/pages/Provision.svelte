@@ -5,8 +5,7 @@
   import ErrorNotice from '../components/ErrorNotice.svelte'
 
   type ProvisionResult = { info: unknown; results: unknown[] }
-  type TemplateGenPolicy = { hasGen1Only: boolean; hasGen2Only: boolean; hasDual: boolean }
-  type PrecheckIssue = { ip: string; label: string; reason: string; category: 'auth' | 'generation' | 'other' }
+  type PrecheckIssue = { ip: string; label: string; reason: string; category: 'auth' | 'other' }
 
   let devices: Device[] = []
   let selected = new Set<string>()
@@ -38,8 +37,6 @@
   let sysLon = ''
   let sysSNTPEnabled = false
   let sysSNTP = 'time.cloudflare.com'
-  let sysTimeFormatEnabled = false
-  let sysTimeFormat: '24h' | '12h' = '24h'
   let sysDebugWSEnabled = false
   let sysDebugWS = false
   let sysDebugUDPHostEnabled = false
@@ -145,7 +142,7 @@
     templateLoadNotice = ''
   }
 
-  $: sysExpanded = sysEnabled || sysNameEnabled || sysTZEnabled || sysLatEnabled || sysLonEnabled || sysSNTPEnabled || sysTimeFormatEnabled || sysDebugWSEnabled || sysDebugUDPHostEnabled || sysRPCUDPPortEnabled || sysEcoEnabled || sysDiscoverableEnabled
+  $: sysExpanded = sysEnabled || sysNameEnabled || sysTZEnabled || sysLatEnabled || sysLonEnabled || sysSNTPEnabled || sysDebugWSEnabled || sysDebugUDPHostEnabled || sysRPCUDPPortEnabled || sysEcoEnabled || sysDiscoverableEnabled
   $: mqttExpanded = mqttEnabled || mqttEnableField || mqttServerEnabled || mqttClientIDEnabled || mqttTopicPrefixEnabled || mqttUserEnabled || mqttPassEnabled || mqttSSLCAEnabled || mqttRPCNtfEnabled || mqttStatusNtfEnabled || mqttEnableRPCEnabled || mqttEnableControlEnabled || mqttUseClientCertEnabled
   $: wsExpanded = wsEnabled || wsEnableField || wsServerEnabled || wsTLSModeEnabled || wsSSLCAEnabled
   $: bleExpanded = bleEnabled || bleEnableField || bleRPCEnabledField || bleObserverEnabledField
@@ -214,64 +211,10 @@
     }
   }
 
-  function deriveTemplateGenPolicy(template: Record<string, unknown>): TemplateGenPolicy {
-    const policy: TemplateGenPolicy = { hasGen1Only: false, hasGen2Only: false, hasDual: false }
-    for (const rawSection of Object.keys(template)) {
-      const section = rawSection.trim().toLowerCase()
-      switch (section) {
-        case 'gen1_http':
-          policy.hasGen1Only = true
-          break
-        case 'mqtt':
-        case 'sys':
-          policy.hasDual = true
-          break
-        case 'gen2_rpc':
-        case 'ws':
-        case 'ble':
-        case 'matter':
-        case 'cloud':
-        case 'wifi':
-        case 'kvs':
-        case 'ota':
-        case 'auth':
-          policy.hasGen2Only = true
-          break
-        default:
-          policy.hasGen2Only = true
-      }
-    }
-    return policy
-  }
-
-  function genIncompatibleReason(device: Device, policy: TemplateGenPolicy): string {
-    if (device.gen <= 1) {
-      if (policy.hasGen2Only && !policy.hasGen1Only && !policy.hasDual) {
-        return 'template targets gen2+ sections while device is gen1'
-      }
-      return ''
-    }
-    if (policy.hasGen1Only && !policy.hasGen2Only && !policy.hasDual) {
-      return 'template targets gen1-only sections while device is gen2+'
-    }
-    return ''
-  }
-
-  function selectedGenLabel() {
-    const picked = selectedDevices()
-    if (picked.length === 0) return 'none'
-    const hasGen1 = picked.some((d) => d.gen <= 1)
-    const hasGen2 = picked.some((d) => d.gen >= 2)
-    if (hasGen1 && hasGen2) return 'mixed'
-    return hasGen1 ? 'gen1' : 'gen2+'
-  }
-
   function reasonBadgeClass(category: PrecheckIssue['category']): string {
     switch (category) {
       case 'auth':
         return 'bg-warning text-dark'
-      case 'generation':
-        return 'bg-info text-dark'
       default:
         return 'bg-secondary'
     }
@@ -281,8 +224,6 @@
     switch (category) {
       case 'auth':
         return 'auth'
-      case 'generation':
-        return 'generation'
       default:
         return 'other'
     }
@@ -310,7 +251,6 @@
 
   $: precheckTemplate = templateForPrecheck()
   $: precheckTemplateError = viewMode === 'json' && precheckTemplate === null ? 'JSON is invalid; precheck is disabled until JSON is valid.' : ''
-  $: precheckPolicy = precheckTemplate ? deriveTemplateGenPolicy(precheckTemplate) : { hasGen1Only: false, hasGen2Only: false, hasDual: false }
   $: groupCredentialByName = Object.fromEntries(credentialGroups.map((group) => [group.name, group.name]))
   $: groupResolution = (() => {
     const chosenDevices = selectedDevices()
@@ -370,15 +310,6 @@
         category: 'auth',
       }]
     }
-    const genReason = genIncompatibleReason(device, precheckPolicy)
-    if (genReason) {
-      return [{
-        ip: device.ip,
-        label: device.name || device.serial || device.mac,
-        reason: genReason,
-        category: 'generation',
-      }]
-    }
     return []
   })
   $: precheckEligibleCount = Math.max(0, selectedDevices().length - precheckIssues.length)
@@ -418,8 +349,6 @@
     sysLon = ''
     sysSNTPEnabled = false
     sysSNTP = 'time.cloudflare.com'
-    sysTimeFormatEnabled = false
-    sysTimeFormat = '24h'
     sysDebugWSEnabled = false
     sysDebugWS = false
     sysDebugUDPHostEnabled = false
@@ -534,7 +463,7 @@
       }
       switch (section) {
         case 'sys': {
-          if (!hasOnlyKeys(record, ['name', 'device', 'tz', 'location', 'sntp', 'clock_mode', 'dbg', 'debug', 'rpc_udp', 'lat', 'lng', 'lon', 'profile', 'addon_type'])) {
+          if (!hasOnlyKeys(record, ['name', 'device', 'tz', 'location', 'sntp', 'dbg', 'debug', 'rpc_udp', 'lat', 'lng', 'lon', 'profile', 'addon_type'])) {
             return { ok: false, reason: 'Template sys section contains fields the form cannot represent.' }
           }
           const device = record.device ? asRecord(record.device) : null
@@ -614,14 +543,6 @@
           if (sntpServer !== undefined) {
             sysSNTPEnabled = true
             sysSNTP = sntpServer
-          }
-          const clockMode = numberField(record, 'clock_mode')
-          if (clockMode !== undefined) {
-            if (clockMode !== 0 && clockMode !== 1) {
-              return { ok: false, reason: 'Template sys clock_mode is not representable in the form.' }
-            }
-            sysTimeFormatEnabled = true
-            sysTimeFormat = clockMode === 1 ? '12h' : '24h'
           }
           const legacyDebugWS = dbg ? boolField(dbg, 'websocket_enable') : undefined
           const nestedDebugWebsocket = debugWS ? boolField(debugWS, 'enable') : undefined
@@ -900,7 +821,6 @@
       if (sysDiscoverableEnabled) deviceCfg.discoverable = sysDiscoverable
       if (sysTZEnabled) location.tz = sysTZ
       if (sysSNTPEnabled) sntp.server = sysSNTP
-      if (sysTimeFormatEnabled) sys.clock_mode = sysTimeFormat === '12h' ? 1 : 0
       if (sysDebugWSEnabled) debugWS.enable = sysDebugWS
       if (sysDebugUDPHostEnabled && sysDebugUDPHost.trim()) debugUDP.addr = sysDebugUDPHost.trim()
       if (sysRPCUDPPortEnabled) {
@@ -1187,7 +1107,7 @@
                     <td><input type="checkbox" class="form-check-input" checked={selected.has(device.mac)} on:change={(e) => toggle(device.mac, (e.currentTarget as HTMLInputElement).checked)} /></td>
                     <td>{device.ip}</td>
                     <td>{device.name || device.serial || device.mac}</td>
-                    <td><span class={`badge ${device.gen <= 1 ? 'bg-danger' : 'bg-success'}`}>{device.gen <= 1 ? 'Gen1' : `Gen${device.gen}`}</span></td>
+                    <td><span class="badge bg-success">Gen{device.gen}</span></td>
                   </tr>
                 {/each}
               </tbody>
@@ -1195,7 +1115,7 @@
           </div>
         {/if}
       </div>
-      <div class="card-footer p-2 text-secondary">{selected.size} of {devices.length} selected ({selectedGenLabel()})</div>
+      <div class="card-footer p-2 text-secondary">{selected.size} of {devices.length} selected</div>
     </div>
   </div>
 
@@ -1249,7 +1169,6 @@
                     <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysNameEnabled} disabled={!sysEnabled} />Device Name</label><input class="form-control" bind:value={sysName} disabled={!sysEnabled || !sysNameEnabled} /></div>
                     <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysTZEnabled} disabled={!sysEnabled} />Timezone</label><input class="form-control" bind:value={sysTZ} disabled={!sysEnabled || !sysTZEnabled} /></div>
                     <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysSNTPEnabled} disabled={!sysEnabled} />SNTP Server</label><input class="form-control" bind:value={sysSNTP} disabled={!sysEnabled || !sysSNTPEnabled} /></div>
-                    <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysTimeFormatEnabled} disabled={!sysEnabled} />Time Format</label><select class="form-select" bind:value={sysTimeFormat} disabled={!sysEnabled || !sysTimeFormatEnabled}><option value="24h">24h</option><option value="12h">12h</option></select></div>
                     <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysDebugWSEnabled} disabled={!sysEnabled} />Debug WebSocket (stream logs)</label><select class="form-select" bind:value={sysDebugWS} disabled={!sysEnabled || !sysDebugWSEnabled}><option value={true}>On</option><option value={false}>Off</option></select></div>
                     <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysDebugUDPHostEnabled} disabled={!sysEnabled} />Debug UDP Host</label><input class="form-control" placeholder="host:port" bind:value={sysDebugUDPHost} disabled={!sysEnabled || !sysDebugUDPHostEnabled} /></div>
                     <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysRPCUDPPortEnabled} disabled={!sysEnabled} />RPC UDP Port (0=off)</label><input class="form-control" type="number" min="0" bind:value={sysRPCUDPPort} disabled={!sysEnabled || !sysRPCUDPPortEnabled} /></div>

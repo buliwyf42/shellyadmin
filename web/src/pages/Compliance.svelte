@@ -39,7 +39,6 @@
 
   let tzEnabled = false
   let sntpEnabled = false
-  let timeFormatEnabled = false
   let otaAutoUpdateEnabled = false
   let sysDebugWSField = false
   let sysDebugUDPHostField = false
@@ -63,7 +62,7 @@
   $: cloudExpanded = cloudConnectedEnabled
   $: wsExpanded = wsEnabledField || wsConnectedField || wsServerField || wsTLSModeField || wsSSLCAField
   $: bleExpanded = bleGWEnabledField || bleRPCEnabledField || bleObserverEnabledField
-  $: sysExpanded = tzEnabled || sntpEnabled || timeFormatEnabled || sysDebugWSField || sysDebugUDPHostField || sysRPCUDPPortField || latEnabled || lonEnabled || ecoEnabled || discoverableEnabled
+  $: sysExpanded = tzEnabled || sntpEnabled || sysDebugWSField || sysDebugUDPHostField || sysRPCUDPPortField || latEnabled || lonEnabled || ecoEnabled || discoverableEnabled
   $: otaExpanded = otaAutoUpdateEnabled
   $: customExpanded = (settings.compliance.custom_rules || []).length > 0
 
@@ -137,7 +136,6 @@
 
     tzEnabled = Boolean(settings.compliance.tz)
     sntpEnabled = Boolean(settings.compliance.sntp_server)
-    timeFormatEnabled = Boolean(settings.compliance.time_format)
     otaAutoUpdateEnabled = Boolean(settings.compliance.ota_auto_update)
     sysDebugWSField = settings.compliance.sys_debug_websocket !== null && settings.compliance.sys_debug_websocket !== undefined
     sysDebugUDPHostField = Boolean(settings.compliance.sys_debug_udp_host)
@@ -175,7 +173,6 @@
 
     settings.compliance.tz = tzEnabled ? (settings.compliance.tz || '') : ''
     settings.compliance.sntp_server = sntpEnabled ? (settings.compliance.sntp_server || '') : ''
-    settings.compliance.time_format = timeFormatEnabled ? (settings.compliance.time_format || '') : ''
     settings.compliance.ota_auto_update = otaAutoUpdateEnabled ? (settings.compliance.ota_auto_update || 'off') : ''
     settings.compliance.sys_debug_websocket = sysDebugWSField ? Boolean(settings.compliance.sys_debug_websocket) : null
     settings.compliance.sys_debug_udp_host = sysDebugUDPHostField ? (settings.compliance.sys_debug_udp_host || '') : ''
@@ -295,7 +292,6 @@
                 <div class="row g-2">
                   <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={tzEnabled} on:click|stopPropagation />Timezone</label><input class="form-control" bind:value={settings.compliance.tz} disabled={!tzEnabled} /></div>
                   <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sntpEnabled} on:click|stopPropagation />SNTP Server</label><input class="form-control" bind:value={settings.compliance.sntp_server} disabled={!sntpEnabled} /></div>
-                  <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={timeFormatEnabled} on:click|stopPropagation />Time Format</label><select class="form-select" bind:value={settings.compliance.time_format} disabled={!timeFormatEnabled}><option value="24h">24h</option><option value="12h">12h</option></select></div>
                   <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysDebugWSField} on:click|stopPropagation />Debug WebSocket</label><select class="form-select" bind:value={settings.compliance.sys_debug_websocket} disabled={!sysDebugWSField}><option value={true}>On</option><option value={false}>Off</option></select></div>
                   <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysDebugUDPHostField} on:click|stopPropagation />Debug UDP Host</label><input class="form-control" placeholder="host:port" bind:value={settings.compliance.sys_debug_udp_host} disabled={!sysDebugUDPHostField} /></div>
                   <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysRPCUDPPortField} on:click|stopPropagation />RPC UDP Port</label><input class="form-control" type="number" min="0" bind:value={settings.compliance.sys_rpc_udp_port} disabled={!sysRPCUDPPortField} /></div>
@@ -456,7 +452,6 @@
         <p class="mb-2"><span class="badge bg-success me-2">{compliantDevices.length}</span> compliant</p>
         <p class="mb-2"><span class="badge bg-danger me-2">{nonCompliantDevices.length}</span> non-compliant</p>
         <p class="text-secondary mb-2">Token <code class="font-monospace">{'{device_name}'}</code> is substituted during provisioning.</p>
-        <p class="text-secondary mb-0">Gen1 cloud-connected devices skip MQTT checks by design.</p>
       </div>
     </div>
 
@@ -483,7 +478,7 @@
                   <tr>
                     <td>{device.name || device.serial || device.mac}</td>
                     <td>{device.ip}</td>
-                    <td>{device.gen <= 1 ? 'Gen1' : `Gen${device.gen}`}</td>
+                    <td>Gen{device.gen}</td>
                     <td><span class={`badge ${complianceBadgeClass(device)}`}>{complianceText(device)}</span></td>
                   </tr>
                 {/each}

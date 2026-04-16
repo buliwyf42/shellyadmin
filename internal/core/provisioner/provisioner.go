@@ -69,9 +69,6 @@ func applySection(ctx context.Context, client *http.Client, ip string, gen int, 
 	payload, _ := raw.(map[string]interface{})
 	switch strings.ToLower(section) {
 	case "gen2_rpc":
-		if gen == 1 {
-			return SectionResult{Section: section, Status: "skipped", Detail: "gen2+ only"}
-		}
 		for method, item := range payload {
 			methodPayload, ok := item.(map[string]interface{})
 			if !ok {
@@ -84,64 +81,27 @@ func applySection(ctx context.Context, client *http.Client, ip string, gen int, 
 		}
 		return SectionResult{Section: section, Status: "ok", Detail: "gen2 methods applied"}
 	case "gen1_http":
-		if gen != 1 {
-			return SectionResult{Section: section, Status: "skipped", Detail: "gen1 only"}
-		}
-		for endpoint, item := range payload {
-			params, ok := item.(map[string]interface{})
-			if !ok {
-				return SectionResult{Section: section, Status: "failed", Detail: "endpoint params must be object"}
-			}
-			result := gen1HTTPSection(ctx, client, ip, endpoint, params, section)
-			if result.Status != "ok" {
-				return result
-			}
-		}
-		return SectionResult{Section: section, Status: "ok", Detail: "gen1 endpoints applied"}
+		return SectionResult{Section: section, Status: "skipped", Detail: "gen1 not supported"}
 	case "mqtt":
-		if gen == 1 {
-			return gen1HTTPSection(ctx, client, ip, "settings/mqtt", payload, section)
-		}
 		return rpcConfigSection(ctx, client, ip, "MQTT.SetConfig", payload, section)
 	case "sys":
-		if gen == 1 {
-			return gen1HTTPSection(ctx, client, ip, "settings", payload, section)
-		}
 		config, warning := normalizeSysPayload(payload)
 		return applyConfigWithWarning(ctx, client, ip, "Sys.SetConfig", config, section, warning)
 	case "ws":
-		if gen == 1 {
-			return SectionResult{Section: section, Status: "skipped", Detail: "gen2+ only"}
-		}
 		config, warning, err := normalizeWSPayload(payload)
 		if err != nil {
 			return SectionResult{Section: section, Status: "failed", Detail: err.Error()}
 		}
 		return applyConfigWithWarning(ctx, client, ip, "WS.SetConfig", config, section, warning)
 	case "ble":
-		if gen == 1 {
-			return SectionResult{Section: section, Status: "skipped", Detail: "gen2+ only"}
-		}
 		return rpcConfigSection(ctx, client, ip, "BLE.SetConfig", payload, section)
 	case "matter":
-		if gen == 1 {
-			return SectionResult{Section: section, Status: "skipped", Detail: "gen2+ only"}
-		}
 		return rpcConfigSection(ctx, client, ip, "Matter.SetConfig", payload, section)
 	case "cloud":
-		if gen == 1 {
-			return SectionResult{Section: section, Status: "skipped", Detail: "gen2+ only"}
-		}
 		return rpcConfigSection(ctx, client, ip, "Cloud.SetConfig", payload, section)
 	case "wifi":
-		if gen == 1 {
-			return SectionResult{Section: section, Status: "skipped", Detail: "gen2+ only"}
-		}
 		return rpcConfigSection(ctx, client, ip, "Wifi.SetConfig", payload, section)
 	case "kvs":
-		if gen == 1 {
-			return SectionResult{Section: section, Status: "skipped", Detail: "gen2+ only"}
-		}
 		for key, val := range payload {
 			result := rpcSection(ctx, client, ip, "KVS.Set", map[string]interface{}{"key": key, "value": val}, section)
 			if result.Status != "ok" {
@@ -150,15 +110,9 @@ func applySection(ctx context.Context, client *http.Client, ip string, gen int, 
 		}
 		return SectionResult{Section: section, Status: "ok", Detail: "keys written"}
 	case "ota":
-		if gen == 1 {
-			return SectionResult{Section: section, Status: "skipped", Detail: "ota templating not supported for gen1 here"}
-		}
 		config, warning := normalizeOTAPayload(payload)
 		return applyConfigWithWarning(ctx, client, ip, "OTA.SetConfig", config, section, warning)
 	case "auth":
-		if gen == 1 {
-			return SectionResult{Section: section, Status: "skipped", Detail: "gen2+ only"}
-		}
 		pass := fmt.Sprint(payload["pass"])
 		ha1Input := "admin:" + serial + ":" + pass
 		sum := sha256.Sum256([]byte(ha1Input))
@@ -169,19 +123,14 @@ func applySection(ctx context.Context, client *http.Client, ip string, gen int, 
 		}
 		return rpcSection(ctx, client, ip, "Shelly.SetAuth", authPayload, section)
 	default:
-		if gen == 1 {
-			return SectionResult{Section: section, Status: "skipped", Detail: "generic config unsupported on gen1"}
-		}
 		method := strings.ToUpper(section[:1]) + section[1:] + ".SetConfig"
 		return rpcConfigSection(ctx, client, ip, method, payload, section)
 	}
 }
 
 func resolvedDeviceName(ctx context.Context, client *http.Client, ip string, info DeviceInfo, serial string) string {
-	if info.Gen >= 2 {
-		if name := configuredDeviceName(ctx, client, ip); name != "" {
-			return name
-		}
+	if name := configuredDeviceName(ctx, client, ip); name != "" {
+		return name
 	}
 	return firstNonEmpty(info.Name, serial, ip)
 }
@@ -420,42 +369,6 @@ func isTLSServerURL(raw string) bool {
 	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(raw)), "wss://")
 }
 
-func gen1HTTPSection(ctx context.Context, client *http.Client, ip, endpoint string, payload map[string]interface{}, section string) SectionResult {
-	values := url.Values{}
-	for key, raw := range payload {
-		values.Set(key, gen1Value(raw))
-	}
-	target := "http://" + ip + "/" + strings.TrimPrefix(endpoint, "/")
-	if encoded := values.Encode(); encoded != "" {
-		target += "?" + encoded
-	}
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
-	resp, err := client.Do(req)
-	if err != nil {
-		return SectionResult{Section: section, Status: "failed", Detail: err.Error()}
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 400 {
-		return SectionResult{Section: section, Status: "failed", Detail: resp.Status}
-	}
-	return SectionResult{Section: section, Status: "ok", Detail: endpoint}
-}
-
-func gen1Value(v interface{}) string {
-	switch value := v.(type) {
-	case bool:
-		if value {
-			return "true"
-		}
-		return "false"
-	case string:
-		return value
-	case float64:
-		return strings.TrimRight(strings.TrimRight(fmt.Sprintf("%.6f", value), "0"), ".")
-	default:
-		return fmt.Sprint(value)
-	}
-}
 
 func rpcConfigSection(ctx context.Context, client *http.Client, ip, method string, payload map[string]interface{}, section string) SectionResult {
 	return rpcSection(ctx, client, ip, method, map[string]interface{}{"config": payload}, section)
