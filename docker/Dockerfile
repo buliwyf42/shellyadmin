@@ -7,14 +7,15 @@ RUN npm run build
 
 FROM golang:1.24-alpine AS backend
 WORKDIR /app
-ARG VERSION=dev
+ARG VERSION
 ARG VCS_REF=unknown
 COPY go.mod ./
 COPY go.sum ./
 RUN go mod download
 COPY . .
 COPY --from=frontend /app/web/dist ./cmd/shellyctl/dist
-RUN go build -ldflags="-s -w -X main.AppVersion=${VERSION} -X main.CommitHash=${VCS_REF}" -o /shellyadmin ./cmd/shellyctl
+RUN V=${VERSION:-$(cat VERSION 2>/dev/null || echo "dev")} && \
+    go build -ldflags="-s -w -X main.AppVersion=${V} -X main.CommitHash=${VCS_REF}" -o /shellyadmin ./cmd/shellyctl
 
 FROM alpine:3.19
 RUN apk add --no-cache ca-certificates tzdata su-exec

@@ -124,6 +124,8 @@ ssh buliwyf@docker.home.lan "cd /home/buliwyf/shellyadmin && \
 
 The container uses a bind-mounted `data/` directory so SQLite persists across rebuilds.
 
+The Dockerfile reads the `VERSION` file at the repo root as the default version when no `--build-arg VERSION=` is passed. This means local builds show the real version in the navbar and About page. **On each release, update both `VERSION` and `web/package.json` to the new version number.**
+
 ---
 
 ## Job Locking
