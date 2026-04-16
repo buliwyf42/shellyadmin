@@ -105,7 +105,7 @@ func (db *DB) ListDevices() ([]models.Device, error) {
 		last_refresh_attempt, last_refresh_ok, last_refresh_error,
 		consecutive_misses, mqtt_enabled, mqtt_server, mqtt_client_id, mqtt_topic_prefix, mqtt_flags_na,
 		lat, lon, tz, ws_enabled, ws_server, ble_gw_enabled, wifi_ssid, fw_status, fw_available_ver,
-		cloud_enabled, cloud_connected, ws_connected, matter_enabled, time_format, sntp_server, serial, auth_required, auth_error,
+		cloud_enabled, cloud_connected, ws_connected, matter_enabled, sntp_server, serial, auth_required, auth_error,
 		eco_mode, discoverable, raw_config, raw_status
 		FROM devices ORDER BY device_num ASC`)
 	if err != nil {
@@ -120,7 +120,7 @@ func (db *DB) ListDevices() ([]models.Device, error) {
 			&d.LastRefreshAttempt, &refreshOK, &d.LastRefreshError,
 			&d.ConsecutiveMisses, &d.MQTTEnabled, &d.MQTTServer, &d.MQTTClientID, &d.MQTTTopicPrefix, &d.MQTTFlagsNA,
 			&d.Lat, &d.Lon, &d.TZ, &d.WSEnabled, &d.WSServer, &d.BLEGWEnabled, &d.WiFiSSID, &d.FWStatus, &d.FWAvailableVer,
-			&d.CloudEnabled, &cloudConnected, &wsConnected, &d.MatterEnabled, &d.TimeFormat, &d.SNTPServer, &d.Serial, &authRequired, &d.AuthError,
+			&d.CloudEnabled, &cloudConnected, &wsConnected, &d.MatterEnabled, &d.SNTPServer, &d.Serial, &authRequired, &d.AuthError,
 			&d.EcoMode, &d.Discoverable, &d.RawConfig, &d.RawStatus); err != nil {
 			return nil, err
 		}
@@ -195,8 +195,8 @@ func (db *DB) upsertDevice(d models.Device) error {
 		last_refresh_attempt, last_refresh_ok, last_refresh_error,
 		mqtt_enabled, mqtt_server, mqtt_client_id, mqtt_topic_prefix, mqtt_flags_na, lat, lon, tz,
 		ws_enabled, ws_server, ble_gw_enabled, wifi_ssid, fw_status, fw_available_ver, cloud_enabled, auth_required, auth_error,
-		cloud_connected, ws_connected, matter_enabled, time_format, sntp_server, serial, eco_mode, discoverable, raw_config, raw_status
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		cloud_connected, ws_connected, matter_enabled, sntp_server, serial, eco_mode, discoverable, raw_config, raw_status
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	ON CONFLICT(mac) DO UPDATE SET
 		ip=excluded.ip, name=excluded.name, model=excluded.model, fw=excluded.fw, gen=excluded.gen,
 		online=excluded.online, last_seen=excluded.last_seen, first_seen=excluded.first_seen,
@@ -210,14 +210,14 @@ func (db *DB) upsertDevice(d models.Device) error {
 		auth_required=excluded.auth_required, auth_error=excluded.auth_error,
 		cloud_enabled=excluded.cloud_enabled, cloud_connected=excluded.cloud_connected,
 		ws_connected=excluded.ws_connected, matter_enabled=excluded.matter_enabled,
-		time_format=excluded.time_format, sntp_server=excluded.sntp_server, serial=excluded.serial,
+		sntp_server=excluded.sntp_server, serial=excluded.serial,
 		eco_mode=excluded.eco_mode, discoverable=excluded.discoverable,
 		raw_config=excluded.raw_config, raw_status=excluded.raw_status`,
 		d.MAC, d.IP, d.Name, d.Model, d.FW, d.Gen, boolToInt(d.Online), d.LastSeen, d.FirstSeen, d.DeviceNum, d.ConsecutiveMisses,
 		d.LastRefreshAttempt, boolToInt(d.LastRefreshOK), d.LastRefreshError,
 		d.MQTTEnabled, d.MQTTServer, d.MQTTClientID, d.MQTTTopicPrefix, d.MQTTFlagsNA, d.Lat, d.Lon, d.TZ,
 		d.WSEnabled, d.WSServer, d.BLEGWEnabled, d.WiFiSSID, d.FWStatus, d.FWAvailableVer, d.CloudEnabled, boolToInt(d.AuthRequired), d.AuthError,
-		boolToInt(d.CloudConnected), boolToInt(d.WSConnected), d.MatterEnabled, d.TimeFormat, d.SNTPServer, d.Serial, d.EcoMode, d.Discoverable, d.RawConfig, d.RawStatus)
+		boolToInt(d.CloudConnected), boolToInt(d.WSConnected), d.MatterEnabled, d.SNTPServer, d.Serial, d.EcoMode, d.Discoverable, d.RawConfig, d.RawStatus)
 	return err
 }
 

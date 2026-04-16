@@ -13,7 +13,6 @@ import (
 
 func Evaluate(dev models.Device, rules models.ComplianceRules) (bool, []string) {
 	var issues []string
-	skipMQTT := dev.Gen == 1 && dev.CloudConnected
 	deviceName := effectiveDeviceName(dev)
 
 	compareString := func(rule, got, label string) {
@@ -79,35 +78,28 @@ func Evaluate(dev models.Device, rules models.ComplianceRules) (bool, []string) 
 	config := unmarshalMap(dev.RawConfig)
 
 	compareString(rules.WiFiSSID, dev.WiFiSSID, "wifi_ssid")
-	if !skipMQTT {
-		compareBoolPtr(rules.MQTTEnabled, dev.MQTTEnabled, "mqtt_enabled")
-		compareString(rules.MQTTServer, dev.MQTTServer, "mqtt_server")
-		compareString(rules.MQTTClientID, dev.MQTTClientID, "mqtt_client_id")
-		compareString(rules.MQTTTopicPrefix, dev.MQTTTopicPrefix, "mqtt_topic_prefix")
-		checkMQTTFlag(&issues, rules.MQTTRPCNtf, dev.MQTTFlagsNA, "rpc_ntf")
-		checkMQTTFlag(&issues, rules.MQTTStatusNtf, dev.MQTTFlagsNA, "status_ntf")
-		checkMQTTFlag(&issues, rules.MQTTEnableRPC, dev.MQTTFlagsNA, "enable_rpc")
-		checkMQTTFlag(&issues, rules.MQTTEnableCtrl, dev.MQTTFlagsNA, "enable_control")
-	}
+	compareBoolPtr(rules.MQTTEnabled, dev.MQTTEnabled, "mqtt_enabled")
+	compareString(rules.MQTTServer, dev.MQTTServer, "mqtt_server")
+	compareString(rules.MQTTClientID, dev.MQTTClientID, "mqtt_client_id")
+	compareString(rules.MQTTTopicPrefix, dev.MQTTTopicPrefix, "mqtt_topic_prefix")
+	checkMQTTFlag(&issues, rules.MQTTRPCNtf, dev.MQTTFlagsNA, "rpc_ntf")
+	checkMQTTFlag(&issues, rules.MQTTStatusNtf, dev.MQTTFlagsNA, "status_ntf")
+	checkMQTTFlag(&issues, rules.MQTTEnableRPC, dev.MQTTFlagsNA, "enable_rpc")
+	checkMQTTFlag(&issues, rules.MQTTEnableCtrl, dev.MQTTFlagsNA, "enable_control")
 	compareBoolPtr(rules.CloudEnabled, dev.CloudEnabled, "cloud_enabled")
 	compareBool(rules.CloudConnected, dev.CloudConnected, "cloud_connected")
-	if dev.Gen >= 2 {
-		compareBool(rules.MQTTConnected, dev.MQTTConnected, "mqtt_connected")
-		compareBoolPtr(rules.WSEnabled, dev.WSEnabled, "ws_enabled")
-		compareBool(rules.WSConnected, dev.WSConnected, "ws_connected")
-		compareString(rules.WSServer, dev.WSServer, "ws_server")
-		compareWSTLSSettings(&issues, config, rules)
-		compareBoolPtr(rules.BLEGWEnabled, dev.BLEGWEnabled, "ble_gw_enabled")
-		compareConfigBool(rules.BLERPCEnabled, "ble.rpc.enable", "ble_rpc_enable")
-		compareConfigBool(rules.BLEObserver, "ble.observer.enable", "ble_observer_enable")
-	}
-	if !(dev.Gen <= 1 && strings.TrimSpace(dev.TZ) == "") {
-		compareString(rules.TZ, dev.TZ, "tz")
-	}
+	compareBool(rules.MQTTConnected, dev.MQTTConnected, "mqtt_connected")
+	compareBoolPtr(rules.WSEnabled, dev.WSEnabled, "ws_enabled")
+	compareBool(rules.WSConnected, dev.WSConnected, "ws_connected")
+	compareString(rules.WSServer, dev.WSServer, "ws_server")
+	compareWSTLSSettings(&issues, config, rules)
+	compareBoolPtr(rules.BLEGWEnabled, dev.BLEGWEnabled, "ble_gw_enabled")
+	compareConfigBool(rules.BLERPCEnabled, "ble.rpc.enable", "ble_rpc_enable")
+	compareConfigBool(rules.BLEObserver, "ble.observer.enable", "ble_observer_enable")
+	compareString(rules.TZ, dev.TZ, "tz")
 	compareString(rules.SNTPServer, dev.SNTPServer, "sntp_server")
 	compareFloat(rules.Lat, dev.Lat, "lat")
 	compareFloat(rules.Lon, dev.Lon, "lon")
-	compareTimeFormat(&issues, config, dev, rules.TimeFormat)
 	compareBoolPtr(rules.EcoMode, dev.EcoMode, "eco_mode")
 	compareBoolPtr(rules.Discoverable, dev.Discoverable, "discoverable")
 	compareConfigStringOrUnsupported(rules.OTAAutoUpdate, "ota.auto_update", "ota_auto_update")
@@ -223,8 +215,6 @@ func resolveDevicePath(dev models.Device, path string) (string, bool) {
 		return dev.TZ, true
 	case "sntp_server":
 		return dev.SNTPServer, true
-	case "time_format":
-		return dev.TimeFormat, true
 	case "eco_mode":
 		return anyToString(dev.EcoMode), dev.EcoMode != nil
 	case "discoverable":
@@ -394,19 +384,6 @@ func compareWSTLSSettings(issues *[]string, config map[string]any, rules models.
 	}
 }
 
-func compareTimeFormat(issues *[]string, config map[string]any, dev models.Device, rule string) {
-	rule = strings.TrimSpace(rule)
-	if rule == "" {
-		return
-	}
-	// Gen2+ devices do not expose a 12h/24h time format setting; skip the rule.
-	if dev.Gen >= 2 {
-		return
-	}
-	if strings.TrimSpace(dev.TimeFormat) != rule {
-		*issues = append(*issues, "time_format mismatch")
-	}
-}
 
 func compareRPCUDPPort(issues *[]string, config map[string]any, rule *int) {
 	if rule == nil {

@@ -112,13 +112,9 @@ func ProbeDevice(ctx context.Context, ip string, timeout time.Duration, logFn fu
 		FWStatus: "unknown",
 	}
 	if dev.Gen == 0 {
-		dev.Gen = 1
+		dev.Gen = 2
 	}
-	if dev.Gen >= 2 {
-		probeGen2(ctx, client, ip, dev, logFn)
-	} else {
-		probeGen1(ctx, client, ip, dev, logFn)
-	}
+	probeGen2(ctx, client, ip, dev, logFn)
 	logFn("DEBUG", fmt.Sprintf("[scan] found %s %s @ %s", dev.Model, dev.MAC, ip))
 	return dev
 }
@@ -161,9 +157,6 @@ func probeGen2(ctx context.Context, client *http.Client, ip string, dev *models.
 		}
 		if sntp, ok := sys["sntp"].(map[string]any); ok {
 			dev.SNTPServer = firstString(sntp["server"], "")
-		}
-		if clockMode, ok := timeFormatFromClockMode(sys["clock_mode"]); ok {
-			dev.TimeFormat = clockMode
 		}
 	}
 	if mqtt, ok := config["mqtt"].(map[string]any); ok {
@@ -211,54 +204,6 @@ func probeGen2(ctx context.Context, client *http.Client, ip string, dev *models.
 	logFn("DEBUG", fmt.Sprintf("[scan] gen2 probe complete for %s", ip))
 }
 
-func probeGen1(ctx context.Context, client *http.Client, ip string, dev *models.Device, logFn func(level, msg string)) {
-	status, _ := getJSONMap(ctx, client, "http://"+ip+"/status")
-	settings, _ := getJSONMap(ctx, client, "http://"+ip+"/settings")
-	dev.RawConfig = marshalMap(settings)
-	dev.RawStatus = marshalMap(status)
-	if wifi, ok := status["wifi_sta"].(map[string]any); ok {
-		dev.WiFiSSID = firstString(wifi["ssid"], "")
-	}
-	if update, ok := status["update"].(map[string]any); ok {
-		currentFW := firstString(update["old_version"], dev.FW)
-		availableFW := firstString(update["new_version"], "")
-		dev.FW = currentFW
-		if anyBool(update["has_update"]) && availableFW != "" && availableFW != currentFW {
-			dev.FWAvailableVer = availableFW
-			dev.FWStatus = "update"
-		} else {
-			dev.FWAvailableVer = ""
-		}
-	}
-	if cloud, ok := status["cloud"].(map[string]any); ok {
-		dev.CloudConnected = anyBool(cloud["connected"])
-	}
-	if mqtt, ok := settings["mqtt"].(map[string]any); ok {
-		dev.MQTTEnabled = anyBoolPtr(mqtt["enable"])
-		dev.MQTTServer = firstString(mqtt["server"], "")
-	}
-	dev.Name = firstString(settings["name"], dev.Name)
-	dev.FW = firstString(settings["fw"], dev.FW)
-	dev.TZ = firstString(
-		settings["timezone"],
-		firstString(
-			settings["tz"],
-			firstString(
-				status["timezone"],
-				firstString(status["tz"], ""),
-			),
-		),
-	)
-	dev.Lat = anyFloatPtr(settings["lat"])
-	dev.Lon = anyFloatPtr(settings["lng"])
-	switch int(anyFloat(settings["clock_mode"])) {
-	case 1:
-		dev.TimeFormat = "12h"
-	default:
-		dev.TimeFormat = "24h"
-	}
-	logFn("DEBUG", fmt.Sprintf("[scan] gen1 probe complete for %s", ip))
-}
 
 func rpcCall(ctx context.Context, client *http.Client, ip, method string, body map[string]any) map[string]any {
 	if body == nil {
@@ -282,40 +227,6 @@ func rpcCall(ctx context.Context, client *http.Client, ip, method string, body m
 	return out
 }
 
-func timeFormatFromClockMode(raw any) (string, bool) {
-	switch value := raw.(type) {
-	case float64:
-		switch int(value) {
-		case 0:
-			return "24h", true
-		case 1:
-			return "12h", true
-		}
-	case int:
-		switch value {
-		case 0:
-			return "24h", true
-		case 1:
-			return "12h", true
-		}
-	}
-	return "", false
-}
-
-func getJSONMap(ctx context.Context, client *http.Client, url string) (map[string]any, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	var out map[string]any
-	err = json.NewDecoder(resp.Body).Decode(&out)
-	return out, err
-}
 
 func marshalMap(data map[string]any) string {
 	if len(data) == 0 {
@@ -382,16 +293,6 @@ func anyBool(v any) bool {
 	}
 }
 
-func anyFloat(v any) float64 {
-	switch x := v.(type) {
-	case float64:
-		return x
-	case int:
-		return float64(x)
-	default:
-		return 0
-	}
-}
 
 func anyFloatPtr(v any) *float64 {
 	switch x := v.(type) {

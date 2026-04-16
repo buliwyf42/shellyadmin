@@ -610,7 +610,6 @@ func (s *AppService) Provision(ctx context.Context, ips []string, template map[s
 		}
 		ipToKey[device.IP] = key
 	}
-	genPolicy := deriveTemplateGenPolicy(template)
 	requestedKeys := make([]string, 0, len(ips))
 	keyToIP := map[string]string{}
 	precheckSkipped := []map[string]any{}
@@ -624,17 +623,6 @@ func (s *AppService) Provision(ctx context.Context, ips []string, template map[s
 				},
 			})
 			continue
-		}
-		if known {
-			if incompatible, detail := isGenIncompatible(device, genPolicy); incompatible {
-				precheckSkipped = append(precheckSkipped, map[string]any{
-					"info": map[string]any{"ip": ip},
-					"results": []map[string]any{
-						{"section": "precheck", "status": "skipped", "detail": detail},
-					},
-				})
-				continue
-			}
 		}
 		key := ipToKey[ip]
 		if key == "" {
@@ -715,42 +703,6 @@ func checkAuthRequired(ctx context.Context, ip string, timeout time.Duration) (b
 	return false, ""
 }
 
-type templateGenPolicy struct {
-	hasGen1Only bool
-	hasGen2Only bool
-	hasDual     bool
-}
-
-func deriveTemplateGenPolicy(template map[string]interface{}) templateGenPolicy {
-	policy := templateGenPolicy{}
-	for section := range template {
-		switch strings.ToLower(strings.TrimSpace(section)) {
-		case "gen1_http":
-			policy.hasGen1Only = true
-		case "mqtt", "sys":
-			policy.hasDual = true
-		case "gen2_rpc", "ws", "ble", "matter", "cloud", "wifi", "kvs", "ota", "auth":
-			policy.hasGen2Only = true
-		default:
-			// Unknown top-level sections map to <Section>.SetConfig and are gen2+ semantics.
-			policy.hasGen2Only = true
-		}
-	}
-	return policy
-}
-
-func isGenIncompatible(device models.Device, policy templateGenPolicy) (bool, string) {
-	if device.Gen <= 1 {
-		if policy.hasGen2Only && !policy.hasGen1Only && !policy.hasDual {
-			return true, "template targets gen2+ sections while device is gen1"
-		}
-		return false, ""
-	}
-	if policy.hasGen1Only && !policy.hasGen2Only && !policy.hasDual {
-		return true, "template targets gen1-only sections while device is gen2+"
-	}
-	return false, ""
-}
 
 func (s *AppService) reserveProvisionTargets(requested []string) (allowed []string, skipped []string) {
 	s.mu.Lock()

@@ -25,7 +25,6 @@ func TestEvaluate_DeviceNameTokenSubstitutionForMQTT(t *testing.T) {
 		CloudConnected:  true,
 		WSConnected:     true,
 		TZ:              "Europe/Berlin",
-		TimeFormat:      "24h",
 		WiFiSSID:        "buliwyf_iot",
 		RawConfig:       string(rawConfig),
 	}
@@ -39,7 +38,6 @@ func TestEvaluate_DeviceNameTokenSubstitutionForMQTT(t *testing.T) {
 		CloudConnected:  boolPtr(true),
 		WSConnected:     boolPtr(true),
 		TZ:              "Europe/Berlin",
-		TimeFormat:      "24h",
 	}
 
 	compliant, issues := Evaluate(dev, rules)
@@ -137,17 +135,6 @@ func TestEvaluate_WSTLSModeIgnoredForPlainWSURL(t *testing.T) {
 	}
 }
 
-func TestEvaluate_TimeFormatSkippedOnGen2(t *testing.T) {
-	// Gen2+ devices have no 12h/24h setting — the time_format rule is silently
-	// skipped so it does not produce false-positive compliance failures.
-	dev := models.Device{Gen: 4, RawConfig: `{"sys":{"cfg_rev":1}}`}
-	rules := models.ComplianceRules{TimeFormat: "24h"}
-
-	compliant, issues := Evaluate(dev, rules)
-	if !compliant {
-		t.Fatalf("expected compliant: time_format rule should be skipped on Gen2+, got issues: %v", issues)
-	}
-}
 
 func TestEvaluate_CloudEnabledMatch(t *testing.T) {
 	enabled := true
@@ -174,27 +161,21 @@ func TestEvaluate_CloudEnabledMismatch(t *testing.T) {
 	}
 }
 
-func TestEvaluate_MQTTConnectedCheckOnGen2Only(t *testing.T) {
-	// Gen1 device: mqtt_connected rule should be skipped.
-	dev1 := models.Device{Gen: 1, MQTTConnected: false}
+func TestEvaluate_MQTTConnectedCheck(t *testing.T) {
 	rules := models.ComplianceRules{MQTTConnected: boolPtr(true)}
+
+	// Compliant: connected matches.
+	dev1 := models.Device{Gen: 2, MQTTConnected: true}
 	compliant, issues := Evaluate(dev1, rules)
 	if !compliant {
-		t.Fatalf("Gen1: expected mqtt_connected rule to be skipped, got issues: %v", issues)
+		t.Fatalf("expected compliant device, got issues: %v", issues)
 	}
 
-	// Gen2+ device: mqtt_connected matches.
-	dev2 := models.Device{Gen: 2, MQTTConnected: true}
+	// Non-compliant: mismatch.
+	dev2 := models.Device{Gen: 3, MQTTConnected: false}
 	compliant, issues = Evaluate(dev2, rules)
-	if !compliant {
-		t.Fatalf("Gen2: expected compliant device, got issues: %v", issues)
-	}
-
-	// Gen2+ device: mismatch.
-	dev3 := models.Device{Gen: 3, MQTTConnected: false}
-	compliant, issues = Evaluate(dev3, rules)
 	if compliant {
-		t.Fatalf("Gen2: expected non-compliant device")
+		t.Fatalf("expected non-compliant device")
 	}
 	if len(issues) != 1 || issues[0] != "mqtt_connected mismatch" {
 		t.Fatalf("expected mqtt_connected mismatch, got %v", issues)

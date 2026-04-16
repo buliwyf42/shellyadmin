@@ -348,9 +348,6 @@ func applyBulkAction(ctx context.Context, req BulkActionRequest, device models.D
 	case "set_mqtt_enabled":
 		ok := setters.SetMQTTEnabled(ctx, device.IP, *req.Enabled, device.Gen, timeout)
 		return ok, fmt.Sprintf("set MQTT %s", ternary(*req.Enabled, "enabled", "disabled"))
-	case "set_24h":
-		ok := setters.SetTimeFormat24h(ctx, device.IP, device.Gen, timeout)
-		return ok, "set time format to 24h"
 	case "set_sntp_server":
 		ok := setters.SetSNTPServer(ctx, device.IP, req.Value, device.Gen, timeout)
 		return ok, fmt.Sprintf("set SNTP server to %s", req.Value)
@@ -369,8 +366,6 @@ func bulkActionSummary(req BulkActionRequest) string {
 		return fmt.Sprintf("Set MQTT server to %s on the selected devices.", req.Value)
 	case "set_mqtt_enabled":
 		return fmt.Sprintf("Set MQTT %s on the selected devices.", ternary(*req.Enabled, "enabled", "disabled"))
-	case "set_24h":
-		return "Set 24-hour time format on the selected devices."
 	case "set_sntp_server":
 		return fmt.Sprintf("Set SNTP server to %s on the selected devices.", req.Value)
 	default:
@@ -380,7 +375,7 @@ func bulkActionSummary(req BulkActionRequest) string {
 
 func bulkActionWarnings(req BulkActionRequest) []string {
 	switch req.Action {
-	case "set_location", "set_timezone", "set_mqtt_server", "set_mqtt_enabled", "set_24h", "set_sntp_server":
+	case "set_location", "set_timezone", "set_mqtt_server", "set_mqtt_enabled", "set_sntp_server":
 		return []string{"Changes are sent directly to the devices and should be followed by a refresh to confirm the final state."}
 	default:
 		return nil

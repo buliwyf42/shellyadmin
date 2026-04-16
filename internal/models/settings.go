@@ -36,7 +36,6 @@ type ComplianceRules struct {
 	SNTPServer      string       `json:"sntp_server"`
 	Lat             *float64     `json:"lat"`
 	Lon             *float64     `json:"lon"`
-	TimeFormat      string       `json:"time_format"`
 	OTAAutoUpdate   string       `json:"ota_auto_update"`
 	DebugWebSocket  *bool        `json:"sys_debug_websocket"`
 	DebugUDPHost    string       `json:"sys_debug_udp_host"`

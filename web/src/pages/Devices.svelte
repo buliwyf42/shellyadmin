@@ -92,18 +92,15 @@
   }
 
   function generationLabel(device: Device): string {
-    if (device.gen <= 1) return 'Gen 1.x'
     return `Gen ${device.gen}.x`
   }
 
   function supportClass(device: Device): string {
-    if (device.gen <= 1) return 'bg-danger'
     if (device.gen === 2) return 'bg-warning text-dark'
     return 'bg-success'
   }
 
   function supportTitle(device: Device): string {
-    if (device.gen <= 1) return 'Legacy support'
     if (device.gen === 2) return 'Limited support'
     return 'Supported'
   }
@@ -118,8 +115,8 @@
     return value ? on : off
   }
 
-  function mqttManagedByCloud(device: Device): boolean {
-    return device.gen <= 1 && device.cloud_connected
+  function mqttManagedByCloud(_device: Device): boolean {
+    return false
   }
 
   function formatCoords(device: Device): string {
@@ -127,8 +124,8 @@
     return `${device.lat.toFixed(5)}, ${device.lon.toFixed(5)}`
   }
 
-  function supportsWebSocket(device: Device): boolean {
-    return device.gen >= 2
+  function supportsWebSocket(_device: Device): boolean {
+    return true
   }
 
   function refreshState(device: Device): 'fresh' | 'stale' {
@@ -203,8 +200,6 @@
         return Number(a.ws_connected) - Number(b.ws_connected)
       case 'tz':
         return (a.tz || '').localeCompare(b.tz || '')
-      case 'time_format':
-        return (a.time_format || '').localeCompare(b.time_format || '')
       case 'sntp_server':
         return (a.sntp_server || '').localeCompare(b.sntp_server || '')
       case 'serial':
@@ -316,7 +311,6 @@
         {#if $colVis.cloud_connected}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('cloud_connected')}>{sortLabel('Cloud', 'cloud_connected')}</button></th>{/if}
         {#if $colVis.ws_connected}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('ws_connected')}>{sortLabel('WebSocket', 'ws_connected')}</button></th>{/if}
         {#if $colVis.tz}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('tz')}>{sortLabel('Timezone', 'tz')}</button></th>{/if}
-        {#if $colVis.time_format}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('time_format')}>{sortLabel('Time Format', 'time_format')}</button></th>{/if}
         {#if $colVis.sntp_server}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('sntp_server')}>{sortLabel('SNTP', 'sntp_server')}</button></th>{/if}
         {#if $colVis.serial}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('serial')}>{sortLabel('Serial', 'serial')}</button></th>{/if}
         {#if $colVis.matter_enabled}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('matter_enabled')}>{sortLabel('Matter', 'matter_enabled')}</button></th>{/if}
@@ -361,17 +355,8 @@
           {#if $colVis.mqtt_client_id}<td>{#if mqttManagedByCloud(device)}cloud-managed{:else if device.mqtt_client_id}{device.mqtt_client_id}{:else}<span class="text-secondary">n/a</span>{/if}</td>{/if}
           {#if $colVis.mqtt_topic_prefix}<td>{#if mqttManagedByCloud(device)}cloud-managed{:else if device.mqtt_topic_prefix}{device.mqtt_topic_prefix}{:else}<span class="text-secondary">n/a</span>{/if}</td>{/if}
           {#if $colVis.cloud_connected}<td><span class={`badge ${statusBadgeClass(device.cloud_connected)}`}>{statusText(device.cloud_connected, 'Connected', 'Off')}</span></td>{/if}
-          {#if $colVis.ws_connected}
-            <td>
-              {#if supportsWebSocket(device)}
-                <span class={`badge ${statusBadgeClass(device.ws_connected)}`}>{statusText(device.ws_connected, 'Connected', 'Off')}</span>
-              {:else}
-                <span class="badge bg-secondary" title="WebSocket is not available on Gen1">🔒</span>
-              {/if}
-            </td>
-          {/if}
+          {#if $colVis.ws_connected}<td><span class={`badge ${statusBadgeClass(device.ws_connected)}`}>{statusText(device.ws_connected, 'Connected', 'Off')}</span></td>{/if}
           {#if $colVis.tz}<td>{#if device.tz}{device.tz}{:else}<span class="text-secondary">n/a</span>{/if}</td>{/if}
-          {#if $colVis.time_format}<td>{#if device.time_format}{device.time_format}{:else}<span class="text-secondary">n/a</span>{/if}</td>{/if}
           {#if $colVis.sntp_server}<td>{#if device.sntp_server}{device.sntp_server}{:else}<span class="text-secondary">n/a</span>{/if}</td>{/if}
           {#if $colVis.serial}<td class="font-monospace">{#if device.serial}{device.serial}{:else}<span class="text-secondary">n/a</span>{/if}</td>{/if}
           {#if $colVis.matter_enabled}<td><span class={`badge ${statusBadgeClass(device.matter_enabled)}`}>{statusText(device.matter_enabled)}</span></td>{/if}

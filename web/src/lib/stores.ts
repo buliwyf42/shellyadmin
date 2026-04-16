@@ -20,7 +20,6 @@ export const deviceColumns = [
   { key: 'cloud_connected', label: 'Cloud' },
   { key: 'ws_connected', label: 'WebSocket' },
   { key: 'tz', label: 'Timezone' },
-  { key: 'time_format', label: 'Time Format' },
   { key: 'sntp_server', label: 'SNTP' },
   { key: 'serial', label: 'Serial' },
   { key: 'matter_enabled', label: 'Matter' },
