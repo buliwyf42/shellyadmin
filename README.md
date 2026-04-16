@@ -15,7 +15,7 @@ It is designed as a single-container deployment with:
 ## Status
 
 This repository is under active development.
-Current UI/API baseline is `v0.0.4`.
+Current UI/API baseline is `v0.0.6`.
 
 Public support posture:
 
@@ -24,22 +24,13 @@ Public support posture:
 - not intended for direct internet exposure
 - not yet positioned as a multi-user or HA-ready platform
 
-Current `0.0.4` highlights:
+Current `v0.0.6` highlights:
 
-- configurable device refresh timeout in Settings
-- stale-device signaling in Devices when the latest refresh attempt fails
-- `Last Success` wording in Devices to distinguish successful retrieval from the latest attempted refresh
-- database migration support for refresh-state tracking
-- GitHub Actions workflow for publishing a `ShellyAdmin` container image to GHCR
-- Docker Compose aligned with the published `ghcr.io/buliwyf42/shellyadmin` image name
-
-Current working tree highlights beyond `v0.0.4`:
-
-- previewable bulk settings actions in Devices
-- per-device detail page with raw config/status snapshots and safe manual actions
-- locale-aware `Last Success` presentation shared between Devices and per-device detail
-- documented `v1` API contract exposed at `/api/openapi/v1.json` and in the UI at `/docs`, covering the supported session, inventory, workflow, settings, backup, and audit routes
-- optional mDNS-assisted discovery toggle in Settings
+- fixed lat/lon values being silently dropped when saving provisioning templates
+- template management (load, save, delete, rename) consolidated onto the Provision page
+- Settings no longer has a redundant Templates section
+- Provision and Compliance pages now share a common section and field ordering
+- extended provisioner, scanner, compliance, and setter internals
 
 The target architecture is documented in [docs/ARCHITECTURE.md](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/docs/ARCHITECTURE.md).
 
@@ -95,7 +86,7 @@ Use strong secrets for real installs. The `COOKIE_SECURE=false` example above is
 - Compliance status in Devices view with hover details
 - Gen-aware rendering for unsupported fields (for example WebSocket on Gen1)
 - Manual firmware check and update flow
-- Guided provisioning form plus JSON mode
+- Guided provisioning form plus JSON mode with template management (load, save, delete, rename) in-context
 - Auth Groups page:
   - groups contain their own auth credentials (`username`, `password`/`ha1`, tags)
   - device-to-group assignment for future auth-required workflows
@@ -192,7 +183,7 @@ The app is intended to run as a single container.
 
 For GitHub-based distribution, the repository should be treated as the source of truth for:
 
-- tagged source releases such as `v0.0.4`
+- tagged source releases such as `v0.0.6`
 - the Docker build context under [`docker/`](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/docker)
 - the GitHub Actions flow that publishes a versioned image to GHCR per release tag
 
