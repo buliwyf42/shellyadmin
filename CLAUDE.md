@@ -18,12 +18,13 @@ The SPA is embedded into the Go binary at build time via `//go:embed`.
 
 ## Shelly Device Generations
 
+Only Gen2+ devices are supported. Gen1 devices (HTTP REST / GET-based API) are not supported and will not be probed or provisioned.
+
 | Gen | Protocol | Endpoint |
 |-----|----------|---------|
-| Gen1 | HTTP REST (GET with query params) | `/settings`, `/status`, `/reboot`, etc. |
 | Gen2+ | JSON-RPC 2.0 (POST with JSON body) | `/rpc` |
 
-Generation is detected via `GET /shelly` → `{"gen": N}`. Default to Gen2 if absent.
+Generation is detected via `GET /shelly` → `{"gen": N}`. Defaults to Gen2 if absent or zero.
 
 ---
 
@@ -49,10 +50,6 @@ The `mqtt.ssl_ca` field only accepts exactly four values:
 - `"*"` — TLS, disable certificate validation
 - `"ca.pem"` — TLS with built-in CA bundle
 - `"user_ca.pem"` — TLS with user-uploaded CA certificate
-
-### Time format (clock_mode)
-- Gen1: `clock_mode` field in `/settings` (`0` = 24h, `1` = 12h)
-- Gen2+: **no time format setting** — always 24h; the `time_format` compliance rule is silently skipped on Gen2+
 
 ### WS SSL CA
 Same four-value pattern as MQTT: `""`, `"*"`, `"ca.pem"`, `"user_ca.pem"`.
@@ -80,21 +77,21 @@ Same four-value pattern as MQTT: `""`, `"*"`, `"ca.pem"`, `"user_ca.pem"`.
 
 Sections in a template JSON map to backend handlers in `applySection()`:
 
-| Section key | Gen1 | Gen2+ |
-|-------------|------|-------|
-| `sys` | `/settings` | `Sys.SetConfig` |
-| `mqtt` | `/settings/mqtt` | `MQTT.SetConfig` |
-| `ws` | skipped | `WS.SetConfig` |
-| `ble` | skipped | `BLE.SetConfig` |
-| `cloud` | skipped | `Cloud.SetConfig` |
-| `matter` | skipped | `Matter.SetConfig` |
-| `wifi` | skipped | `Wifi.SetConfig` |
-| `auth` | skipped | `Shelly.SetAuth` |
-| `ota` | skipped | `OTA.SetConfig` (404 on all devices → skipped) |
-| `kvs` | skipped | `KVS.Set` per key |
-| `gen2_rpc` | skipped | arbitrary method map |
-| `gen1_http` | arbitrary endpoint map | skipped |
-| anything else | skipped | `<Capitalized>.SetConfig` |
+| Section key | Handler |
+|-------------|---------|
+| `sys` | `Sys.SetConfig` |
+| `mqtt` | `MQTT.SetConfig` |
+| `ws` | `WS.SetConfig` |
+| `ble` | `BLE.SetConfig` |
+| `cloud` | `Cloud.SetConfig` |
+| `matter` | `Matter.SetConfig` |
+| `wifi` | `Wifi.SetConfig` |
+| `auth` | `Shelly.SetAuth` |
+| `ota` | `OTA.SetConfig` (404 on all devices → skipped) |
+| `kvs` | `KVS.Set` per key |
+| `gen2_rpc` | arbitrary method map |
+| `gen1_http` | skipped (legacy; Gen1 no longer supported) |
+| anything else | `<Capitalized>.SetConfig` |
 
 Template variable substitution: `{device_name}` is replaced with the device's configured name (from `Shelly.GetConfig` → `sys.device.name`).
 
@@ -143,8 +140,6 @@ A **stale-job guard** (2-minute timeout) prevents stuck `"running"` jobs from bl
 
 Compliance rules in `models.ComplianceRules` are evaluated in `compliance.Evaluate()`. Key behaviors:
 
-- `time_format` rule is **silently skipped** on Gen2+ (no such setting exists)
-- `mqtt_connected` rule only applies to Gen2+ devices
 - `cloud_enabled` checks the device's cloud enable setting (distinct from `cloud_connected`)
 - Custom rules support `source: device | config | status`, path traversal with `.`, operators: `eq` (default), `ne`, `contains`, `regex`, `exists`
 - `{device_name}` token in rule values is substituted with the device's effective name
