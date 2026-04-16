@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -42,9 +43,16 @@ func SetMQTTEnabled(ctx context.Context, ip string, enabled bool, gen int, timeo
 	return getOK(ctx, "http://"+ip+"/settings/mqtt?enable="+value, timeout)
 }
 
+func SetSNTPServer(ctx context.Context, ip, server string, gen int, timeout time.Duration) bool {
+	if gen >= 2 {
+		return rpcSet(ctx, ip, "Sys.SetConfig", map[string]any{"sntp": map[string]any{"server": server}}, timeout)
+	}
+	return getOK(ctx, "http://"+ip+"/settings?sntp_server="+url.QueryEscape(server), timeout)
+}
+
 func SetTimeFormat24h(ctx context.Context, ip string, gen int, timeout time.Duration) bool {
 	if gen >= 2 {
-		return rpcSet(ctx, ip, "KVS.Set", map[string]any{"key": "units", "value": `{"hour_format": 24}`}, timeout)
+		return false
 	}
 	return getOK(ctx, "http://"+ip+"/settings?clock_mode=0", timeout)
 }
@@ -57,8 +65,17 @@ func Reboot(ctx context.Context, ip string, gen int, timeout time.Duration) bool
 }
 
 func rpcSet(ctx context.Context, ip, method string, payload map[string]any, timeout time.Duration) bool {
-	buf, _ := json.Marshal(payload)
-	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, "http://"+ip+"/rpc/"+method, bytes.NewReader(buf))
+	params := payload
+	if strings.HasSuffix(method, ".SetConfig") {
+		params = map[string]any{"config": payload}
+	}
+	body := map[string]any{
+		"id":     1,
+		"method": method,
+		"params": params,
+	}
+	buf, _ := json.Marshal(body)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, "http://"+ip+"/rpc", bytes.NewReader(buf))
 	req.Header.Set("Content-Type", "application/json")
 	client := &http.Client{Timeout: timeout}
 	resp, err := client.Do(req)

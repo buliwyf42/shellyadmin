@@ -29,9 +29,12 @@ type Device struct {
 	WSServer          string   `json:"ws_server"`
 	WSConnected       bool     `json:"ws_connected"`
 	BLEGWEnabled      *bool    `json:"ble_gw_enabled"`
+	BLERPCEnabled     *bool    `json:"ble_rpc_enabled"`
+	BLEObserverEnabled *bool   `json:"ble_observer_enabled"`
 	WiFiSSID          string   `json:"wifi_ssid"`
 	CloudEnabled      *bool    `json:"cloud_enabled"`
 	CloudConnected    bool     `json:"cloud_connected"`
+	MQTTConnected     bool     `json:"mqtt_connected"`
 	MatterEnabled     *bool    `json:"matter_enabled"`
 	EcoMode           *bool    `json:"eco_mode"`
 	Discoverable      *bool    `json:"discoverable"`

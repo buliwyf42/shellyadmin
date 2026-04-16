@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.0.6] - 2026-04-16
+
+- Fixed lat/lon values being silently dropped when saving provisioning templates (inputs now use `type=number`)
+- Added Delete and Rename template actions directly on the Provision page
+- Removed redundant Templates section from Settings (managed on Provision page)
+- Aligned section order between Provision and Compliance pages (both now lead with sys)
+- Aligned sys field order between pages (lat/lon after RPC UDP Port on both)
+- Extended provisioner, scanner, compliance, and setter internals
+
 ## [0.0.5] - 2026-04-15
 
 - Public repo readiness work: root security/contributing docs, issue templates, changelog, and local-artifact ignore rules

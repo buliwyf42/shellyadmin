@@ -30,6 +30,7 @@ const (
 )
 
 const staleScanGrace = 15 * time.Second
+const staleRefreshGrace = 2 * time.Minute
 
 type AppService struct {
 	db      *db.DB
@@ -127,7 +128,12 @@ func (s *AppService) GetDevices() ([]models.Device, error) {
 
 func (s *AppService) RefreshDevices(ctx context.Context) ([]models.Device, error) {
 	if latest, err := s.db.GetLatestJob("refresh"); err == nil && latest.Status == "running" {
-		return nil, errors.New("refresh already running")
+		stale, staleErr := refreshJobStale(latest, time.Now())
+		if staleErr == nil && stale {
+			_ = s.db.InterruptJob(latest.ID, "refresh stalled")
+		} else {
+			return nil, errors.New("refresh already running")
+		}
 	}
 	jobID, err := s.db.CreateJob("refresh", "auto", "{}", 0)
 	if err != nil {
@@ -380,6 +386,14 @@ func scanJobStale(job models.Job, now time.Time) (bool, error) {
 	return now.Sub(updatedAt) > staleScanGrace, nil
 }
 
+func refreshJobStale(job models.Job, now time.Time) (bool, error) {
+	updatedAt, err := time.Parse(time.RFC3339, job.UpdatedAt)
+	if err != nil {
+		return false, err
+	}
+	return now.Sub(updatedAt) > staleRefreshGrace, nil
+}
+
 func (s *AppService) ConfirmScan(macs []string) (int, error) {
 	job, err := s.db.GetLatestJob("scan")
 	if err != nil {
@@ -530,12 +544,10 @@ func (s *AppService) RecoverInterruptedJobs() error {
 			go s.runScanJob(newJobID, settings)
 			s.Log("INFO", fmt.Sprintf("auto-restarted interrupted job scan:%d as job:%d", job.ID, newJobID))
 		case "refresh":
-			newJobID, err := s.db.CreateJob("refresh", "auto", "{}", 0)
-			if err != nil {
-				continue
-			}
-			go s.runRefreshJob(context.Background(), newJobID, make(chan error, 1))
-			s.Log("INFO", fmt.Sprintf("auto-restarted interrupted job refresh:%d as job:%d", job.ID, newJobID))
+			// Refresh jobs are lightweight read-only probes. Rather than
+			// auto-restarting them on startup (which would briefly block the
+			// user's manual refresh), simply leave them as interrupted and let
+			// the user trigger a fresh refresh when ready.
 		case "firmware_check":
 			var stagePayload map[string]string
 			_ = json.Unmarshal([]byte(job.Payload), &stagePayload)

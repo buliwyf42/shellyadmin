@@ -10,6 +10,7 @@ Operators need diagnostics that stay readable while still exposing technical det
 ## Decision
 
 - Time rendering should use locale display in the UI.
+- For device timestamps, the UI should prefer human-friendly relative time with locale-aware absolute time available via surrounding context such as tooltips or detail views.
 - Error presentation for partial failures should be:
   - concise summary by default
   - expandable technical details on demand
@@ -17,4 +18,5 @@ Operators need diagnostics that stay readable while still exposing technical det
 ## Consequences
 
 - The UI remains approachable for routine operation but still supports troubleshooting.
+- Screens that surface the same operator concept (for example `Last Success`) should reuse the same time presentation policy instead of inventing page-local variants.
 - API responses should preserve technical detail fields needed by expandable views.

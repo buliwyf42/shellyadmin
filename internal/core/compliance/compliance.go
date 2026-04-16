@@ -76,6 +76,7 @@ func Evaluate(dev models.Device, rules models.ComplianceRules) (bool, []string) 
 			issues = append(issues, fmt.Sprintf("%s mismatch", label))
 		}
 	}
+	config := unmarshalMap(dev.RawConfig)
 
 	compareString(rules.WiFiSSID, dev.WiFiSSID, "wifi_ssid")
 	if !skipMQTT {
@@ -88,13 +89,14 @@ func Evaluate(dev models.Device, rules models.ComplianceRules) (bool, []string) 
 		checkMQTTFlag(&issues, rules.MQTTEnableRPC, dev.MQTTFlagsNA, "enable_rpc")
 		checkMQTTFlag(&issues, rules.MQTTEnableCtrl, dev.MQTTFlagsNA, "enable_control")
 	}
+	compareBoolPtr(rules.CloudEnabled, dev.CloudEnabled, "cloud_enabled")
 	compareBool(rules.CloudConnected, dev.CloudConnected, "cloud_connected")
 	if dev.Gen >= 2 {
+		compareBool(rules.MQTTConnected, dev.MQTTConnected, "mqtt_connected")
 		compareBoolPtr(rules.WSEnabled, dev.WSEnabled, "ws_enabled")
 		compareBool(rules.WSConnected, dev.WSConnected, "ws_connected")
 		compareString(rules.WSServer, dev.WSServer, "ws_server")
-		compareConfigString(rules.WSTLSMode, "ws.tls_mode", "ws_tls_mode")
-		compareConfigString(rules.WSSSLCa, "ws.ssl_ca", "ws_ssl_ca")
+		compareWSTLSSettings(&issues, config, rules)
 		compareBoolPtr(rules.BLEGWEnabled, dev.BLEGWEnabled, "ble_gw_enabled")
 		compareConfigBool(rules.BLERPCEnabled, "ble.rpc.enable", "ble_rpc_enable")
 		compareConfigBool(rules.BLEObserver, "ble.observer.enable", "ble_observer_enable")
@@ -105,10 +107,13 @@ func Evaluate(dev models.Device, rules models.ComplianceRules) (bool, []string) 
 	compareString(rules.SNTPServer, dev.SNTPServer, "sntp_server")
 	compareFloat(rules.Lat, dev.Lat, "lat")
 	compareFloat(rules.Lon, dev.Lon, "lon")
-	compareString(rules.TimeFormat, dev.TimeFormat, "time_format")
+	compareTimeFormat(&issues, config, dev, rules.TimeFormat)
 	compareBoolPtr(rules.EcoMode, dev.EcoMode, "eco_mode")
 	compareBoolPtr(rules.Discoverable, dev.Discoverable, "discoverable")
 	compareConfigStringOrUnsupported(rules.OTAAutoUpdate, "ota.auto_update", "ota_auto_update")
+	compareConfigBool(rules.DebugWebSocket, "sys.debug.websocket.enable", "sys_debug_websocket")
+	compareConfigString(rules.DebugUDPHost, "sys.debug.udp.addr", "sys_debug_udp_host")
+	compareRPCUDPPort(&issues, config, rules.RPCUDPPort)
 	evaluateCustomRules(&issues, dev, rules.CustomRules, deviceName)
 
 	return len(issues) == 0, issues
@@ -206,6 +211,14 @@ func resolveDevicePath(dev models.Device, path string) (string, bool) {
 		return dev.WSServer, true
 	case "ble_gw_enabled":
 		return anyToString(dev.BLEGWEnabled), dev.BLEGWEnabled != nil
+	case "ble_rpc_enabled":
+		return anyToString(dev.BLERPCEnabled), dev.BLERPCEnabled != nil
+	case "ble_observer_enabled":
+		return anyToString(dev.BLEObserverEnabled), dev.BLEObserverEnabled != nil
+	case "cloud_enabled":
+		return anyToString(dev.CloudEnabled), dev.CloudEnabled != nil
+	case "mqtt_connected":
+		return anyToString(dev.MQTTConnected), true
 	case "tz":
 		return dev.TZ, true
 	case "sntp_server":
@@ -343,4 +356,68 @@ func effectiveDeviceName(dev models.Device) string {
 		return dev.Serial
 	}
 	return dev.MAC
+}
+
+func compareWSTLSSettings(issues *[]string, config map[string]any, rules models.ComplianceRules) {
+	if strings.TrimSpace(rules.WSTLSMode) == "" && strings.TrimSpace(rules.WSSSLCa) == "" {
+		return
+	}
+	server, _ := resolvePath(config, "ws.server")
+	server = strings.TrimSpace(server)
+	if !strings.HasPrefix(strings.ToLower(server), "wss://") {
+		if strings.TrimSpace(rules.WSTLSMode) != "" {
+			*issues = append(*issues, "ws_tls_mode ignored because ws_server is non-tls")
+		}
+		if strings.TrimSpace(rules.WSSSLCa) != "" {
+			*issues = append(*issues, "ws_ssl_ca ignored because ws_server is non-tls")
+		}
+		return
+	}
+	sslCA, _ := resolvePath(config, "ws.ssl_ca")
+	sslCA = strings.TrimSpace(sslCA)
+	if mode := strings.TrimSpace(rules.WSTLSMode); mode != "" {
+		gotMode := "default"
+		switch sslCA {
+		case "*":
+			gotMode = "no_validation"
+		case "":
+			gotMode = "default"
+		default:
+			gotMode = "user"
+		}
+		if gotMode != mode {
+			*issues = append(*issues, "ws_tls_mode mismatch")
+		}
+	}
+	if expectedCA := strings.TrimSpace(rules.WSSSLCa); expectedCA != "" && sslCA != expectedCA {
+		*issues = append(*issues, "ws_ssl_ca mismatch")
+	}
+}
+
+func compareTimeFormat(issues *[]string, config map[string]any, dev models.Device, rule string) {
+	rule = strings.TrimSpace(rule)
+	if rule == "" {
+		return
+	}
+	// Gen2+ devices do not expose a 12h/24h time format setting; skip the rule.
+	if dev.Gen >= 2 {
+		return
+	}
+	if strings.TrimSpace(dev.TimeFormat) != rule {
+		*issues = append(*issues, "time_format mismatch")
+	}
+}
+
+func compareRPCUDPPort(issues *[]string, config map[string]any, rule *int) {
+	if rule == nil {
+		return
+	}
+	got, found := resolvePath(config, "sys.rpc_udp.listen_port")
+	if !found {
+		*issues = append(*issues, "sys_rpc_udp_port mismatch")
+		return
+	}
+	if strings.TrimSpace(got) != strconv.Itoa(*rule) {
+		*issues = append(*issues, "sys_rpc_udp_port mismatch")
+	}
 }

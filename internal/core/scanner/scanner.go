@@ -100,17 +100,16 @@ func ProbeDevice(ctx context.Context, ip string, timeout time.Duration, logFn fu
 		return nil
 	}
 	dev := &models.Device{
-		IP:         ip,
-		MAC:        normalizeMAC(base.MAC),
-		Model:      firstString(base.Model, base.Type),
-		FW:         firstString(base.Ver, base.FW),
-		Gen:        base.Gen,
-		Name:       base.Name,
-		Serial:     base.ID,
-		Online:     true,
-		LastSeen:   time.Now().UTC().Format(time.RFC3339),
-		FWStatus:   "unknown",
-		TimeFormat: "24h",
+		IP:       ip,
+		MAC:      normalizeMAC(base.MAC),
+		Model:    firstString(base.Model, base.Type),
+		FW:       firstString(base.Ver, base.FW),
+		Gen:      base.Gen,
+		Name:     base.Name,
+		Serial:   base.ID,
+		Online:   true,
+		LastSeen: time.Now().UTC().Format(time.RFC3339),
+		FWStatus: "unknown",
 	}
 	if dev.Gen == 0 {
 		dev.Gen = 1
@@ -146,7 +145,6 @@ func ExpandCIDR(cidr string) ([]string, error) {
 func probeGen2(ctx context.Context, client *http.Client, ip string, dev *models.Device, logFn func(level, msg string)) {
 	config := rpcCall(ctx, client, ip, "Shelly.GetConfig", nil)
 	status := rpcCall(ctx, client, ip, "Shelly.GetStatus", nil)
-	kvs := rpcCall(ctx, client, ip, "KVS.Get", map[string]any{"key": "units"})
 	dev.RawConfig = marshalMap(config)
 	dev.RawStatus = marshalMap(status)
 
@@ -164,6 +162,9 @@ func probeGen2(ctx context.Context, client *http.Client, ip string, dev *models.
 		if sntp, ok := sys["sntp"].(map[string]any); ok {
 			dev.SNTPServer = firstString(sntp["server"], "")
 		}
+		if clockMode, ok := timeFormatFromClockMode(sys["clock_mode"]); ok {
+			dev.TimeFormat = clockMode
+		}
 	}
 	if mqtt, ok := config["mqtt"].(map[string]any); ok {
 		dev.MQTTEnabled = anyBoolPtr(mqtt["enable"])
@@ -180,6 +181,12 @@ func probeGen2(ctx context.Context, client *http.Client, ip string, dev *models.
 		if gw, ok := ble["gateway"].(map[string]any); ok {
 			dev.BLEGWEnabled = anyBoolPtr(gw["enable"])
 		}
+		if rpc, ok := ble["rpc"].(map[string]any); ok {
+			dev.BLERPCEnabled = anyBoolPtr(rpc["enable"])
+		}
+		if obs, ok := ble["observer"].(map[string]any); ok {
+			dev.BLEObserverEnabled = anyBoolPtr(obs["enable"])
+		}
 	}
 	if wifi, ok := config["wifi"].(map[string]any); ok {
 		if sta, ok := wifi["sta"].(map[string]any); ok {
@@ -195,15 +202,11 @@ func probeGen2(ctx context.Context, client *http.Client, ip string, dev *models.
 	if cloud, ok := status["cloud"].(map[string]any); ok {
 		dev.CloudConnected = anyBool(cloud["connected"])
 	}
+	if mqtt, ok := status["mqtt"].(map[string]any); ok {
+		dev.MQTTConnected = anyBool(mqtt["connected"])
+	}
 	if ws, ok := status["ws"].(map[string]any); ok {
 		dev.WSConnected = anyBool(ws["connected"])
-	}
-	if val := firstString(kvs["value"], ""); val != "" {
-		if strings.Contains(val, `"hour_format": 12`) {
-			dev.TimeFormat = "12h"
-		} else {
-			dev.TimeFormat = "24h"
-		}
 	}
 	logFn("DEBUG", fmt.Sprintf("[scan] gen2 probe complete for %s", ip))
 }
@@ -277,6 +280,26 @@ func rpcCall(ctx context.Context, client *http.Client, ip, method string, body m
 		return map[string]any{}
 	}
 	return out
+}
+
+func timeFormatFromClockMode(raw any) (string, bool) {
+	switch value := raw.(type) {
+	case float64:
+		switch int(value) {
+		case 0:
+			return "24h", true
+		case 1:
+			return "12h", true
+		}
+	case int:
+		switch value {
+		case 0:
+			return "24h", true
+		case 1:
+			return "12h", true
+		}
+	}
+	return "", false
 }
 
 func getJSONMap(ctx context.Context, client *http.Client, url string) (map[string]any, error) {

@@ -287,13 +287,22 @@
         <div class="d-flex flex-column gap-3">
           <div class="card bg-black border-secondary">
             <div class="card-body">
-              <div class="d-flex justify-content-between align-items-center mb-3" role="button" tabindex="0" on:click={() => (wifiOpen = !wifiOpen)} on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (wifiOpen = !wifiOpen)} style="cursor: pointer">
-                <strong>wifi</strong>
-                <span class="text-secondary">{wifiVisible ? '▾' : '▸'}</span>
+              <div class="d-flex justify-content-between align-items-center mb-3" role="button" tabindex="0" on:click={() => (sysOpen = !sysOpen)} on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (sysOpen = !sysOpen)} style="cursor: pointer">
+                <strong>sys</strong>
+                <span class="text-secondary">{sysVisible ? '▾' : '▸'}</span>
               </div>
-              {#if wifiVisible}
+              {#if sysVisible}
                 <div class="row g-2">
-                  <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={wifiSSIDEnabled} on:click|stopPropagation />WiFi SSID</label><input class="form-control" bind:value={settings.compliance.wifi_ssid} disabled={!wifiSSIDEnabled} /></div>
+                  <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={tzEnabled} on:click|stopPropagation />Timezone</label><input class="form-control" bind:value={settings.compliance.tz} disabled={!tzEnabled} /></div>
+                  <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sntpEnabled} on:click|stopPropagation />SNTP Server</label><input class="form-control" bind:value={settings.compliance.sntp_server} disabled={!sntpEnabled} /></div>
+                  <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={timeFormatEnabled} on:click|stopPropagation />Time Format</label><select class="form-select" bind:value={settings.compliance.time_format} disabled={!timeFormatEnabled}><option value="24h">24h</option><option value="12h">12h</option></select></div>
+                  <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysDebugWSField} on:click|stopPropagation />Debug WebSocket</label><select class="form-select" bind:value={settings.compliance.sys_debug_websocket} disabled={!sysDebugWSField}><option value={true}>On</option><option value={false}>Off</option></select></div>
+                  <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysDebugUDPHostField} on:click|stopPropagation />Debug UDP Host</label><input class="form-control" placeholder="host:port" bind:value={settings.compliance.sys_debug_udp_host} disabled={!sysDebugUDPHostField} /></div>
+                  <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysRPCUDPPortField} on:click|stopPropagation />RPC UDP Port</label><input class="form-control" type="number" min="0" bind:value={settings.compliance.sys_rpc_udp_port} disabled={!sysRPCUDPPortField} /></div>
+                  <div class="col-md-3"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={latEnabled} on:click|stopPropagation />Lat</label><input class="form-control" type="number" step="0.0001" bind:value={settings.compliance.lat} disabled={!latEnabled} /></div>
+                  <div class="col-md-3"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={lonEnabled} on:click|stopPropagation />Lon</label><input class="form-control" type="number" step="0.0001" bind:value={settings.compliance.lon} disabled={!lonEnabled} /></div>
+                  <div class="col-md-3"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={ecoEnabled} on:click|stopPropagation />Eco Mode</label><select class="form-select" bind:value={settings.compliance.eco_mode} disabled={!ecoEnabled}><option value={true}>On</option><option value={false}>Off</option></select></div>
+                  <div class="col-md-3"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={discoverableEnabled} on:click|stopPropagation />Discoverable</label><select class="form-select" bind:value={settings.compliance.discoverable} disabled={!discoverableEnabled}><option value={true}>On</option><option value={false}>Off</option></select></div>
                 </div>
               {/if}
             </div>
@@ -370,22 +379,13 @@
 
           <div class="card bg-black border-secondary">
             <div class="card-body">
-              <div class="d-flex justify-content-between align-items-center mb-3" role="button" tabindex="0" on:click={() => (sysOpen = !sysOpen)} on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (sysOpen = !sysOpen)} style="cursor: pointer">
-                <strong>sys</strong>
-                <span class="text-secondary">{sysVisible ? '▾' : '▸'}</span>
+              <div class="d-flex justify-content-between align-items-center mb-3" role="button" tabindex="0" on:click={() => (wifiOpen = !wifiOpen)} on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (wifiOpen = !wifiOpen)} style="cursor: pointer">
+                <strong>wifi</strong>
+                <span class="text-secondary">{wifiVisible ? '▾' : '▸'}</span>
               </div>
-              {#if sysVisible}
+              {#if wifiVisible}
                 <div class="row g-2">
-                  <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={tzEnabled} on:click|stopPropagation />Timezone</label><input class="form-control" bind:value={settings.compliance.tz} disabled={!tzEnabled} /></div>
-                  <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sntpEnabled} on:click|stopPropagation />SNTP Server</label><input class="form-control" bind:value={settings.compliance.sntp_server} disabled={!sntpEnabled} /></div>
-                  <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={timeFormatEnabled} on:click|stopPropagation />Time Format</label><select class="form-select" bind:value={settings.compliance.time_format} disabled={!timeFormatEnabled}><option value="24h">24h</option><option value="12h">12h</option></select></div>
-                  <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysDebugWSField} on:click|stopPropagation />Debug WebSocket</label><select class="form-select" bind:value={settings.compliance.sys_debug_websocket} disabled={!sysDebugWSField}><option value={true}>On</option><option value={false}>Off</option></select></div>
-                  <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysDebugUDPHostField} on:click|stopPropagation />Debug UDP Host</label><input class="form-control" placeholder="host:port" bind:value={settings.compliance.sys_debug_udp_host} disabled={!sysDebugUDPHostField} /></div>
-                  <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysRPCUDPPortField} on:click|stopPropagation />RPC UDP Port</label><input class="form-control" type="number" min="0" bind:value={settings.compliance.sys_rpc_udp_port} disabled={!sysRPCUDPPortField} /></div>
-                  <div class="col-md-3"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={latEnabled} on:click|stopPropagation />Lat</label><input class="form-control" type="number" step="0.0001" bind:value={settings.compliance.lat} disabled={!latEnabled} /></div>
-                  <div class="col-md-3"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={lonEnabled} on:click|stopPropagation />Lon</label><input class="form-control" type="number" step="0.0001" bind:value={settings.compliance.lon} disabled={!lonEnabled} /></div>
-                  <div class="col-md-3"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={ecoEnabled} on:click|stopPropagation />Eco Mode</label><select class="form-select" bind:value={settings.compliance.eco_mode} disabled={!ecoEnabled}><option value={true}>On</option><option value={false}>Off</option></select></div>
-                  <div class="col-md-3"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={discoverableEnabled} on:click|stopPropagation />Discoverable</label><select class="form-select" bind:value={settings.compliance.discoverable} disabled={!discoverableEnabled}><option value={true}>On</option><option value={false}>Off</option></select></div>
+                  <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={wifiSSIDEnabled} on:click|stopPropagation />WiFi SSID</label><input class="form-control" bind:value={settings.compliance.wifi_ssid} disabled={!wifiSSIDEnabled} /></div>
                 </div>
               {/if}
             </div>
