@@ -134,6 +134,12 @@ func (db *DB) ListDevices() ([]models.Device, error) {
 	return out, rows.Err()
 }
 
+// dbExec is satisfied by both *sql.DB and *sql.Tx, letting the row-level
+// upsert helper run inside or outside a transaction.
+type dbExec interface {
+	Exec(query string, args ...any) (sql.Result, error)
+}
+
 func (db *DB) UpsertDevices(scanned []models.Device) error {
 	existing, err := db.ListDevices()
 	if err != nil {
@@ -147,6 +153,11 @@ func (db *DB) UpsertDevices(scanned []models.Device) error {
 			maxNum = d.DeviceNum
 		}
 	}
+	tx, err := db.sql.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
 	seen := map[string]bool{}
 	for _, d := range scanned {
 		seen[d.MAC] = true
@@ -167,7 +178,7 @@ func (db *DB) UpsertDevices(scanned []models.Device) error {
 		if d.FWStatus == "" {
 			d.FWStatus = "unknown"
 		}
-		if err := db.upsertDevice(d); err != nil {
+		if err := upsertDeviceRow(tx, d); err != nil {
 			return err
 		}
 	}
@@ -182,15 +193,15 @@ func (db *DB) UpsertDevices(scanned []models.Device) error {
 		if d.ConsecutiveMisses >= 2 {
 			d.Online = false
 		}
-		if err := db.upsertDevice(d); err != nil {
+		if err := upsertDeviceRow(tx, d); err != nil {
 			return err
 		}
 	}
-	return nil
+	return tx.Commit()
 }
 
-func (db *DB) upsertDevice(d models.Device) error {
-	_, err := db.sql.Exec(`INSERT INTO devices (
+func upsertDeviceRow(ex dbExec, d models.Device) error {
+	_, err := ex.Exec(`INSERT INTO devices (
 		mac, ip, name, model, fw, gen, online, last_seen, first_seen, device_num, consecutive_misses,
 		last_refresh_attempt, last_refresh_ok, last_refresh_error,
 		mqtt_enabled, mqtt_server, mqtt_client_id, mqtt_topic_prefix, mqtt_flags_na, lat, lon, tz,
@@ -227,7 +238,7 @@ func (db *DB) ForgetDevice(target string) error {
 }
 
 func (db *DB) UpsertDevice(device models.Device) error {
-	return db.upsertDevice(device)
+	return upsertDeviceRow(db.sql, device)
 }
 
 func (db *DB) GetSettings() (models.AppSettings, error) {

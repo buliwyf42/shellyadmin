@@ -40,6 +40,14 @@ type AppService struct {
 	mu              sync.Mutex
 	activeProvision map[string]bool
 	activeFirmware  map[string]bool
+
+	// ctx is cancelled by Stop; background jobs check it at progress points
+	// and mark their DB row as "interrupted" before exiting.
+	ctx    context.Context
+	cancel context.CancelFunc
+	// bgJobs tracks in-flight background goroutines (scan/refresh/firmware)
+	// so Stop can drain them before returning.
+	bgJobs sync.WaitGroup
 }
 
 type ScanStatus struct {
@@ -102,12 +110,35 @@ type ImportReport struct {
 }
 
 func NewAppService(database *db.DB, dataDir string, logf func(level, msg string)) *AppService {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &AppService{
 		db:              database,
 		dataDir:         dataDir,
 		logf:            logf,
 		activeProvision: map[string]bool{},
 		activeFirmware:  map[string]bool{},
+		ctx:             ctx,
+		cancel:          cancel,
+	}
+}
+
+// Stop signals background jobs to exit, waits for them to drain (bounded by
+// shutdownCtx), and marks any jobs still "running" as "interrupted". Safe to
+// call once; subsequent calls are no-ops.
+func (s *AppService) Stop(shutdownCtx context.Context) {
+	s.cancel()
+	done := make(chan struct{})
+	go func() {
+		s.bgJobs.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-shutdownCtx.Done():
+		s.Log("warn", "shutdown: background jobs did not drain within timeout")
+	}
+	if err := s.db.MarkRunningJobsInterrupted(); err != nil {
+		s.Log("error", fmt.Sprintf("shutdown: mark running jobs interrupted: %v", err))
 	}
 }
 
@@ -130,7 +161,9 @@ func (s *AppService) RefreshDevices(ctx context.Context) ([]models.Device, error
 	if latest, err := s.db.GetLatestJob("refresh"); err == nil && latest.Status == "running" {
 		stale, staleErr := refreshJobStale(latest, time.Now())
 		if staleErr == nil && stale {
-			_ = s.db.InterruptJob(latest.ID, "refresh stalled")
+			if ierr := s.db.InterruptJob(latest.ID, "refresh stalled"); ierr != nil {
+				s.Log("error", fmt.Sprintf("refresh job %d: mark stalled failed: %v", latest.ID, ierr))
+			}
 		} else {
 			return nil, errors.New("refresh already running")
 		}
@@ -139,24 +172,48 @@ func (s *AppService) RefreshDevices(ctx context.Context) ([]models.Device, error
 	if err != nil {
 		return nil, err
 	}
+	jobCtx, cancel := s.linkedContext(ctx)
 	done := make(chan error, 1)
-	go s.runRefreshJob(ctx, jobID, done)
+	s.bgJobs.Add(1)
+	go func() {
+		defer cancel()
+		defer s.bgJobs.Done()
+		s.runRefreshJob(jobCtx, jobID, done)
+	}()
 	if err := <-done; err != nil {
 		return nil, err
 	}
 	return s.GetDevices()
 }
 
+// linkedContext returns a context that is cancelled when either the parent
+// or the service's shutdown context is cancelled.
+func (s *AppService) linkedContext(parent context.Context) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(parent)
+	go func() {
+		select {
+		case <-s.ctx.Done():
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+	return ctx, cancel
+}
+
 func (s *AppService) runRefreshJob(ctx context.Context, jobID int64, done chan<- error) {
 	devices, err := s.db.ListDevices()
 	if err != nil {
-		_ = s.db.CompleteJob(jobID, "failed", "", err.Error(), 0, 0)
+		if cerr := s.db.CompleteJob(jobID, "failed", "", err.Error(), 0, 0); cerr != nil {
+			s.Log("error", fmt.Sprintf("refresh job %d: complete-failed write failed: %v", jobID, cerr))
+		}
 		done <- err
 		return
 	}
 	settings, err := s.db.GetSettings()
 	if err != nil {
-		_ = s.db.CompleteJob(jobID, "failed", "", err.Error(), 0, 0)
+		if cerr := s.db.CompleteJob(jobID, "failed", "", err.Error(), 0, 0); cerr != nil {
+			s.Log("error", fmt.Sprintf("refresh job %d: complete-failed write failed: %v", jobID, cerr))
+		}
 		done <- err
 		return
 	}
@@ -172,7 +229,9 @@ func (s *AppService) runRefreshJob(ctx context.Context, jobID int64, done chan<-
 	var mu sync.Mutex
 	refreshed := make([]models.Device, 0, len(devices))
 	work := make(chan models.Device)
-	_ = s.db.UpdateJobProgress(jobID, 0, len(devices), "")
+	if perr := s.db.UpdateJobProgress(jobID, 0, len(devices), ""); perr != nil {
+		s.Log("error", fmt.Sprintf("refresh job %d: initial progress update failed: %v", jobID, perr))
+	}
 
 	for i := 0; i < limit; i++ {
 		wg.Add(1)
@@ -181,7 +240,9 @@ func (s *AppService) runRefreshJob(ctx context.Context, jobID int64, done chan<-
 			for device := range work {
 				select {
 				case <-ctx.Done():
-					_ = s.db.IncrementJobDone(jobID)
+					if ierr := s.db.IncrementJobDone(jobID); ierr != nil {
+						s.Log("error", fmt.Sprintf("refresh job %d: increment done failed: %v", jobID, ierr))
+					}
 					continue
 				default:
 				}
@@ -190,7 +251,9 @@ func (s *AppService) runRefreshJob(ctx context.Context, jobID int64, done chan<-
 					refreshed = append(refreshed, *found)
 					mu.Unlock()
 				}
-				_ = s.db.IncrementJobDone(jobID)
+				if ierr := s.db.IncrementJobDone(jobID); ierr != nil {
+					s.Log("error", fmt.Sprintf("refresh job %d: increment done failed: %v", jobID, ierr))
+				}
 			}
 		}()
 	}
@@ -199,13 +262,27 @@ func (s *AppService) runRefreshJob(ctx context.Context, jobID int64, done chan<-
 	}
 	close(work)
 	wg.Wait()
+	if ctx.Err() != nil {
+		if ierr := s.db.InterruptJob(jobID, "service shutdown"); ierr != nil {
+			s.Log("error", fmt.Sprintf("refresh job %d: mark interrupted on shutdown: %v", jobID, ierr))
+		}
+		done <- ctx.Err()
+		return
+	}
 	if err := s.db.UpsertDevices(refreshed); err != nil {
-		_ = s.db.CompleteJob(jobID, "failed", "", err.Error(), len(devices), len(devices))
+		if cerr := s.db.CompleteJob(jobID, "failed", "", err.Error(), len(devices), len(devices)); cerr != nil {
+			s.Log("error", fmt.Sprintf("refresh job %d: complete-failed write failed: %v", jobID, cerr))
+		}
 		done <- err
 		return
 	}
-	body, _ := json.Marshal(map[string]any{"refreshed": len(refreshed)})
-	_ = s.db.CompleteJob(jobID, "completed", string(body), "", len(devices), len(devices))
+	body, err := json.Marshal(map[string]any{"refreshed": len(refreshed)})
+	if err != nil {
+		s.Log("error", fmt.Sprintf("refresh job %d: marshal result body failed: %v", jobID, err))
+	}
+	if cerr := s.db.CompleteJob(jobID, "completed", string(body), "", len(devices), len(devices)); cerr != nil {
+		s.Log("error", fmt.Sprintf("refresh job %d: complete-success write failed: %v", jobID, cerr))
+	}
 	done <- nil
 }
 
@@ -286,7 +363,9 @@ func (s *AppService) StartScan() error {
 	if latest, err := s.db.GetLatestJob("scan"); err == nil && latest.Status == "running" {
 		stale, staleErr := scanJobStale(latest, time.Now())
 		if staleErr == nil && stale {
-			_ = s.db.InterruptJob(latest.ID, "scan stalled")
+			if ierr := s.db.InterruptJob(latest.ID, "scan stalled"); ierr != nil {
+				s.Log("error", fmt.Sprintf("scan job %d: mark stalled failed: %v", latest.ID, ierr))
+			}
 		} else {
 			return errors.New("scan already running")
 		}
@@ -318,27 +397,47 @@ func (s *AppService) StartScan() error {
 	if err != nil {
 		return err
 	}
-	go s.runScanJob(jobID, settings)
+	s.bgJobs.Add(1)
+	go func() {
+		defer s.bgJobs.Done()
+		s.runScanJob(jobID, settings)
+	}()
 	return nil
 }
 
 func (s *AppService) runScanJob(jobID int64, settings models.AppSettings) {
 	settings.Normalize()
 	timeout := time.Duration(settings.ScanTimeout * float64(time.Second))
-	results := scanner.ScanSubnets(context.Background(), settings.Subnets, boundedConcurrency(settings.ScanConcurrency), timeout, s.Log, func() {
-		_ = s.db.IncrementJobDone(jobID)
+	results := scanner.ScanSubnets(s.ctx, settings.Subnets, boundedConcurrency(settings.ScanConcurrency), timeout, s.Log, func() {
+		if ierr := s.db.IncrementJobDone(jobID); ierr != nil {
+			s.Log("error", fmt.Sprintf("scan job %d: increment done failed: %v", jobID, ierr))
+		}
 	})
-	if settings.EnableMDNS {
-		mdnsResults := scanner.ScanMDNS(context.Background(), timeout, s.Log)
+	if settings.EnableMDNS && s.ctx.Err() == nil {
+		mdnsResults := scanner.ScanMDNS(s.ctx, timeout, s.Log)
 		results = scanner.MergeDevices(results, mdnsResults)
-		_ = s.db.IncrementJobDone(jobID)
+		if ierr := s.db.IncrementJobDone(jobID); ierr != nil {
+			s.Log("error", fmt.Sprintf("scan job %d: increment done (mdns) failed: %v", jobID, ierr))
+		}
 	}
-	body, _ := json.Marshal(ScanJobResult{Pending: results})
-	job, err := s.db.GetJob(jobID)
-	if err != nil {
+	if s.ctx.Err() != nil {
+		if ierr := s.db.InterruptJob(jobID, "service shutdown"); ierr != nil {
+			s.Log("error", fmt.Sprintf("scan job %d: mark interrupted on shutdown: %v", jobID, ierr))
+		}
 		return
 	}
-	_ = s.db.CompleteJob(jobID, "completed", string(body), "", job.Total, job.Total)
+	body, err := json.Marshal(ScanJobResult{Pending: results})
+	if err != nil {
+		s.Log("error", fmt.Sprintf("scan job %d: marshal result body failed: %v", jobID, err))
+	}
+	job, err := s.db.GetJob(jobID)
+	if err != nil {
+		s.Log("error", fmt.Sprintf("scan job %d: lookup for completion failed: %v", jobID, err))
+		return
+	}
+	if cerr := s.db.CompleteJob(jobID, "completed", string(body), "", job.Total, job.Total); cerr != nil {
+		s.Log("error", fmt.Sprintf("scan job %d: complete-success write failed: %v", jobID, cerr))
+	}
 }
 
 func (s *AppService) ScanStatus() (ScanStatus, error) {
@@ -348,24 +447,39 @@ func (s *AppService) ScanStatus() (ScanStatus, error) {
 	}
 	if job.Status == "running" {
 		if stale, staleErr := scanJobStale(job, time.Now()); staleErr == nil && stale {
-			_ = s.db.InterruptJob(job.ID, "scan stalled")
+			if ierr := s.db.InterruptJob(job.ID, "scan stalled"); ierr != nil {
+				s.Log("error", fmt.Sprintf("scan job %d: mark stalled failed: %v", job.ID, ierr))
+			}
 			job, err = s.db.GetJob(job.ID)
 			if err != nil {
 				return ScanStatus{Pending: []map[string]any{}}, nil
 			}
 		}
 	}
-	payload, _ := ParseScanPayload(job.Payload)
-	result, _ := ParseScanResult(job.Result)
+	payload, perr := ParseScanPayload(job.Payload)
+	if perr != nil {
+		s.Log("warn", fmt.Sprintf("scan status: parse payload for job %d: %v", job.ID, perr))
+	}
+	result, rerr := ParseScanResult(job.Result)
+	if rerr != nil {
+		s.Log("warn", fmt.Sprintf("scan status: parse result for job %d: %v", job.ID, rerr))
+	}
 	existing := map[string]bool{}
 	for _, mac := range payload.ExistingMACs {
 		existing[mac] = true
 	}
 	pending := make([]map[string]any, 0, len(result.Pending))
 	for _, device := range result.Pending {
-		body, _ := json.Marshal(device)
+		body, merr := json.Marshal(device)
+		if merr != nil {
+			s.Log("warn", fmt.Sprintf("scan status: marshal pending device %s: %v", device.MAC, merr))
+			continue
+		}
 		var raw map[string]any
-		_ = json.Unmarshal(body, &raw)
+		if uerr := json.Unmarshal(body, &raw); uerr != nil {
+			s.Log("warn", fmt.Sprintf("scan status: unmarshal pending device %s: %v", device.MAC, uerr))
+			continue
+		}
 		raw["is_new"] = !existing[device.MAC]
 		pending = append(pending, raw)
 	}
@@ -424,7 +538,9 @@ func (s *AppService) ConfirmScan(macs []string) (int, error) {
 		remaining = []models.Device{}
 	}
 	if body, err := json.Marshal(ScanJobResult{Pending: remaining}); err == nil {
-		_ = s.db.UpdateJobProgress(job.ID, job.Done, job.Total, string(body))
+		if perr := s.db.UpdateJobProgress(job.ID, job.Done, job.Total, string(body)); perr != nil {
+			s.Log("error", fmt.Sprintf("scan job %d: update progress after accept failed: %v", job.ID, perr))
+		}
 	}
 	return len(selected), nil
 }
@@ -445,20 +561,41 @@ func (s *AppService) StartFirmwareCheck(stage string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	go s.runFirmwareJob(jobID, devices, stage)
+	s.bgJobs.Add(1)
+	go func() {
+		defer s.bgJobs.Done()
+		s.runFirmwareJob(jobID, devices, stage)
+	}()
 	return len(devices), nil
 }
 
 func (s *AppService) runFirmwareJob(jobID int64, devices []models.Device, stage string) {
 	results := make([]firmware.Result, 0, len(devices))
 	for _, device := range devices {
-		result := firmware.CheckOne(context.Background(), device, stage, 5*time.Second)
+		if s.ctx.Err() != nil {
+			if ierr := s.db.InterruptJob(jobID, "service shutdown"); ierr != nil {
+				s.Log("error", fmt.Sprintf("firmware job %d: mark interrupted on shutdown: %v", jobID, ierr))
+			}
+			return
+		}
+		result := firmware.CheckOne(s.ctx, device, stage, 5*time.Second)
 		results = append(results, result)
-		body, _ := json.Marshal(FirmwareJobResult{Results: results})
-		_ = s.db.UpdateJobProgress(jobID, len(results), len(devices), string(body))
+		body, merr := json.Marshal(FirmwareJobResult{Results: results})
+		if merr != nil {
+			s.Log("error", fmt.Sprintf("firmware job %d: marshal progress body failed: %v", jobID, merr))
+			continue
+		}
+		if perr := s.db.UpdateJobProgress(jobID, len(results), len(devices), string(body)); perr != nil {
+			s.Log("error", fmt.Sprintf("firmware job %d: update progress failed: %v", jobID, perr))
+		}
 	}
-	body, _ := json.Marshal(FirmwareJobResult{Results: results})
-	_ = s.db.CompleteJob(jobID, "completed", string(body), "", len(results), len(devices))
+	body, merr := json.Marshal(FirmwareJobResult{Results: results})
+	if merr != nil {
+		s.Log("error", fmt.Sprintf("firmware job %d: marshal final body failed: %v", jobID, merr))
+	}
+	if cerr := s.db.CompleteJob(jobID, "completed", string(body), "", len(results), len(devices)); cerr != nil {
+		s.Log("error", fmt.Sprintf("firmware job %d: complete-success write failed: %v", jobID, cerr))
+	}
 }
 
 func (s *AppService) FirmwareStatus() (FirmwareStatus, error) {
@@ -541,7 +678,11 @@ func (s *AppService) RecoverInterruptedJobs() error {
 			if err != nil {
 				continue
 			}
-			go s.runScanJob(newJobID, settings)
+			s.bgJobs.Add(1)
+			go func(id int64, cfg models.AppSettings) {
+				defer s.bgJobs.Done()
+				s.runScanJob(id, cfg)
+			}(newJobID, settings)
 			s.Log("INFO", fmt.Sprintf("auto-restarted interrupted job scan:%d as job:%d", job.ID, newJobID))
 		case "refresh":
 			// Refresh jobs are lightweight read-only probes. Rather than
@@ -550,7 +691,9 @@ func (s *AppService) RecoverInterruptedJobs() error {
 			// the user trigger a fresh refresh when ready.
 		case "firmware_check":
 			var stagePayload map[string]string
-			_ = json.Unmarshal([]byte(job.Payload), &stagePayload)
+			if uerr := json.Unmarshal([]byte(job.Payload), &stagePayload); uerr != nil {
+				s.Log("warn", fmt.Sprintf("restart firmware_check job %d: parse stage payload: %v", job.ID, uerr))
+			}
 			stage := stagePayload["stage"]
 			devices, err := s.db.ListDevices()
 			if err != nil {
@@ -560,7 +703,11 @@ func (s *AppService) RecoverInterruptedJobs() error {
 			if err != nil {
 				continue
 			}
-			go s.runFirmwareJob(newJobID, devices, stage)
+			s.bgJobs.Add(1)
+			go func(id int64, devs []models.Device, st string) {
+				defer s.bgJobs.Done()
+				s.runFirmwareJob(id, devs, st)
+			}(newJobID, devices, stage)
 			s.Log("INFO", fmt.Sprintf("auto-restarted interrupted job firmware_check:%d as job:%d", job.ID, newJobID))
 		}
 	}
@@ -666,12 +813,21 @@ func (s *AppService) Provision(ctx context.Context, ips []string, template map[s
 			if device, ok := ipToDevice[ip]; ok {
 				device.AuthRequired = true
 				device.AuthError = authReason
-				_ = s.db.UpsertDevice(device)
+				if uerr := s.db.UpsertDevice(device); uerr != nil {
+					s.Log("error", fmt.Sprintf("provision: persist auth-required state for %s: %v", ip, uerr))
+				}
 			}
 		}
-		body, _ := json.Marshal(map[string]any{"info": info, "results": results})
+		body, merr := json.Marshal(map[string]any{"info": info, "results": results})
+		if merr != nil {
+			s.Log("warn", fmt.Sprintf("provision: marshal result for %s: %v", ip, merr))
+			continue
+		}
 		var raw map[string]any
-		_ = json.Unmarshal(body, &raw)
+		if uerr := json.Unmarshal(body, &raw); uerr != nil {
+			s.Log("warn", fmt.Sprintf("provision: unmarshal result for %s: %v", ip, uerr))
+			continue
+		}
 		out = append(out, raw)
 	}
 	return out, nil
