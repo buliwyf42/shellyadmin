@@ -21,8 +21,25 @@ import type {
 } from './types'
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
+
+// Network-retry policy: transient TypeError from fetch() (DNS blip, dropped
+// socket, offline->online transition) is retried on idempotent methods only.
+// HTTP status errors (4xx/5xx) are NEVER retried — the server already answered.
+const NETWORK_RETRY_COUNT = 2
+const NETWORK_RETRY_BACKOFF_MS = [200, 400] as const
+
 let csrfToken = ''
 let csrfFetchInFlight: Promise<void> | null = null
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function isTransientNetworkError(err: unknown): boolean {
+  // fetch() throws TypeError on network failure; APIError (from our own code)
+  // is a semantic response-level error and must not be retried.
+  return err instanceof TypeError
+}
 
 export class APIError extends Error {
   method: string
@@ -81,12 +98,28 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
     }
   }
 
-  const res = await fetch(path, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-    credentials: 'same-origin',
-  })
+  const canRetry = SAFE_METHODS.has(method)
+  let res: Response
+  let attempt = 0
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    try {
+      res = await fetch(path, {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : undefined,
+        credentials: 'same-origin',
+      })
+      break
+    } catch (err) {
+      if (canRetry && attempt < NETWORK_RETRY_COUNT && isTransientNetworkError(err)) {
+        await sleep(NETWORK_RETRY_BACKOFF_MS[attempt])
+        attempt++
+        continue
+      }
+      throw err
+    }
+  }
   updateCSRFToken(res)
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }))
