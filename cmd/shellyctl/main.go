@@ -103,6 +103,7 @@ func main() {
 	if err := server.Shutdown(ctx); err != nil {
 		panic(err)
 	}
+	service.Stop(ctx)
 }
 
 func getenv(key, fallback string) string {
