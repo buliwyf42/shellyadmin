@@ -58,14 +58,16 @@
       <option value="stable">Stable</option>
       <option value="beta">Beta</option>
     </select>
-    <button class="btn btn-warning text-dark" on:click={start}>Check Firmware</button>
-    <button class="btn btn-outline-light" on:click={updateSelected} disabled={selected.size === 0}>Update {selected.size}</button>
+    <button class="btn btn-warning text-dark" on:click={start} disabled={status.running}>{status.running ? 'Checking...' : 'Check Firmware'}</button>
+    <button class="btn btn-outline-light" on:click={updateSelected} disabled={selected.size === 0 || status.running}>Update {selected.size}</button>
   </div>
 </section>
 
 <ErrorNotice summary={error} details={errorDetails} />
 
-<div class="progress mb-3"><div class="progress-bar" style={`width:${status.total ? (status.done / status.total) * 100 : 0}%`}>{status.done}/{status.total}</div></div>
+<div class="progress mb-3" role="progressbar" aria-valuenow={status.done} aria-valuemin="0" aria-valuemax={status.total || 100} aria-label="Firmware check progress" aria-busy={status.running}>
+  <div class="progress-bar" style={`width:${status.total ? (status.done / status.total) * 100 : 0}%`}>{status.done}/{status.total}</div>
+</div>
 
 <table class="table table-dark table-striped">
   <thead><tr><th></th><th>IP</th><th>Current</th><th>Available</th><th>Status</th></tr></thead>

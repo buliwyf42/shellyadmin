@@ -6,6 +6,7 @@
   import type { Device } from '../lib/types'
   import ComplianceBadge from '../components/ComplianceBadge.svelte'
   import ErrorNotice from '../components/ErrorNotice.svelte'
+  import SortHeader from '../components/SortHeader.svelte'
 
   let filter = ''
   let loading = false
@@ -53,10 +54,6 @@
     sortDir = 'asc'
   }
 
-  function sortLabel(label: string, key: string): string {
-    if (sortKey !== key) return label
-    return `${label} ${sortDir === 'asc' ? '▲' : '▼'}`
-  }
 
   async function refreshOne(device: Device) {
     error = ''
@@ -295,32 +292,32 @@
   <table class="table table-dark table-striped align-middle table-nowrap dashboard-table">
     <thead>
       <tr>
-        {#if $colVis.device_num}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('device_num')}>{sortLabel('#', 'device_num')}</button></th>{/if}
-        {#if $colVis.name}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('name')}>{sortLabel('Name', 'name')}</button></th>{/if}
-        {#if $colVis.ip}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('ip')}>{sortLabel('IP', 'ip')}</button></th>{/if}
-        {#if $colVis.mac}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('mac')}>{sortLabel('MAC', 'mac')}</button></th>{/if}
-        {#if $colVis.gen}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('gen')}>{sortLabel('Type', 'gen')}</button></th>{/if}
-        {#if $colVis.model}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('model')}>{sortLabel('Model', 'model')}</button></th>{/if}
-        {#if $colVis.fw}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('fw')}>{sortLabel('Firmware', 'fw')}</button></th>{/if}
-        {#if $colVis.online}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('online')}>{sortLabel('Online', 'online')}</button></th>{/if}
-        {#if $colVis.wifi_ssid}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('wifi_ssid')}>{sortLabel('WiFi', 'wifi_ssid')}</button></th>{/if}
-        {#if $colVis.mqtt_enabled}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('mqtt_enabled')}>{sortLabel('MQTT', 'mqtt_enabled')}</button></th>{/if}
-        {#if $colVis.mqtt_server}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('mqtt_server')}>{sortLabel('MQTT Server', 'mqtt_server')}</button></th>{/if}
-        {#if $colVis.mqtt_client_id}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('mqtt_client_id')}>{sortLabel('MQTT Client ID', 'mqtt_client_id')}</button></th>{/if}
-        {#if $colVis.mqtt_topic_prefix}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('mqtt_topic_prefix')}>{sortLabel('MQTT Topic', 'mqtt_topic_prefix')}</button></th>{/if}
-        {#if $colVis.cloud_connected}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('cloud_connected')}>{sortLabel('Cloud', 'cloud_connected')}</button></th>{/if}
-        {#if $colVis.ws_connected}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('ws_connected')}>{sortLabel('WebSocket', 'ws_connected')}</button></th>{/if}
-        {#if $colVis.tz}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('tz')}>{sortLabel('Timezone', 'tz')}</button></th>{/if}
-        {#if $colVis.sntp_server}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('sntp_server')}>{sortLabel('SNTP', 'sntp_server')}</button></th>{/if}
-        {#if $colVis.serial}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('serial')}>{sortLabel('Serial', 'serial')}</button></th>{/if}
-        {#if $colVis.matter_enabled}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('matter_enabled')}>{sortLabel('Matter', 'matter_enabled')}</button></th>{/if}
-        {#if $colVis.ble_gw_enabled}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('ble_gw_enabled')}>{sortLabel('BLE GW', 'ble_gw_enabled')}</button></th>{/if}
-        {#if $colVis.coords}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('coords')}>{sortLabel('Coords', 'coords')}</button></th>{/if}
-        {#if $colVis.eco_mode}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('eco_mode')}>{sortLabel('Eco', 'eco_mode')}</button></th>{/if}
-        {#if $colVis.discoverable}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('discoverable')}>{sortLabel('Discoverable', 'discoverable')}</button></th>{/if}
-        {#if $colVis.first_seen}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('first_seen')}>{sortLabel('First Seen', 'first_seen')}</button></th>{/if}
-        {#if $colVis.last_seen}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('last_seen')}>{sortLabel('Last Success', 'last_seen')}</button></th>{/if}
-        {#if $colVis.compliance}<th><button class="btn btn-link px-0 text-decoration-none" on:click={() => setSort('compliance')}>{sortLabel('Compliance', 'compliance')}</button></th>{/if}
+        {#if $colVis.device_num}<SortHeader label="#" column="device_num" {sortKey} {sortDir} onSort={setSort} />{/if}
+        {#if $colVis.name}<SortHeader label="Name" column="name" {sortKey} {sortDir} onSort={setSort} />{/if}
+        {#if $colVis.ip}<SortHeader label="IP" column="ip" {sortKey} {sortDir} onSort={setSort} />{/if}
+        {#if $colVis.mac}<SortHeader label="MAC" column="mac" {sortKey} {sortDir} onSort={setSort} />{/if}
+        {#if $colVis.gen}<SortHeader label="Type" column="gen" {sortKey} {sortDir} onSort={setSort} />{/if}
+        {#if $colVis.model}<SortHeader label="Model" column="model" {sortKey} {sortDir} onSort={setSort} />{/if}
+        {#if $colVis.fw}<SortHeader label="Firmware" column="fw" {sortKey} {sortDir} onSort={setSort} />{/if}
+        {#if $colVis.online}<SortHeader label="Online" column="online" {sortKey} {sortDir} onSort={setSort} />{/if}
+        {#if $colVis.wifi_ssid}<SortHeader label="WiFi" column="wifi_ssid" {sortKey} {sortDir} onSort={setSort} />{/if}
+        {#if $colVis.mqtt_enabled}<SortHeader label="MQTT" column="mqtt_enabled" {sortKey} {sortDir} onSort={setSort} />{/if}
+        {#if $colVis.mqtt_server}<SortHeader label="MQTT Server" column="mqtt_server" {sortKey} {sortDir} onSort={setSort} />{/if}
+        {#if $colVis.mqtt_client_id}<SortHeader label="MQTT Client ID" column="mqtt_client_id" {sortKey} {sortDir} onSort={setSort} />{/if}
+        {#if $colVis.mqtt_topic_prefix}<SortHeader label="MQTT Topic" column="mqtt_topic_prefix" {sortKey} {sortDir} onSort={setSort} />{/if}
+        {#if $colVis.cloud_connected}<SortHeader label="Cloud" column="cloud_connected" {sortKey} {sortDir} onSort={setSort} />{/if}
+        {#if $colVis.ws_connected}<SortHeader label="WebSocket" column="ws_connected" {sortKey} {sortDir} onSort={setSort} />{/if}
+        {#if $colVis.tz}<SortHeader label="Timezone" column="tz" {sortKey} {sortDir} onSort={setSort} />{/if}
+        {#if $colVis.sntp_server}<SortHeader label="SNTP" column="sntp_server" {sortKey} {sortDir} onSort={setSort} />{/if}
+        {#if $colVis.serial}<SortHeader label="Serial" column="serial" {sortKey} {sortDir} onSort={setSort} />{/if}
+        {#if $colVis.matter_enabled}<SortHeader label="Matter" column="matter_enabled" {sortKey} {sortDir} onSort={setSort} />{/if}
+        {#if $colVis.ble_gw_enabled}<SortHeader label="BLE GW" column="ble_gw_enabled" {sortKey} {sortDir} onSort={setSort} />{/if}
+        {#if $colVis.coords}<SortHeader label="Coords" column="coords" {sortKey} {sortDir} onSort={setSort} />{/if}
+        {#if $colVis.eco_mode}<SortHeader label="Eco" column="eco_mode" {sortKey} {sortDir} onSort={setSort} />{/if}
+        {#if $colVis.discoverable}<SortHeader label="Discoverable" column="discoverable" {sortKey} {sortDir} onSort={setSort} />{/if}
+        {#if $colVis.first_seen}<SortHeader label="First Seen" column="first_seen" {sortKey} {sortDir} onSort={setSort} />{/if}
+        {#if $colVis.last_seen}<SortHeader label="Last Success" column="last_seen" {sortKey} {sortDir} onSort={setSort} />{/if}
+        {#if $colVis.compliance}<SortHeader label="Compliance" column="compliance" {sortKey} {sortDir} onSort={setSort} />{/if}
         <th class="text-end">Actions</th>
       </tr>
     </thead>
@@ -380,21 +377,24 @@
               <button
                 class="btn btn-sm btn-outline-light row-action-btn"
                 title="Open device detail"
+                aria-label={`Open detail for ${device.name || device.mac}`}
                 on:click={() => openDetail(device)}
                 disabled={rowBusy[device.mac]?.refresh || rowBusy[device.mac]?.remove}
-              >⋯</button>
+              ><span aria-hidden="true">⋯</span></button>
               <button
                 class="btn btn-sm btn-outline-light row-action-btn"
                 title="Refresh this device now"
+                aria-label={`Refresh ${device.name || device.mac}`}
                 on:click={() => refreshOne(device)}
                 disabled={rowBusy[device.mac]?.refresh || rowBusy[device.mac]?.remove}
-              >↻</button>
+              ><span aria-hidden="true">↻</span></button>
               <button
                 class="btn btn-sm btn-outline-danger row-action-btn"
                 title="Delete this device"
+                aria-label={`Delete ${device.name || device.mac}`}
                 on:click={() => removeOne(device)}
                 disabled={rowBusy[device.mac]?.refresh || rowBusy[device.mac]?.remove}
-              >🗑</button>
+              ><span aria-hidden="true">🗑</span></button>
             </div>
           </td>
         </tr>

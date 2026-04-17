@@ -4,7 +4,7 @@
 </script>
 
 {#if summary}
-  <div class="alert alert-danger">
+  <div class="alert alert-danger" role="alert" aria-live="assertive">
     <div>{summary}</div>
     {#if details}
       <details class="mt-2">
