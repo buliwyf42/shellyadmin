@@ -101,12 +101,12 @@
 </section>
 
 {#if message}
-  <div class="alert alert-success">{message}</div>
+  <div class="alert alert-success" role="status" aria-live="polite">{message}</div>
 {/if}
 
 <ErrorNotice summary={error} details={errorDetails} />
 
-<div class="card bg-dark border-secondary mb-3">
+<div class="card bg-dark border-secondary mb-3" role="status" aria-live="polite" aria-busy={status.running}>
   <div class="card-body">
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
       <div>
@@ -118,7 +118,7 @@
   </div>
 </div>
 
-<div class="progress mb-3" role="progressbar">
+<div class="progress mb-3" role="progressbar" aria-valuenow={status.done} aria-valuemin="0" aria-valuemax={status.total || 100} aria-label="Scan progress">
   <div class="progress-bar progress-bar-striped" style={`width:${status.total ? (status.done / status.total) * 100 : 0}%`}>
     {status.done} / {status.total}
   </div>
