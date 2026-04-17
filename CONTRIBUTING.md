@@ -50,15 +50,28 @@ Backend tests:
 
 ```bash
 go test ./...
+go vet ./...
 ```
 
-Frontend production build:
+Frontend tests:
 
 ```bash
 cd web
 npm ci
-npm run build
+npm test
 ```
+
+Frontend production build and bundle-size budget:
+
+```bash
+cd web
+npm run build
+npm run check:bundle-size
+```
+
+CI (`.github/workflows/test.yml`) runs all of the above — Go tests, Vitest,
+the Vite build, and the bundle-size gate — on every push and PR to `main`.
+Keep them passing locally before opening a PR.
 
 ## Docker
 
