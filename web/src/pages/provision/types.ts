@@ -1,0 +1,119 @@
+export type HydrateResult<T> = { ok: true; state: T } | { ok: false; reason: string }
+
+export type SysState = {
+  enabled: boolean
+  nameEnabled: boolean
+  name: string
+  tzEnabled: boolean
+  tz: string
+  latEnabled: boolean
+  lat: string
+  lonEnabled: boolean
+  lon: string
+  sntpEnabled: boolean
+  sntp: string
+  debugWSEnabled: boolean
+  debugWS: boolean
+  debugUDPHostEnabled: boolean
+  debugUDPHost: string
+  rpcUDPPortEnabled: boolean
+  rpcUDPPort: string
+  ecoEnabled: boolean
+  eco: boolean
+  discoverableEnabled: boolean
+  discoverable: boolean
+  open: boolean
+}
+
+export type MqttState = {
+  enabled: boolean
+  enableField: boolean
+  enable: boolean
+  serverEnabled: boolean
+  server: string
+  clientIDEnabled: boolean
+  clientID: string
+  topicPrefixEnabled: boolean
+  topicPrefix: string
+  userEnabled: boolean
+  user: string
+  passEnabled: boolean
+  pass: string
+  sslCAEnabled: boolean
+  sslCA: string
+  rpcNtfEnabled: boolean
+  rpcNtf: boolean
+  statusNtfEnabled: boolean
+  statusNtf: boolean
+  enableRPCEnabled: boolean
+  enableRPC: boolean
+  enableControlEnabled: boolean
+  enableControl: boolean
+  useClientCertEnabled: boolean
+  useClientCert: boolean
+  open: boolean
+}
+
+export type WsState = {
+  enabled: boolean
+  enableField: boolean
+  enable: boolean
+  serverEnabled: boolean
+  server: string
+  tlsModeEnabled: boolean
+  tlsMode: 'no_validation' | 'default' | 'user'
+  sslCAEnabled: boolean
+  sslCA: string
+  open: boolean
+}
+
+export type BleState = {
+  enabled: boolean
+  enableField: boolean
+  enable: boolean
+  rpcEnabledField: boolean
+  rpcEnabled: boolean
+  observerEnabledField: boolean
+  observerEnabled: boolean
+  open: boolean
+}
+
+export type MatterState = {
+  enabled: boolean
+  enableField: boolean
+  enable: boolean
+  open: boolean
+}
+
+export type CloudState = {
+  enabled: boolean
+  enableField: boolean
+  enable: boolean
+  open: boolean
+}
+
+export type OtaState = {
+  enabled: boolean
+  stageEnabled: boolean
+  stage: 'stable' | 'beta'
+  autoUpdateEnabled: boolean
+  autoUpdate: 'off' | 'stable' | 'beta'
+  open: boolean
+}
+
+export type AuthState = {
+  enabled: boolean
+  passEnabled: boolean
+  pass: string
+  open: boolean
+}
+
+export type WifiState = {
+  enabled: boolean
+  staEnabled: boolean
+  ssidEnabled: boolean
+  ssid: string
+  passEnabled: boolean
+  pass: string
+  open: boolean
+}
