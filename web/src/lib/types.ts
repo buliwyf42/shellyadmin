@@ -152,6 +152,52 @@ export interface BulkActionResult {
   detail: string
 }
 
+/**
+ * Mirrors internal/services/device_surface.go:BulkActionRequest. Kept in sync
+ * by hand; update when the backend struct gains fields.
+ */
+export interface BulkActionRequest {
+  action: string
+  macs: string[]
+  value?: string
+  lat?: number
+  lon?: number
+  enabled?: boolean | null
+  dry_run?: boolean
+}
+
+/**
+ * Mirrors internal/core/provisioner/provisioner.go:DeviceInfo. Values may be
+ * missing when the device returned only a partial identify response.
+ */
+export interface ProvisionDeviceInfo {
+  name?: string
+  model?: string
+  fw?: string
+  gen?: number
+  ip: string
+}
+
+/** Mirrors internal/core/provisioner/provisioner.go:SectionResult. */
+export interface ProvisionSectionResult {
+  section: string
+  status: string
+  detail: string
+}
+
+/** Per-IP result returned by POST /api/provision. */
+export interface ProvisionResult {
+  info: ProvisionDeviceInfo
+  results: ProvisionSectionResult[]
+}
+
+/** Mirrors internal/core/firmware/firmware.go:UpdateResult. */
+export interface FirmwareUpdateResult {
+  ip: string
+  status: string
+  detail: string
+}
+
 export interface DeviceCapability {
   id: string
   label: string

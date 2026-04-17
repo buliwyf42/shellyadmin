@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte'
   import { APIError, api } from '../lib/api'
-  import type { Credential, CredentialGroup, Device } from '../lib/types'
+  import type { Credential, CredentialGroup, Device, ProvisionResult } from '../lib/types'
   import ErrorNotice from '../components/ErrorNotice.svelte'
   import SysForm from './provision/SysForm.svelte'
   import MqttForm from './provision/MqttForm.svelte'
@@ -49,7 +49,6 @@
     hydrateWs,
   } from './provision/state'
 
-  type ProvisionResult = { info: unknown; results: unknown[] }
   type PrecheckIssue = { ip: string; label: string; reason: string; category: 'auth' | 'other' }
 
   let devices: Device[] = []
@@ -618,7 +617,7 @@
 </div>
 
 {#if results.length}
-  <div class="card bg-dark border-secondary mt-3">
+  <div class="card bg-dark border-secondary mt-3" role="status" aria-live="polite">
     <div class="card-body">
       <h2 class="h5">Results</h2>
       <pre class="mb-0">{JSON.stringify(results, null, 2)}</pre>
