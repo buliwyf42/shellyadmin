@@ -36,7 +36,11 @@ The current accepted decision set includes:
 ## Layers
 
 - `internal/api`: HTTP endpoints and session handling
-- `internal/services`: workflows and job orchestration
+- `internal/services`: workflows and job orchestration, split by topic:
+  - `app.go` — service struct, lifecycle, settings, templates, logs, shared helpers
+  - `app_jobs.go` — refresh/scan/firmware job orchestration and lifecycle
+  - `app_backup.go` — backup export/import and dry-run impact reporting
+  - `app_credentials.go` — credential and credential-group CRUD
 - `internal/core`: Shelly protocol logic
 - `internal/db`: persistence and migrations
 - `web`: embedded Svelte UI
@@ -98,6 +102,7 @@ Provisioning safety constraints:
 
 - scan and refresh jobs run through bounded worker pools
 - configured concurrency limits active network probes and prevents unbounded goroutine fan-out
+- `AppService` owns a root context; on shutdown (SIGTERM) it is cancelled, in-flight jobs observe the cancellation, and their job rows are marked `interrupted` immediately rather than waiting for the stale-job guard
 
 ## Deployment
 

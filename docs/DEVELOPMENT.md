@@ -70,6 +70,45 @@ To sync frontend assets without reinstalling dependencies:
 make frontend-sync
 ```
 
+## Tests
+
+### Backend
+
+```bash
+go test ./...
+go vet ./...
+```
+
+Services that orchestrate background jobs (`internal/services/app_jobs.go`,
+`internal/services/app_backup.go`) have representative happy-path and failure
+coverage. Add new tests alongside the existing files when you extend those
+flows.
+
+### Frontend
+
+```bash
+cd web
+npm test            # Vitest + jsdom — one-shot
+npm run test:watch  # Vitest watch mode
+```
+
+Tests live next to the code they cover (`src/**/*.test.ts`). The harness uses
+jsdom so DOM-touching helpers run without a real browser.
+
+### Bundle-size budget
+
+After `npm run build`, CI enforces a raw + gzip budget on the generated JS
+and CSS. Run it locally before pushing a change that grows the bundle:
+
+```bash
+cd web
+npm run build
+npm run check:bundle-size
+```
+
+The budgets live in `web/scripts/check-bundle-size.mjs` and should only be
+raised intentionally, with a note in the PR explaining the growth.
+
 ## Development Mode
 
 Development should allow:
