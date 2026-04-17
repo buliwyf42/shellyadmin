@@ -22,5 +22,15 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
+    // Explicit minification with esbuild (Vite default) — document the choice
+    // so future maintainers don't accidentally lose it.
+    minify: 'esbuild',
+    target: 'es2020',
+    cssMinify: true,
+    reportCompressedSize: true,
+    // Keep a single app chunk for now; we'll revisit if we add route-level
+    // code splitting. Raise the warning so CI output stays quiet — the hard
+    // budget is enforced by scripts/check-bundle-size.mjs.
+    chunkSizeWarningLimit: 500,
   },
 })

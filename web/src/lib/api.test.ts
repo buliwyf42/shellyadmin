@@ -86,6 +86,45 @@ describe('api client', () => {
     }
   })
 
+  it('retries idempotent GET on transient network failure', async () => {
+    let attempts = 0
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const path = typeof input === 'string' ? input : input.toString()
+      attempts++
+      if (attempts < 3 && path === '/api/devices') {
+        throw new TypeError('network blip')
+      }
+      return jsonResponse([{ mac: 'BB', ip: '10.0.0.2' }])
+    }))
+    const result = await api.getDevices()
+    expect(result).toEqual([{ mac: 'BB', ip: '10.0.0.2' }])
+    expect(attempts).toBe(3)
+  })
+
+  it('does NOT retry mutations on network failure', async () => {
+    let attempts = 0
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const path = typeof input === 'string' ? input : input.toString()
+      if (path === '/api/csrf-token') {
+        return jsonResponse({ csrf_token: 'tok' })
+      }
+      attempts++
+      throw new TypeError('network down')
+    }))
+    await expect(api.scanStart()).rejects.toBeInstanceOf(TypeError)
+    expect(attempts).toBe(1)
+  })
+
+  it('does NOT retry HTTP status errors', async () => {
+    let attempts = 0
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      attempts++
+      return new Response(JSON.stringify({ error: 'boom' }), { status: 500, headers: { 'Content-Type': 'application/json' } })
+    }))
+    await expect(api.getDevices()).rejects.toBeInstanceOf(APIError)
+    expect(attempts).toBe(1)
+  })
+
   it('throws APIError when response is not JSON', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => {
       return new Response('<html></html>', { status: 200, headers: { 'Content-Type': 'text/html' } })

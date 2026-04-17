@@ -6,11 +6,11 @@ This file is a persistent memory aid for AI-assisted development. Keep it up to 
 
 ## Architecture
 
-- **Backend**: Go (single binary, `cmd/shellyadmin/main.go`)
+- **Backend**: Go (single binary, `cmd/shellyctl/main.go`)
 - **Frontend**: Svelte + TypeScript SPA (`web/src/`)
 - **Database**: SQLite via `modernc.org/sqlite` (no CGO required)
 - **Deployment**: Multi-stage Docker image — Node 20 builds frontend, Go 1.24 builds backend, Alpine 3.19 is the runtime
-- **Entry point**: `cmd/shellyadmin/main.go` → `internal/services/app.go`
+- **Entry point**: `cmd/shellyctl/main.go` → `internal/services/app.go`
 
 The SPA is embedded into the Go binary at build time via `//go:embed`.
 
