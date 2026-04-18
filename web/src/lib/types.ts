@@ -224,6 +224,15 @@ export interface DeviceDetail {
   actions: DeviceAction[]
 }
 
+export interface DeviceExport {
+  version: number
+  exported_at: string
+  device: Device
+  raw_config: Record<string, unknown>
+  raw_status: Record<string, unknown>
+  capabilities: DeviceCapability[]
+}
+
 export interface DeviceActionResult {
   action: string
   status: string

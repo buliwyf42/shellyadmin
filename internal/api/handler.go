@@ -6,8 +6,11 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -452,6 +455,36 @@ func (h *Handler) SaveCredentialGroupAssignments(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+func (h *Handler) ExportDevice(c *gin.Context) {
+	target := c.Param("target")
+	body, err := h.service.ExportDevice(target)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+	identifier := body.Device.MAC
+	if identifier == "" {
+		identifier = body.Device.IP
+	}
+	if identifier == "" {
+		identifier = "device"
+	}
+	identifier = strings.ReplaceAll(identifier, ":", "")
+	filename := fmt.Sprintf("shellyadmin-device-%s-%s.json", identifier, time.Now().UTC().Format("20060102T150405Z"))
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	c.JSON(http.StatusOK, body)
+}
+
+func (h *Handler) ExportLogs(c *gin.Context) {
+	body, filename, contentType, err := h.service.ExportLogs(c.Query("level"), c.Query("search"), c.Query("format"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	c.Data(http.StatusOK, contentType, body)
 }
 
 func (h *Handler) ExportBackup(c *gin.Context) {

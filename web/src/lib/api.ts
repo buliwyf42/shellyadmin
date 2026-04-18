@@ -10,6 +10,7 @@ import type {
   DeviceAction,
   DeviceActionResult,
   DeviceDetail,
+  DeviceExport,
   FirmwareStatus,
   FirmwareUpdateResult,
   ImportReport,
@@ -135,6 +136,26 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
   return res.json()
 }
 
+async function fetchBlob(path: string): Promise<Blob> {
+  const res = await fetch(path, { method: 'GET', credentials: 'same-origin' })
+  updateCSRFToken(res)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }))
+    const message = (err as { error?: string }).error || res.statusText
+    throw new APIError('GET', path, res.status, message, err)
+  }
+  return res.blob()
+}
+
+export function triggerDownload(filename: string, blob: Blob): void {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
 export const api = {
   login: (username: string, password: string) => req<{ ok: true; csrf_token?: string }>('POST', '/api/login', { username, password }),
   logout: () => req<{ ok: true }>('POST', '/api/logout', {}),
@@ -170,6 +191,9 @@ export const api = {
   getCredentialGroupAssignments: () => req<{ assignments: Record<string, string> }>('GET', '/api/credential-groups/assignments'),
   saveCredentialGroupAssignments: (macs: string[], groupName: string) => req<{ ok: true }>('POST', '/api/credential-groups/assignments', { macs, group_name: groupName }),
   getLogs: (level = '', search = '') => req<LogEntry[]>('GET', `/api/logs?level=${encodeURIComponent(level)}&search=${encodeURIComponent(search)}`),
+  exportDevice: (target: string) => req<DeviceExport>('GET', `/api/devices/${encodeURIComponent(target)}/export`),
+  exportLogs: (level = '', search = '', format: 'csv' | 'ndjson' = 'csv') =>
+    fetchBlob(`/api/logs/export?level=${encodeURIComponent(level)}&search=${encodeURIComponent(search)}&format=${encodeURIComponent(format)}`),
   clearLogs: () => req<{ ok: true; deleted: number }>('DELETE', '/api/logs'),
   exportBackup: (includeSecrets = false, confirm = '') => req<BackupExport>('GET', `/api/backup/export?include_secrets=${includeSecrets ? 'true' : 'false'}&confirm=${encodeURIComponent(confirm)}`),
   importBackup: (data: BackupExport, apply: boolean) => req<ImportReport>('POST', '/api/backup/import', { data, apply }),

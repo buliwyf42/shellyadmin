@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import { api } from '../lib/api'
+  import { api, triggerDownload } from '../lib/api'
   import type { LogEntry } from '../lib/types'
 
   let level = ''
@@ -13,6 +13,17 @@
   async function load() {
     error = ''
     logs = await api.getLogs(level, search)
+  }
+
+  async function exportLogs(format: 'csv' | 'ndjson') {
+    error = ''
+    try {
+      const blob = await api.exportLogs(level, search, format)
+      const stamp = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+      triggerDownload(`shellyadmin-logs-${stamp}.${format}`, blob)
+    } catch (err) {
+      error = (err as Error).message
+    }
   }
 
   async function clearAll() {
@@ -49,6 +60,8 @@
     </select>
     <input class="form-control toolbar-input-lg" placeholder="Search logs" bind:value={search} />
     <button class="btn btn-warning text-dark" on:click={load}>Load</button>
+    <button class="btn btn-sm btn-outline-light" on:click={() => exportLogs('csv')}>Export CSV</button>
+    <button class="btn btn-sm btn-outline-light" on:click={() => exportLogs('ndjson')}>Export NDJSON</button>
     <button class="btn btn-outline-danger" on:click={clearAll} disabled={busy}>Delete All Logs</button>
   </div>
 </section>
