@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte'
-  import { APIError, api } from '../lib/api'
+  import { APIError, api, triggerDownload } from '../lib/api'
   import { currentPath, navigate } from '../lib/stores'
   import { formatDateTime, formatRelativeDateTime } from '../lib/time'
   import type { DeviceActionResult, DeviceDetail } from '../lib/types'
@@ -59,6 +59,18 @@
     return JSON.stringify(value, null, 2)
   }
 
+  async function exportDevice() {
+    try {
+      const payload = await api.exportDevice(target)
+      const identifier = (payload.device.mac || payload.device.ip || 'device').replace(/:/g, '')
+      const stamp = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+      triggerDownload(`shellyadmin-device-${identifier}-${stamp}.json`, blob)
+    } catch (err) {
+      captureError(err)
+    }
+  }
+
   onMount(() => {
     void load()
   })
@@ -76,6 +88,7 @@
       <option value="stable">Stable</option>
       <option value="beta">Beta</option>
     </select>
+    <button class="btn btn-sm btn-outline-light" on:click={exportDevice} disabled={!detail}>Export JSON</button>
   </div>
 </section>
 

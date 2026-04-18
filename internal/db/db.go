@@ -596,6 +596,38 @@ func (db *DB) GetLogs(level, search string) ([]LogEntry, error) {
 	return out, rows.Err()
 }
 
+func (db *DB) GetLogsForExport(level, search string, limit int) ([]LogEntry, error) {
+	if limit <= 0 {
+		limit = 100000
+	}
+	query := `SELECT id, ts, level, message FROM audit_log WHERE 1=1`
+	args := []any{}
+	if level != "" {
+		query += ` AND level = ?`
+		args = append(args, strings.ToUpper(level))
+	}
+	if search != "" {
+		query += ` AND message LIKE ?`
+		args = append(args, "%"+search+"%")
+	}
+	query += ` ORDER BY id DESC LIMIT ?`
+	args = append(args, limit)
+	rows, err := db.sql.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []LogEntry
+	for rows.Next() {
+		var entry LogEntry
+		if err := rows.Scan(&entry.ID, &entry.TS, &entry.Level, &entry.Message); err != nil {
+			return nil, err
+		}
+		out = append(out, entry)
+	}
+	return out, rows.Err()
+}
+
 func (db *DB) ClearLogs() (int64, error) {
 	res, err := db.sql.Exec(`DELETE FROM audit_log`)
 	if err != nil {

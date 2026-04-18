@@ -94,6 +94,16 @@ func documentedAPIRoutes() []apiRouteDoc {
 			},
 		},
 		{
+			Method:      http.MethodGet,
+			Path:        "/api/devices/{target}/export",
+			Summary:     "Export device snapshot as JSON",
+			Description: "Return the device's record, parsed config/status, and discovered capabilities as a downloadable JSON snapshot.",
+			Auth:        true,
+			Register: func(routes gin.IRoutes, h *Handler) {
+				routes.GET("/api/devices/:target/export", h.ExportDevice)
+			},
+		},
+		{
 			Method:  http.MethodPost,
 			Path:    "/api/devices/{target}/actions/{action}",
 			Summary: "Execute a supported single-device action",
@@ -335,6 +345,16 @@ func documentedAPIRoutes() []apiRouteDoc {
 			Auth:    true,
 			Register: func(routes gin.IRoutes, h *Handler) {
 				routes.GET("/api/logs", h.GetLogs)
+			},
+		},
+		{
+			Method:       http.MethodGet,
+			Path:         "/api/logs/export",
+			Summary:      "Export audit logs as CSV or NDJSON",
+			Description:  "Same `level` + `search` filter as `/api/logs`. Pass `format=csv` (default) or `format=ndjson`. Caps at 100000 rows.",
+			Auth:         true,
+			Register: func(routes gin.IRoutes, h *Handler) {
+				routes.GET("/api/logs/export", h.ExportLogs)
 			},
 		},
 		{
