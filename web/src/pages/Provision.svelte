@@ -67,6 +67,7 @@
   let autoSelectedCredentialRef = ''
   let templateName = ''
   let viewMode: 'form' | 'json' = 'form'
+  let advancedModeEnabled = false
   let jsonText = '{}'
   let templateLoadNotice = ''
   let copiedSkipped = false
@@ -99,17 +100,20 @@
     loading = true
     error = ''
     try {
-      const [loadedDevices, loadedTemplates, loadedCredentialGroups, loadedGroupAssignments] = await Promise.all([
+      const [loadedDevices, loadedTemplates, loadedCredentialGroups, loadedGroupAssignments, loadedSettings] = await Promise.all([
         api.getDevices(),
         api.listTemplates(),
         api.listCredentialGroups(),
         api.getCredentialGroupAssignments(),
+        api.getSettings(),
       ])
       devices = loadedDevices
       templateNames = loadedTemplates
       credentials = await api.listCredentials()
       credentialGroups = loadedCredentialGroups
       deviceGroupAssignments = loadedGroupAssignments.assignments
+      advancedModeEnabled = loadedSettings.advanced_mode_enabled
+      if (!advancedModeEnabled) viewMode = 'form'
     } catch (err) {
       captureError(err)
     } finally {
@@ -579,10 +583,12 @@
         {#if groupCredentialHint}
           <span class="text-secondary">{groupCredentialHint}</span>
         {/if}
-        <div class="d-flex gap-2">
-          <button class={`btn btn-sm ${viewMode === 'form' ? 'btn-warning text-dark' : 'btn-outline-light'}`} on:click={() => setView('form')}>Form</button>
-          <button class={`btn btn-sm ${viewMode === 'json' ? 'btn-warning text-dark' : 'btn-outline-light'}`} on:click={() => setView('json')}>JSON</button>
-        </div>
+        {#if advancedModeEnabled}
+          <div class="d-flex gap-2">
+            <button class={`btn btn-sm ${viewMode === 'form' ? 'btn-warning text-dark' : 'btn-outline-light'}`} on:click={() => setView('form')}>Form</button>
+            <button class={`btn btn-sm ${viewMode === 'json' ? 'btn-warning text-dark' : 'btn-outline-light'}`} on:click={() => setView('json')}>JSON</button>
+          </div>
+        {/if}
       </div>
 
       <div class="card-body">
@@ -609,7 +615,9 @@
 
         <div class="d-flex gap-2 mt-3 flex-wrap">
           <button class="btn btn-warning text-dark" on:click={runProvision} disabled={selected.size === 0 || running}>{running ? 'Provisioning...' : `Provision ${selected.size}`}</button>
-          <button class="btn btn-outline-light" on:click={syncJSONFromForm} disabled={viewMode !== 'form'}>Sync JSON</button>
+          {#if advancedModeEnabled}
+            <button class="btn btn-outline-light" on:click={syncJSONFromForm} disabled={viewMode !== 'form'}>Sync JSON</button>
+          {/if}
         </div>
       </div>
     </div>
