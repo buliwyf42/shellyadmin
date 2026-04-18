@@ -3,6 +3,7 @@
   import { APIError, api } from '../lib/api'
   import type { Credential, CredentialGroup, Device, ProvisionResult } from '../lib/types'
   import ErrorNotice from '../components/ErrorNotice.svelte'
+  import Select from '../components/Select.svelte'
   import SysForm from './provision/SysForm.svelte'
   import MqttForm from './provision/MqttForm.svelte'
   import WsForm from './provision/WsForm.svelte'
@@ -238,6 +239,11 @@
     selectedTemplateCredentialRef = ''
     autoSelectedCredentialRef = ''
   }
+  $: templateOptions = templateNames.map((name) => ({ value: name, label: name }))
+  $: credentialOptions = [
+    { value: '', label: 'No credential', description: 'Skip auth for selected devices' },
+    ...credentials.map((credential) => ({ value: credential.name, label: credential.name })),
+  ]
   $: precheckIssues = selectedDevices().flatMap((device): PrecheckIssue[] => {
     if (!precheckTemplate) return []
     if (device.auth_required && !selectedTemplateCredentialRef.trim()) {
@@ -273,7 +279,15 @@
   }
 
   function hydrateFormFromTemplate(template: Record<string, unknown>): { ok: true } | { ok: false; reason: string } {
-    resetFormState()
+    let nextSys: SysState | null = null
+    let nextMqtt: MqttState | null = null
+    let nextWs: WsState | null = null
+    let nextBle: BleState | null = null
+    let nextMatter: MatterState | null = null
+    let nextCloud: CloudState | null = null
+    let nextOta: OtaState | null = null
+    let nextAuth: AuthState | null = null
+    let nextWifi: WifiState | null = null
     for (const [sectionName, rawSection] of Object.entries(template)) {
       const section = sectionName.trim().toLowerCase()
       const record = asRecord(rawSection)
@@ -284,61 +298,71 @@
         case 'sys': {
           const r = hydrateSys(record)
           if (!r.ok) return r
-          sysState = r.state
+          nextSys = r.state
           break
         }
         case 'mqtt': {
           const r = hydrateMqtt(record)
           if (!r.ok) return r
-          mqttState = r.state
+          nextMqtt = r.state
           break
         }
         case 'ws': {
           const r = hydrateWs(record)
           if (!r.ok) return r
-          wsState = r.state
+          nextWs = r.state
           break
         }
         case 'ble': {
           const r = hydrateBle(record)
           if (!r.ok) return r
-          bleState = r.state
+          nextBle = r.state
           break
         }
         case 'matter': {
           const r = hydrateMatter(record)
           if (!r.ok) return r
-          matterState = r.state
+          nextMatter = r.state
           break
         }
         case 'cloud': {
           const r = hydrateCloud(record)
           if (!r.ok) return r
-          cloudState = r.state
+          nextCloud = r.state
           break
         }
         case 'ota': {
           const r = hydrateOta(record)
           if (!r.ok) return r
-          otaState = r.state
+          nextOta = r.state
           break
         }
         case 'auth': {
           const r = hydrateAuth(record)
           if (!r.ok) return r
-          authState = r.state
+          nextAuth = r.state
           break
         }
         case 'wifi': {
           const r = hydrateWifi(record)
           if (!r.ok) return r
-          wifiState = r.state
+          nextWifi = r.state
           break
         }
         default:
           return { ok: false, reason: `Template section "${sectionName}" is not supported by the form editor.` }
       }
     }
+    resetFormState()
+    if (nextSys) sysState = nextSys
+    if (nextMqtt) mqttState = nextMqtt
+    if (nextWs) wsState = nextWs
+    if (nextBle) bleState = nextBle
+    if (nextMatter) matterState = nextMatter
+    if (nextCloud) cloudState = nextCloud
+    if (nextOta) otaState = nextOta
+    if (nextAuth) authState = nextAuth
+    if (nextWifi) wifiState = nextWifi
     return { ok: true }
   }
 
@@ -560,34 +584,46 @@
 
   <div class="col-lg-6 provision-settings-col">
     <div class="card bg-dark border-secondary">
-      <div class="card-header d-flex justify-content-between align-items-center gap-2 flex-wrap">
-        <div class="d-flex gap-2 align-items-center flex-wrap">
-          <select class="form-select toolbar-select-lg" bind:value={selectedTemplate}>
-            <option value="">load template</option>
-            {#each templateNames as name}
-              <option value={name}>{name}</option>
-            {/each}
-          </select>
-          <button class="btn btn-sm btn-outline-light" on:click={loadCurrentTemplate} disabled={!selectedTemplate}>Load</button>
-          <button class="btn btn-sm btn-outline-danger" on:click={deleteCurrentTemplate} disabled={!selectedTemplate}>Delete</button>
-          <input class="form-control toolbar-input-md" placeholder="template name" bind:value={templateName} />
-          <select class="form-select toolbar-select-md" bind:value={selectedTemplateCredentialRef}>
-            <option value="">credential: none</option>
-            {#each credentials as credential}
-              <option value={credential.name}>{credential.name}</option>
-            {/each}
-          </select>
-          <button class="btn btn-sm btn-outline-light" on:click={saveCurrentTemplate}>Save</button>
-          <button class="btn btn-sm btn-outline-secondary" on:click={renameCurrentTemplate} disabled={!selectedTemplate || !templateName.trim() || selectedTemplate === templateName.trim()}>Rename</button>
+      <div class="card-header">
+        <div class="provision-toolbar">
+          <div class="sa-cluster">
+            <div>
+              <span class="sa-cluster-label">Template</span>
+              <div class="sa-cluster-inner">
+                <Select bind:value={selectedTemplate} options={templateOptions} placeholder="Select a template…" ariaLabel="Load template" />
+                <button class="btn btn-sm btn-outline-light" on:click={loadCurrentTemplate} disabled={!selectedTemplate}>Load</button>
+                <button class="btn btn-sm btn-outline-danger" on:click={deleteCurrentTemplate} disabled={!selectedTemplate}>Delete</button>
+              </div>
+            </div>
+          </div>
+          <div class="sa-cluster">
+            <div>
+              <span class="sa-cluster-label">Save as</span>
+              <div class="sa-cluster-inner">
+                <input class="form-control" placeholder="template name" bind:value={templateName} />
+                <button class="btn btn-sm btn-outline-light" on:click={saveCurrentTemplate}>Save</button>
+                <button class="btn btn-sm btn-outline-secondary" on:click={renameCurrentTemplate} disabled={!selectedTemplate || !templateName.trim() || selectedTemplate === templateName.trim()}>Rename</button>
+              </div>
+            </div>
+          </div>
+          <div class="sa-cluster">
+            <div>
+              <span class="sa-cluster-label">Credential</span>
+              <div class="sa-cluster-inner">
+                <Select bind:value={selectedTemplateCredentialRef} options={credentialOptions} placeholder="No credential" ariaLabel="Credential" />
+              </div>
+            </div>
+          </div>
+          {#if advancedModeEnabled}
+            <div class="sa-cluster-spacer"></div>
+            <div class="sa-view-switch" role="group" aria-label="View mode">
+              <button type="button" class:is-active={viewMode === 'form'} on:click={() => setView('form')}>Form</button>
+              <button type="button" class:is-active={viewMode === 'json'} on:click={() => setView('json')}>JSON</button>
+            </div>
+          {/if}
         </div>
         {#if groupCredentialHint}
-          <span class="text-secondary">{groupCredentialHint}</span>
-        {/if}
-        {#if advancedModeEnabled}
-          <div class="d-flex gap-2">
-            <button class={`btn btn-sm ${viewMode === 'form' ? 'btn-warning text-dark' : 'btn-outline-light'}`} on:click={() => setView('form')}>Form</button>
-            <button class={`btn btn-sm ${viewMode === 'json' ? 'btn-warning text-dark' : 'btn-outline-light'}`} on:click={() => setView('json')}>JSON</button>
-          </div>
+          <div class="text-secondary mt-2" style="font-size: 0.82rem;">{groupCredentialHint}</div>
         {/if}
       </div>
 
