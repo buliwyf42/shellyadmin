@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed
-- CI: bump GitHub Actions to Node 24–compatible majors (checkout v6, setup-node v6, docker/* v4–v7) ahead of the 2026-06-02 Node 20 sunset.
+- CI: bump GitHub Actions to Node 24–compatible majors (checkout v6, setup-node v6, setup-go v6, docker/* v4–v7) ahead of the 2026-06-02 Node 20 sunset.
 
 ## [0.0.9] - 2026-04-17
 
