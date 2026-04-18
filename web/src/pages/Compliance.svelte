@@ -4,15 +4,41 @@
   import { devices } from '../lib/stores'
   import type { AppSettings, CustomRule, Device } from '../lib/types'
   import ErrorNotice from '../components/ErrorNotice.svelte'
+  import SectionCard from '../components/SectionCard.svelte'
+  import FieldRow from '../components/FieldRow.svelte'
+  import Toggle from '../components/Toggle.svelte'
+  import Select from '../components/Select.svelte'
 
-  let settings: AppSettings = { subnets: [], scan_timeout: 2, refresh_timeout: 5, scan_concurrency: 64, enable_mdns: false, compliance: { custom_rules: [] } }
+  let settings: AppSettings = { subnets: [], scan_timeout: 2, refresh_timeout: 5, scan_concurrency: 64, enable_mdns: false, advanced_mode_enabled: false, compliance: { custom_rules: [] } }
   let saved = ''
   let loading = false
   let error = ''
   let errorDetails = ''
 
-  const sourceOptions: Array<CustomRule['source']> = ['device', 'config', 'status']
-  const opOptions: Array<CustomRule['op']> = ['eq', 'ne', 'contains', 'regex', 'exists']
+  const sourceOptions: Array<{ value: CustomRule['source']; label: string }> = [
+    { value: 'device', label: 'device' },
+    { value: 'config', label: 'config' },
+    { value: 'status', label: 'status' },
+  ]
+  const opOptions: Array<{ value: CustomRule['op']; label: string }> = [
+    { value: 'eq', label: 'equals' },
+    { value: 'ne', label: 'not equals' },
+    { value: 'contains', label: 'contains' },
+    { value: 'regex', label: 'regex' },
+    { value: 'exists', label: 'exists' },
+  ]
+  type TlsMode = NonNullable<AppSettings['compliance']['ws_tls_mode']>
+  type AutoUpdate = NonNullable<AppSettings['compliance']['ota_auto_update']>
+  const tlsModeOptions: Array<{ value: TlsMode; label: string }> = [
+    { value: 'no_validation', label: 'TLS — no validation' },
+    { value: 'default', label: 'TLS — default' },
+    { value: 'user', label: 'TLS — user CA' },
+  ]
+  const autoUpdateOptions: Array<{ value: AutoUpdate; label: string; description?: string }> = [
+    { value: 'off', label: 'Disabled', description: 'No automatic updates' },
+    { value: 'stable', label: 'Auto update to stable' },
+    { value: 'beta', label: 'Auto update to beta', description: 'Beta firmware may cause instability' },
+  ]
 
   let wifiSSIDEnabled = false
 
@@ -65,15 +91,6 @@
   $: sysExpanded = tzEnabled || sntpEnabled || sysDebugWSField || sysDebugUDPHostField || sysRPCUDPPortField || latEnabled || lonEnabled || ecoEnabled || discoverableEnabled
   $: otaExpanded = otaAutoUpdateEnabled
   $: customExpanded = (settings.compliance.custom_rules || []).length > 0
-
-  $: wifiVisible = wifiExpanded || wifiOpen
-  $: mqttVisible = mqttExpanded || mqttOpen
-  $: cloudVisible = cloudExpanded || cloudOpen
-  $: wsVisible = wsExpanded || wsOpen
-  $: bleVisible = bleExpanded || bleOpen
-  $: sysVisible = sysExpanded || sysOpen
-  $: otaVisible = otaExpanded || otaOpen
-  $: customVisible = customExpanded || customOpen
 
   function captureError(err: unknown) {
     if (err instanceof APIError) {
@@ -279,164 +296,202 @@
     <div class="card bg-dark border-secondary">
       <div class="card-body">
         <h2 class="h5">Compliance Rules</h2>
-        <p class="text-secondary mb-3">Same interaction style as Provision: section headers are clickable, fields are opt-in via checkboxes.</p>
+        <p class="text-secondary mb-3">Section headers expand fields. Each field has a checkbox that opts it into the compliance check.</p>
 
         <div class="d-flex flex-column gap-3">
-          <div class="card bg-black border-secondary">
-            <div class="card-body">
-              <div class="d-flex justify-content-between align-items-center mb-3" role="button" tabindex="0" on:click={() => (sysOpen = !sysOpen)} on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (sysOpen = !sysOpen)} style="cursor: pointer">
-                <strong>sys</strong>
-                <span class="text-secondary">{sysVisible ? '▾' : '▸'}</span>
+          <SectionCard tag="sys" bind:open={sysOpen} forceOpen={sysExpanded}>
+            <div class="sa-form-grid">
+              <div data-span="4">
+                <FieldRow label="Timezone" bind:enabled={tzEnabled}>
+                  <input class="form-control" bind:value={settings.compliance.tz} disabled={!tzEnabled} />
+                </FieldRow>
               </div>
-              {#if sysVisible}
-                <div class="row g-2">
-                  <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={tzEnabled} on:click|stopPropagation />Timezone</label><input class="form-control" bind:value={settings.compliance.tz} disabled={!tzEnabled} /></div>
-                  <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sntpEnabled} on:click|stopPropagation />SNTP Server</label><input class="form-control" bind:value={settings.compliance.sntp_server} disabled={!sntpEnabled} /></div>
-                  <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysDebugWSField} on:click|stopPropagation />Debug WebSocket</label><select class="form-select" bind:value={settings.compliance.sys_debug_websocket} disabled={!sysDebugWSField}><option value={true}>On</option><option value={false}>Off</option></select></div>
-                  <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysDebugUDPHostField} on:click|stopPropagation />Debug UDP Host</label><input class="form-control" placeholder="host:port" bind:value={settings.compliance.sys_debug_udp_host} disabled={!sysDebugUDPHostField} /></div>
-                  <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={sysRPCUDPPortField} on:click|stopPropagation />RPC UDP Port</label><input class="form-control" type="number" min="0" bind:value={settings.compliance.sys_rpc_udp_port} disabled={!sysRPCUDPPortField} /></div>
-                  <div class="col-md-3"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={latEnabled} on:click|stopPropagation />Lat</label><input class="form-control" type="number" step="0.0001" bind:value={settings.compliance.lat} disabled={!latEnabled} /></div>
-                  <div class="col-md-3"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={lonEnabled} on:click|stopPropagation />Lon</label><input class="form-control" type="number" step="0.0001" bind:value={settings.compliance.lon} disabled={!lonEnabled} /></div>
-                  <div class="col-md-3"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={ecoEnabled} on:click|stopPropagation />Eco Mode</label><select class="form-select" bind:value={settings.compliance.eco_mode} disabled={!ecoEnabled}><option value={true}>On</option><option value={false}>Off</option></select></div>
-                  <div class="col-md-3"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={discoverableEnabled} on:click|stopPropagation />Discoverable</label><select class="form-select" bind:value={settings.compliance.discoverable} disabled={!discoverableEnabled}><option value={true}>On</option><option value={false}>Off</option></select></div>
-                </div>
-              {/if}
+              <div data-span="4">
+                <FieldRow label="SNTP Server" bind:enabled={sntpEnabled}>
+                  <input class="form-control" bind:value={settings.compliance.sntp_server} disabled={!sntpEnabled} />
+                </FieldRow>
+              </div>
+              <div data-span="4">
+                <FieldRow label="Debug WebSocket" bind:enabled={sysDebugWSField}>
+                  <Toggle bind:checked={settings.compliance.sys_debug_websocket} disabled={!sysDebugWSField} label={settings.compliance.sys_debug_websocket ? 'On' : 'Off'} />
+                </FieldRow>
+              </div>
+              <div data-span="4">
+                <FieldRow label="Debug UDP Host" bind:enabled={sysDebugUDPHostField}>
+                  <input class="form-control" placeholder="host:port" bind:value={settings.compliance.sys_debug_udp_host} disabled={!sysDebugUDPHostField} />
+                </FieldRow>
+              </div>
+              <div data-span="4">
+                <FieldRow label="RPC UDP Port" bind:enabled={sysRPCUDPPortField}>
+                  <input class="form-control" type="number" min="0" bind:value={settings.compliance.sys_rpc_udp_port} disabled={!sysRPCUDPPortField} />
+                </FieldRow>
+              </div>
+              <div data-span="3">
+                <FieldRow label="Latitude" bind:enabled={latEnabled}>
+                  <input class="form-control" type="number" step="0.0001" bind:value={settings.compliance.lat} disabled={!latEnabled} />
+                </FieldRow>
+              </div>
+              <div data-span="3">
+                <FieldRow label="Longitude" bind:enabled={lonEnabled}>
+                  <input class="form-control" type="number" step="0.0001" bind:value={settings.compliance.lon} disabled={!lonEnabled} />
+                </FieldRow>
+              </div>
+              <div data-span="3">
+                <FieldRow label="Eco Mode" bind:enabled={ecoEnabled}>
+                  <Toggle bind:checked={settings.compliance.eco_mode} disabled={!ecoEnabled} label={settings.compliance.eco_mode ? 'On' : 'Off'} />
+                </FieldRow>
+              </div>
+              <div data-span="3">
+                <FieldRow label="Discoverable" bind:enabled={discoverableEnabled}>
+                  <Toggle bind:checked={settings.compliance.discoverable} disabled={!discoverableEnabled} label={settings.compliance.discoverable ? 'On' : 'Off'} />
+                </FieldRow>
+              </div>
             </div>
-          </div>
+          </SectionCard>
 
-          <div class="card bg-black border-secondary">
-            <div class="card-body">
-              <div class="d-flex justify-content-between align-items-center mb-3" role="button" tabindex="0" on:click={() => (mqttOpen = !mqttOpen)} on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (mqttOpen = !mqttOpen)} style="cursor: pointer">
-                <strong>mqtt</strong>
-                <span class="text-secondary">{mqttVisible ? '▾' : '▸'}</span>
+          <SectionCard tag="mqtt" bind:open={mqttOpen} forceOpen={mqttExpanded}>
+            <div class="sa-form-grid">
+              <div data-span="4">
+                <FieldRow label="Enabled" bind:enabled={mqttEnabledField}>
+                  <Toggle bind:checked={settings.compliance.mqtt_enabled} disabled={!mqttEnabledField} label={settings.compliance.mqtt_enabled ? 'On' : 'Off'} />
+                </FieldRow>
               </div>
-              {#if mqttVisible}
-                <div class="row g-2">
-                  <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttEnabledField} on:click|stopPropagation />Enabled</label><select class="form-select" bind:value={settings.compliance.mqtt_enabled} disabled={!mqttEnabledField}><option value={true}>On</option><option value={false}>Off</option></select></div>
-                  <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttServerEnabled} on:click|stopPropagation />Broker</label><input class="form-control" bind:value={settings.compliance.mqtt_server} disabled={!mqttServerEnabled} /></div>
-                  <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttClientIDEnabled} on:click|stopPropagation />Client ID</label><input class="form-control" bind:value={settings.compliance.mqtt_client_id} disabled={!mqttClientIDEnabled} /></div>
-                  <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttTopicPrefixEnabled} on:click|stopPropagation />Topic Prefix</label><input class="form-control" bind:value={settings.compliance.mqtt_topic_prefix} disabled={!mqttTopicPrefixEnabled} /></div>
-                  <div class="col-md-2"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttRPCNtfEnabled} on:click|stopPropagation />rpc_ntf</label><select class="form-select" bind:value={settings.compliance.mqtt_rpc_ntf} disabled={!mqttRPCNtfEnabled}><option value={true}>On</option><option value={false}>Off</option></select></div>
-                  <div class="col-md-2"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttStatusNtfEnabled} on:click|stopPropagation />status_ntf</label><select class="form-select" bind:value={settings.compliance.mqtt_status_ntf} disabled={!mqttStatusNtfEnabled}><option value={true}>On</option><option value={false}>Off</option></select></div>
-                  <div class="col-md-2"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttEnableRPCEnabled} on:click|stopPropagation />enable_rpc</label><select class="form-select" bind:value={settings.compliance.mqtt_enable_rpc} disabled={!mqttEnableRPCEnabled}><option value={true}>On</option><option value={false}>Off</option></select></div>
-                  <div class="col-md-2"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={mqttEnableControlEnabled} on:click|stopPropagation />enable_control</label><select class="form-select" bind:value={settings.compliance.mqtt_enable_control} disabled={!mqttEnableControlEnabled}><option value={true}>On</option><option value={false}>Off</option></select></div>
-                </div>
-              {/if}
+              <div data-span="4">
+                <FieldRow label="Broker" bind:enabled={mqttServerEnabled}>
+                  <input class="form-control" bind:value={settings.compliance.mqtt_server} disabled={!mqttServerEnabled} />
+                </FieldRow>
+              </div>
+              <div data-span="4">
+                <FieldRow label="Client ID" bind:enabled={mqttClientIDEnabled}>
+                  <input class="form-control" bind:value={settings.compliance.mqtt_client_id} disabled={!mqttClientIDEnabled} />
+                </FieldRow>
+              </div>
+              <div data-span="4">
+                <FieldRow label="Topic Prefix" bind:enabled={mqttTopicPrefixEnabled}>
+                  <input class="form-control" bind:value={settings.compliance.mqtt_topic_prefix} disabled={!mqttTopicPrefixEnabled} />
+                </FieldRow>
+              </div>
+              <div data-span="2">
+                <FieldRow label="rpc_ntf" bind:enabled={mqttRPCNtfEnabled}>
+                  <Toggle bind:checked={settings.compliance.mqtt_rpc_ntf} disabled={!mqttRPCNtfEnabled} label={settings.compliance.mqtt_rpc_ntf ? 'On' : 'Off'} />
+                </FieldRow>
+              </div>
+              <div data-span="2">
+                <FieldRow label="status_ntf" bind:enabled={mqttStatusNtfEnabled}>
+                  <Toggle bind:checked={settings.compliance.mqtt_status_ntf} disabled={!mqttStatusNtfEnabled} label={settings.compliance.mqtt_status_ntf ? 'On' : 'Off'} />
+                </FieldRow>
+              </div>
+              <div data-span="2">
+                <FieldRow label="enable_rpc" bind:enabled={mqttEnableRPCEnabled}>
+                  <Toggle bind:checked={settings.compliance.mqtt_enable_rpc} disabled={!mqttEnableRPCEnabled} label={settings.compliance.mqtt_enable_rpc ? 'On' : 'Off'} />
+                </FieldRow>
+              </div>
+              <div data-span="2">
+                <FieldRow label="enable_control" bind:enabled={mqttEnableControlEnabled}>
+                  <Toggle bind:checked={settings.compliance.mqtt_enable_control} disabled={!mqttEnableControlEnabled} label={settings.compliance.mqtt_enable_control ? 'On' : 'Off'} />
+                </FieldRow>
+              </div>
             </div>
-          </div>
+          </SectionCard>
 
-          <div class="card bg-black border-secondary">
-            <div class="card-body">
-              <div class="d-flex justify-content-between align-items-center mb-3" role="button" tabindex="0" on:click={() => (cloudOpen = !cloudOpen)} on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (cloudOpen = !cloudOpen)} style="cursor: pointer">
-                <strong>cloud</strong>
-                <span class="text-secondary">{cloudVisible ? '▾' : '▸'}</span>
+          <SectionCard tag="cloud" bind:open={cloudOpen} forceOpen={cloudExpanded}>
+            <div class="sa-form-grid">
+              <div data-span="4">
+                <FieldRow label="Connected" bind:enabled={cloudConnectedEnabled}>
+                  <Toggle bind:checked={settings.compliance.cloud_connected} disabled={!cloudConnectedEnabled} label={settings.compliance.cloud_connected ? 'Yes' : 'No'} />
+                </FieldRow>
               </div>
-              {#if cloudVisible}
-                <div class="row g-2">
-                  <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={cloudConnectedEnabled} on:click|stopPropagation />Connected</label><select class="form-select" bind:value={settings.compliance.cloud_connected} disabled={!cloudConnectedEnabled}><option value={true}>Yes</option><option value={false}>No</option></select></div>
-                </div>
-              {/if}
             </div>
-          </div>
+          </SectionCard>
 
-          <div class="card bg-black border-secondary">
-            <div class="card-body">
-              <div class="d-flex justify-content-between align-items-center mb-3" role="button" tabindex="0" on:click={() => (wsOpen = !wsOpen)} on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (wsOpen = !wsOpen)} style="cursor: pointer">
-                <strong>ws</strong>
-                <span class="text-secondary">{wsVisible ? '▾' : '▸'}</span>
+          <SectionCard tag="ws" bind:open={wsOpen} forceOpen={wsExpanded}>
+            <div class="sa-form-grid">
+              <div data-span="3">
+                <FieldRow label="Enabled" bind:enabled={wsEnabledField}>
+                  <Toggle bind:checked={settings.compliance.ws_enabled} disabled={!wsEnabledField} label={settings.compliance.ws_enabled ? 'On' : 'Off'} />
+                </FieldRow>
               </div>
-              {#if wsVisible}
-                <div class="row g-2">
-                  <div class="col-md-3"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={wsEnabledField} on:click|stopPropagation />Enabled</label><select class="form-select" bind:value={settings.compliance.ws_enabled} disabled={!wsEnabledField}><option value={true}>On</option><option value={false}>Off</option></select></div>
-                  <div class="col-md-3"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={wsConnectedField} on:click|stopPropagation />Connected</label><select class="form-select" bind:value={settings.compliance.ws_connected} disabled={!wsConnectedField}><option value={true}>Yes</option><option value={false}>No</option></select></div>
-                  <div class="col-md-3"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={wsServerField} on:click|stopPropagation />Server</label><input class="form-control" bind:value={settings.compliance.ws_server} disabled={!wsServerField} /></div>
-                  <div class="col-md-3"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={wsTLSModeField} on:click|stopPropagation />Connection type</label><select class="form-select" bind:value={settings.compliance.ws_tls_mode} disabled={!wsTLSModeField}><option value="no_validation">TLS no validation</option><option value="default">Default TLS</option><option value="user">User TLS</option></select></div>
-                  <div class="col-md-3"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={wsSSLCAField} on:click|stopPropagation />TLS / SSL CA</label><input class="form-control" placeholder="* or ca.pem" bind:value={settings.compliance.ws_ssl_ca} disabled={!wsSSLCAField || settings.compliance.ws_tls_mode !== 'user'} /></div>
-                </div>
-              {/if}
+              <div data-span="3">
+                <FieldRow label="Connected" bind:enabled={wsConnectedField}>
+                  <Toggle bind:checked={settings.compliance.ws_connected} disabled={!wsConnectedField} label={settings.compliance.ws_connected ? 'Yes' : 'No'} />
+                </FieldRow>
+              </div>
+              <div data-span="3">
+                <FieldRow label="Server" bind:enabled={wsServerField}>
+                  <input class="form-control" bind:value={settings.compliance.ws_server} disabled={!wsServerField} />
+                </FieldRow>
+              </div>
+              <div data-span="3">
+                <FieldRow label="Connection type" bind:enabled={wsTLSModeField}>
+                  <Select bind:value={settings.compliance.ws_tls_mode} options={tlsModeOptions} disabled={!wsTLSModeField} ariaLabel="Connection type" />
+                </FieldRow>
+              </div>
+              <div data-span="3">
+                <FieldRow label="TLS / SSL CA" bind:enabled={wsSSLCAField}>
+                  <input class="form-control" placeholder="* or ca.pem" bind:value={settings.compliance.ws_ssl_ca} disabled={!wsSSLCAField || settings.compliance.ws_tls_mode !== 'user'} />
+                </FieldRow>
+              </div>
             </div>
-          </div>
+          </SectionCard>
 
-          <div class="card bg-black border-secondary">
-            <div class="card-body">
-              <div class="d-flex justify-content-between align-items-center mb-3" role="button" tabindex="0" on:click={() => (bleOpen = !bleOpen)} on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (bleOpen = !bleOpen)} style="cursor: pointer">
-                <strong>ble</strong>
-                <span class="text-secondary">{bleVisible ? '▾' : '▸'}</span>
+          <SectionCard tag="ble" bind:open={bleOpen} forceOpen={bleExpanded}>
+            <div class="sa-form-grid">
+              <div data-span="4">
+                <FieldRow label="Gateway Enabled" bind:enabled={bleGWEnabledField}>
+                  <Toggle bind:checked={settings.compliance.ble_gw_enabled} disabled={!bleGWEnabledField} label={settings.compliance.ble_gw_enabled ? 'On' : 'Off'} />
+                </FieldRow>
               </div>
-              {#if bleVisible}
-                <div class="row g-2">
-                  <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={bleGWEnabledField} on:click|stopPropagation />Gateway Enabled</label><select class="form-select" bind:value={settings.compliance.ble_gw_enabled} disabled={!bleGWEnabledField}><option value={true}>On</option><option value={false}>Off</option></select></div>
-                  <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={bleRPCEnabledField} on:click|stopPropagation />RPC over BLE</label><select class="form-select" bind:value={settings.compliance.ble_rpc_enable} disabled={!bleRPCEnabledField}><option value={true}>On</option><option value={false}>Off</option></select></div>
-                  <div class="col-md-4"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={bleObserverEnabledField} on:click|stopPropagation />Observer Mode</label><select class="form-select" bind:value={settings.compliance.ble_observer_enable} disabled={!bleObserverEnabledField}><option value={true}>On</option><option value={false}>Off</option></select></div>
-                </div>
-              {/if}
+              <div data-span="4">
+                <FieldRow label="RPC over BLE" bind:enabled={bleRPCEnabledField}>
+                  <Toggle bind:checked={settings.compliance.ble_rpc_enable} disabled={!bleRPCEnabledField} label={settings.compliance.ble_rpc_enable ? 'On' : 'Off'} />
+                </FieldRow>
+              </div>
+              <div data-span="4">
+                <FieldRow label="Observer Mode" bind:enabled={bleObserverEnabledField}>
+                  <Toggle bind:checked={settings.compliance.ble_observer_enable} disabled={!bleObserverEnabledField} label={settings.compliance.ble_observer_enable ? 'On' : 'Off'} />
+                </FieldRow>
+              </div>
             </div>
-          </div>
+          </SectionCard>
 
-          <div class="card bg-black border-secondary">
-            <div class="card-body">
-              <div class="d-flex justify-content-between align-items-center mb-3" role="button" tabindex="0" on:click={() => (wifiOpen = !wifiOpen)} on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (wifiOpen = !wifiOpen)} style="cursor: pointer">
-                <strong>wifi</strong>
-                <span class="text-secondary">{wifiVisible ? '▾' : '▸'}</span>
+          <SectionCard tag="wifi" bind:open={wifiOpen} forceOpen={wifiExpanded}>
+            <div class="sa-form-grid">
+              <div data-span="6">
+                <FieldRow label="WiFi SSID" bind:enabled={wifiSSIDEnabled}>
+                  <input class="form-control" bind:value={settings.compliance.wifi_ssid} disabled={!wifiSSIDEnabled} />
+                </FieldRow>
               </div>
-              {#if wifiVisible}
-                <div class="row g-2">
-                  <div class="col-md-6"><label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={wifiSSIDEnabled} on:click|stopPropagation />WiFi SSID</label><input class="form-control" bind:value={settings.compliance.wifi_ssid} disabled={!wifiSSIDEnabled} /></div>
-                </div>
-              {/if}
             </div>
-          </div>
+          </SectionCard>
 
-          <div class="card bg-black border-secondary">
-            <div class="card-body">
-              <div class="d-flex justify-content-between align-items-center mb-3" role="button" tabindex="0" on:click={() => (otaOpen = !otaOpen)} on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (otaOpen = !otaOpen)} style="cursor: pointer">
-                <strong>ota</strong>
-                <span class="text-secondary">{otaVisible ? '▾' : '▸'}</span>
+          <SectionCard tag="ota" bind:open={otaOpen} forceOpen={otaExpanded}>
+            <div class="sa-form-grid">
+              <div data-span="6">
+                <FieldRow label="Update automatically" bind:enabled={otaAutoUpdateEnabled}>
+                  <Select bind:value={settings.compliance.ota_auto_update} options={autoUpdateOptions} disabled={!otaAutoUpdateEnabled} ariaLabel="Auto update" />
+                </FieldRow>
               </div>
-              {#if otaVisible}
-                <div class="row g-2">
-                  <div class="col-md-6">
-                    <label class="d-flex gap-2"><input type="checkbox" class="form-check-input" bind:checked={otaAutoUpdateEnabled} on:click|stopPropagation />Update automatically</label>
-                    <select class="form-select" bind:value={settings.compliance.ota_auto_update} disabled={!otaAutoUpdateEnabled}>
-                      <option value="off">Disable auto update</option>
-                      <option value="stable">Enable update to stable version</option>
-                      <option value="beta">Enable update to beta version</option>
-                    </select>
-                    <div class="text-secondary mt-2">BETA firmware may cause instability</div>
-                  </div>
-                </div>
-              {/if}
             </div>
-          </div>
+          </SectionCard>
 
-          <div class="card bg-black border-secondary">
-            <div class="card-body">
-              <div class="d-flex justify-content-between align-items-center mb-3" role="button" tabindex="0" on:click={() => (customOpen = !customOpen)} on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (customOpen = !customOpen)} style="cursor: pointer">
-                <strong>custom rules</strong>
-                <span class="text-secondary">{customVisible ? '▾' : '▸'}</span>
+          <SectionCard tag="custom rules" bind:open={customOpen} forceOpen={customExpanded}>
+            <p class="text-secondary mb-2" style="font-size: 0.82rem;">source = <code>device | config | status</code>. Example paths: <code>mqtt.server</code>, <code>sys.location.tz</code>, <code>cloud.connected</code>.</p>
+            {#each settings.compliance.custom_rules || [] as rule, idx}
+              <div class="sa-custom-rule">
+                <div class="sa-form-grid">
+                  <div data-span="3"><input class="form-control" placeholder="Label" bind:value={rule.label} /></div>
+                  <div data-span="2"><Select bind:value={rule.source} options={sourceOptions} ariaLabel="Source" /></div>
+                  <div data-span="3"><input class="form-control font-monospace" placeholder="path.to.field" bind:value={rule.path} /></div>
+                  <div data-span="2"><Select bind:value={rule.op} options={opOptions} ariaLabel="Operator" /></div>
+                  <div data-span="2"><input class="form-control" placeholder="Expected value" bind:value={rule.value} disabled={rule.op === 'exists'} /></div>
+                  <div data-span="2"><input class="form-control" type="number" min="0" placeholder="Gen min" bind:value={rule.gen_min} /></div>
+                  <div data-span="2"><input class="form-control" type="number" min="0" placeholder="Gen max" bind:value={rule.gen_max} /></div>
+                  <div data-span="2"><button class="btn btn-sm btn-outline-danger" on:click={() => removeRule(idx)}>Remove</button></div>
+                </div>
               </div>
-              {#if customVisible}
-                <p class="text-secondary mb-2">source=`config|status|device`, path examples: `mqtt.server`, `sys.location.tz`, `cloud.connected`</p>
-                {#each settings.compliance.custom_rules || [] as rule, idx}
-                  <div class="border rounded p-2 mb-2">
-                    <div class="row g-2">
-                      <div class="col-md-3"><input class="form-control" placeholder="Label" bind:value={rule.label} /></div>
-                      <div class="col-md-2"><select class="form-select" bind:value={rule.source}>{#each sourceOptions as option}<option value={option}>{option}</option>{/each}</select></div>
-                      <div class="col-md-3"><input class="form-control font-monospace" placeholder="path.to.field" bind:value={rule.path} /></div>
-                      <div class="col-md-2"><select class="form-select" bind:value={rule.op}>{#each opOptions as option}<option value={option}>{option}</option>{/each}</select></div>
-                      <div class="col-md-2"><input class="form-control" placeholder="Expected value" bind:value={rule.value} disabled={rule.op === 'exists'} /></div>
-                    </div>
-                    <div class="row g-2 mt-2">
-                      <div class="col-md-2"><input class="form-control" type="number" min="0" placeholder="Gen min" bind:value={rule.gen_min} /></div>
-                      <div class="col-md-2"><input class="form-control" type="number" min="0" placeholder="Gen max" bind:value={rule.gen_max} /></div>
-                      <div class="col-md-2"><button class="btn btn-sm btn-outline-danger" on:click={() => removeRule(idx)}>Remove</button></div>
-                    </div>
-                  </div>
-                {/each}
-                <button class="btn btn-sm btn-outline-light" on:click={addRule}>Add Rule</button>
-              {/if}
-            </div>
-          </div>
+            {/each}
+            <button class="btn btn-sm btn-outline-light mt-2" on:click={addRule}>Add Rule</button>
+          </SectionCard>
         </div>
 
         <button class="btn btn-warning text-dark mt-3" on:click={save}>Save Compliance</button>
@@ -490,3 +545,13 @@
     </div>
   </div>
 </div>
+
+<style>
+  .sa-custom-rule {
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+    margin-bottom: var(--space-3);
+    background: rgba(255, 255, 255, 0.012);
+  }
+</style>
