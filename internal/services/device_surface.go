@@ -323,11 +323,10 @@ func validateBulkAction(req BulkActionRequest) error {
 		if strings.TrimSpace(req.Value) == "" {
 			return fmt.Errorf("%s requires value", req.Action)
 		}
-	case "set_mqtt_enabled":
+	case "set_mqtt_enabled", "set_cloud_enabled", "set_ble_enabled":
 		if req.Enabled == nil {
-			return errors.New("set_mqtt_enabled requires enabled")
+			return fmt.Errorf("%s requires enabled", req.Action)
 		}
-	case "set_24h":
 	default:
 		return fmt.Errorf("unsupported action: %s", req.Action)
 	}
@@ -351,6 +350,12 @@ func applyBulkAction(ctx context.Context, req BulkActionRequest, device models.D
 	case "set_sntp_server":
 		ok := setters.SetSNTPServer(ctx, device.IP, req.Value, device.Gen, timeout)
 		return ok, fmt.Sprintf("set SNTP server to %s", req.Value)
+	case "set_cloud_enabled":
+		ok := setters.SetCloudEnabled(ctx, device.IP, *req.Enabled, device.Gen, timeout)
+		return ok, fmt.Sprintf("set Cloud %s", ternary(*req.Enabled, "enabled", "disabled"))
+	case "set_ble_enabled":
+		ok := setters.SetBLEEnabled(ctx, device.IP, *req.Enabled, device.Gen, timeout)
+		return ok, fmt.Sprintf("set BLE %s", ternary(*req.Enabled, "enabled", "disabled"))
 	default:
 		return false, "unsupported action"
 	}
@@ -368,6 +373,10 @@ func bulkActionSummary(req BulkActionRequest) string {
 		return fmt.Sprintf("Set MQTT %s on the selected devices.", ternary(*req.Enabled, "enabled", "disabled"))
 	case "set_sntp_server":
 		return fmt.Sprintf("Set SNTP server to %s on the selected devices.", req.Value)
+	case "set_cloud_enabled":
+		return fmt.Sprintf("Set Cloud %s on the selected devices.", ternary(*req.Enabled, "enabled", "disabled"))
+	case "set_ble_enabled":
+		return fmt.Sprintf("Set BLE %s on the selected devices.", ternary(*req.Enabled, "enabled", "disabled"))
 	default:
 		return "Apply a bulk action to the selected devices."
 	}
@@ -375,7 +384,7 @@ func bulkActionSummary(req BulkActionRequest) string {
 
 func bulkActionWarnings(req BulkActionRequest) []string {
 	switch req.Action {
-	case "set_location", "set_timezone", "set_mqtt_server", "set_mqtt_enabled", "set_sntp_server":
+	case "set_location", "set_timezone", "set_mqtt_server", "set_mqtt_enabled", "set_sntp_server", "set_cloud_enabled", "set_ble_enabled":
 		return []string{"Changes are sent directly to the devices and should be followed by a refresh to confirm the final state."}
 	default:
 		return nil
@@ -436,7 +445,7 @@ func ternary[T any](condition bool, yes, no T) T {
 }
 
 func SortedBulkActions() []string {
-	actions := []string{"set_24h", "set_location", "set_mqtt_enabled", "set_mqtt_server", "set_sntp_server", "set_timezone"}
+	actions := []string{"set_ble_enabled", "set_cloud_enabled", "set_location", "set_mqtt_enabled", "set_mqtt_server", "set_sntp_server", "set_timezone"}
 	slices.Sort(actions)
 	return actions
 }

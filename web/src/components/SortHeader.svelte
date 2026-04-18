@@ -1,14 +1,13 @@
 <script lang="ts">
+  import { deriveSortHeaderState, type SortDir } from './sortHeader'
+
   export let label: string
   export let column: string
   export let sortKey: string
-  export let sortDir: 'asc' | 'desc'
+  export let sortDir: SortDir
   export let onSort: (key: string) => void
 
-  $: active = sortKey === column
-  $: ariaSort = active ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'
-  $: nextDir = active && sortDir === 'asc' ? 'descending' : 'ascending'
-  $: indicator = active ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''
+  $: ({ ariaSort, nextDir, indicator } = deriveSortHeaderState(sortKey, column, sortDir))
 </script>
 
 <th aria-sort={ariaSort}>
