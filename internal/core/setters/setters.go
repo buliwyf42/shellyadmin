@@ -29,6 +29,14 @@ func SetSNTPServer(ctx context.Context, ip, server string, gen int, timeout time
 	return rpcSet(ctx, ip, "Sys.SetConfig", map[string]any{"sntp": map[string]any{"server": server}}, timeout)
 }
 
+func SetCloudEnabled(ctx context.Context, ip string, enabled bool, gen int, timeout time.Duration) bool {
+	return rpcSet(ctx, ip, "Cloud.SetConfig", map[string]any{"enable": enabled}, timeout)
+}
+
+func SetBLEEnabled(ctx context.Context, ip string, enabled bool, gen int, timeout time.Duration) bool {
+	return rpcSet(ctx, ip, "BLE.SetConfig", map[string]any{"enable": enabled}, timeout)
+}
+
 func Reboot(ctx context.Context, ip string, gen int, timeout time.Duration) bool {
 	return rpcSet(ctx, ip, "Shelly.Reboot", map[string]any{}, timeout)
 }
