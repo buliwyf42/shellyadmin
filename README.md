@@ -15,7 +15,7 @@ It is designed as a single-container deployment with:
 ## Status
 
 This repository is under active development.
-Current UI/API baseline is `v0.0.9`.
+Current UI/API baseline is `v0.0.10`.
 
 Public support posture:
 
@@ -93,8 +93,6 @@ Use strong secrets for real installs. The `COOKIE_SECURE=false` example above is
 
 ## Planned / In Progress
 
-- Per-device and per-job export flows (settings/template/group backup export already works)
-- Advanced-mode gating in UI settings
 - Broader action discovery for device components where protocol support is reliable
 - CLI after the external API contract settles
 - API stability guarantee (v0.x may have breaking changes; semver will apply from v1.0.0)
