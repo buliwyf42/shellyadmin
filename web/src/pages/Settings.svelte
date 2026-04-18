@@ -4,7 +4,7 @@
   import type { AppSettings, BackupExport, Credential, ImportReport } from '../lib/types'
   import ErrorNotice from '../components/ErrorNotice.svelte'
 
-  let settings: AppSettings = { subnets: [], scan_timeout: 2, refresh_timeout: 5, scan_concurrency: 64, enable_mdns: false, compliance: {} }
+  let settings: AppSettings = { subnets: [], scan_timeout: 2, refresh_timeout: 5, scan_concurrency: 64, enable_mdns: false, advanced_mode_enabled: false, compliance: {} }
   let credentials: Credential[] = []
   let error = ''
   let errorDetails = ''
@@ -135,6 +135,19 @@
           <span>Enable mDNS-assisted discovery</span>
         </label>
         <p class="text-secondary mt-2 mb-0">Tune discovery, refresh, and concurrency here. mDNS works best on hosts that can receive local multicast traffic; Docker setups may need host networking for reliable results.</p>
+        <button class="btn btn-warning text-dark mt-3" on:click={saveSettings}>Save Settings</button>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card bg-dark border-secondary">
+      <div class="card-body">
+        <h2 class="h5">UI Preferences</h2>
+        <label class="d-flex gap-2 align-items-center">
+          <input type="checkbox" class="form-check-input" bind:checked={settings.advanced_mode_enabled} />
+          <span>Enable advanced mode</span>
+        </label>
+        <p class="text-secondary mt-2 mb-0">When enabled, power-user surfaces such as the raw JSON template editor on the Provision page are shown. Off by default so the guided form is the only entry point.</p>
         <button class="btn btn-warning text-dark mt-3" on:click={saveSettings}>Save Settings</button>
       </div>
     </div>

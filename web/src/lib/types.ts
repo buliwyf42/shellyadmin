@@ -89,6 +89,7 @@ export interface AppSettings {
   refresh_timeout: number
   scan_concurrency: number
   enable_mdns: boolean
+  advanced_mode_enabled: boolean
   compliance: ComplianceRules
 }
 

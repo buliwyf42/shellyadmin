@@ -3,12 +3,13 @@ package models
 import "strings"
 
 type AppSettings struct {
-	Subnets         []string        `json:"subnets"`
-	ScanTimeout     float64         `json:"scan_timeout"`
-	RefreshTimeout  float64         `json:"refresh_timeout"`
-	ScanConcurrency int             `json:"scan_concurrency"`
-	EnableMDNS      bool            `json:"enable_mdns"`
-	Compliance      ComplianceRules `json:"compliance"`
+	Subnets             []string        `json:"subnets"`
+	ScanTimeout         float64         `json:"scan_timeout"`
+	RefreshTimeout      float64         `json:"refresh_timeout"`
+	ScanConcurrency     int             `json:"scan_concurrency"`
+	EnableMDNS          bool            `json:"enable_mdns"`
+	AdvancedModeEnabled bool            `json:"advanced_mode_enabled"`
+	Compliance          ComplianceRules `json:"compliance"`
 }
 
 type ComplianceRules struct {
