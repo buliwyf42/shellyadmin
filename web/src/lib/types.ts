@@ -192,12 +192,14 @@ export interface ProvisionSectionResult {
   section: string
   status: string
   detail: string
+  restart_required?: boolean
 }
 
 /** Per-IP result returned by POST /api/provision. */
 export interface ProvisionResult {
   info: ProvisionDeviceInfo
   results: ProvisionSectionResult[]
+  restart_required?: boolean
 }
 
 /** Mirrors internal/core/firmware/firmware.go:UpdateResult. */

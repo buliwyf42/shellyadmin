@@ -354,3 +354,48 @@ func TestProvisionDevice_WSIgnoresTLSModeForPlainWS(t *testing.T) {
 		t.Fatalf("detail = %q, want non-tls warning", results[0].Detail)
 	}
 }
+
+func TestProvisionDevice_SurfacesRestartRequired(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/shelly":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"name": "test-switch",
+				"gen":  4,
+				"id":   "abcd1234",
+			})
+		case "/rpc":
+			var body map[string]any
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			method, _ := body["method"].(string)
+			if method == "Shelly.GetConfig" {
+				_ = json.NewEncoder(w).Encode(map[string]any{"result": map[string]any{}})
+				return
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"result": map[string]any{"restart_required": true},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	ip := server.Listener.Addr().String()
+	template := map[string]interface{}{
+		"sys": map[string]interface{}{
+			"device": map[string]any{"name": "mydevice"},
+		},
+	}
+
+	_, results := ProvisionDevice(context.Background(), ip, template, time.Second)
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].Status != "ok" {
+		t.Fatalf("expected ok status, got %q", results[0].Status)
+	}
+	if !results[0].RestartRequired {
+		t.Fatal("expected RestartRequired=true, got false")
+	}
+}
