@@ -4,6 +4,7 @@
   import { devices, navigate } from '../lib/stores'
   import type { ScanStatus } from '../lib/types'
   import ErrorNotice from '../components/ErrorNotice.svelte'
+  import ProgressBar from '../components/ProgressBar.svelte'
 
   let status: ScanStatus = { running: false, found: 0, total: 0, done: 0, pending: [] }
   let timer: number | undefined
@@ -118,10 +119,8 @@
   </div>
 </div>
 
-<div class="progress mb-3" role="progressbar" aria-valuenow={status.done} aria-valuemin="0" aria-valuemax={status.total || 100} aria-label="Scan progress">
-  <div class="progress-bar progress-bar-striped" style={`width:${status.total ? (status.done / status.total) * 100 : 0}%`}>
-    {status.done} / {status.total}
-  </div>
+<div class="mb-3">
+  <ProgressBar done={status.done} total={status.total} running={status.running} label="{status.done} / {status.total}" ariaLabel="Scan progress" />
 </div>
 
 <div class="row g-3">
