@@ -22,17 +22,16 @@
   <div
     class="pb-fill"
     class:pb-running={running}
-    class:pb-indeterminate={running && !determinate}
-    style={determinate ? `width:${pct}%` : undefined}
+    style={determinate ? `width:${pct}%` : (running ? 'width:100%' : 'width:0')}
   >
     {#if label && labelInside}
       <span class="pb-label">{label}</span>
     {/if}
   </div>
-  {#if label && !labelInside}
-    <span class="pb-label-below">{label}</span>
-  {/if}
 </div>
+{#if label && !labelInside}
+  <span class="pb-label-below">{label}</span>
+{/if}
 
 <style>
   .pb-track {
@@ -57,10 +56,6 @@
     position: relative;
     overflow: hidden;
     min-width: 0;
-  }
-
-  .pb-indeterminate {
-    width: 100% !important;
   }
 
   .pb-running::after {

@@ -19,12 +19,6 @@
     { value: 'stable', label: 'Stable' },
     { value: 'beta', label: 'Beta' },
   ]
-  const autoUpdateOptions: Array<{ value: OtaState['autoUpdate']; label: string; description?: string }> = [
-    { value: 'off', label: 'Disabled', description: 'No automatic updates' },
-    { value: 'stable', label: 'Auto update to stable' },
-    { value: 'beta', label: 'Auto update to beta', description: 'Beta firmware may cause instability' },
-  ]
-
   $: matterExpanded = matter.enabled || matter.enableField
   $: cloudExpanded = cloud.enabled || cloud.enableField
   $: otaExpanded = ota.enabled || ota.stageEnabled || ota.autoUpdateEnabled
@@ -65,9 +59,25 @@
         label="Update automatically"
         bind:enabled={ota.autoUpdateEnabled}
         disabled={!ota.enabled}
-        help="Auto-update policy applied after provisioning."
+        help="Stored in template as policy intent."
       >
-        <Select bind:value={ota.autoUpdate} options={autoUpdateOptions} disabled={!ota.enabled || !ota.autoUpdateEnabled} ariaLabel="Auto update" />
+        <div class="d-flex flex-column gap-1">
+          <label class="d-flex align-items-center gap-2">
+            <input type="radio" bind:group={ota.autoUpdate} value="off" disabled={!ota.enabled || !ota.autoUpdateEnabled} />
+            Disable auto update
+          </label>
+          <label class="d-flex align-items-center gap-2">
+            <input type="radio" bind:group={ota.autoUpdate} value="stable" disabled={!ota.enabled || !ota.autoUpdateEnabled} />
+            Enable update to stable version
+          </label>
+          <label class="d-flex align-items-center gap-2">
+            <input type="radio" bind:group={ota.autoUpdate} value="beta" disabled={!ota.enabled || !ota.autoUpdateEnabled} />
+            Enable update to beta version
+          </label>
+          {#if ota.autoUpdate === 'beta' && ota.autoUpdateEnabled && ota.enabled}
+            <p class="text-secondary fst-italic small mb-0">Beta firmware may cause instability</p>
+          {/if}
+        </div>
       </FieldRow>
     </div>
   </div>
