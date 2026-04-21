@@ -75,52 +75,6 @@ func TestEvaluate_DeviceNameTemplateFallbackMatchForMQTT(t *testing.T) {
 	}
 }
 
-func TestEvaluate_OTAAutoUpdateMatch(t *testing.T) {
-	rawConfig, _ := json.Marshal(map[string]any{
-		"ota": map[string]any{
-			"auto_update": "stable",
-		},
-	})
-	dev := models.Device{RawConfig: string(rawConfig)}
-	rules := models.ComplianceRules{OTAAutoUpdate: "stable"}
-
-	compliant, issues := Evaluate(dev, rules)
-	if !compliant {
-		t.Fatalf("expected compliant device, got issues: %v", issues)
-	}
-}
-
-func TestEvaluate_OTAAutoUpdateMismatch(t *testing.T) {
-	rawConfig, _ := json.Marshal(map[string]any{
-		"ota": map[string]any{
-			"auto_update": "beta",
-		},
-	})
-	dev := models.Device{RawConfig: string(rawConfig)}
-	rules := models.ComplianceRules{OTAAutoUpdate: "stable"}
-
-	compliant, issues := Evaluate(dev, rules)
-	if compliant {
-		t.Fatalf("expected non-compliant device")
-	}
-	if len(issues) != 1 || issues[0] != "ota_auto_update mismatch" {
-		t.Fatalf("expected ota mismatch, got %v", issues)
-	}
-}
-
-func TestEvaluate_OTAAutoUpdateUnsupported(t *testing.T) {
-	dev := models.Device{RawConfig: `{"sys":{"cfg_rev":1}}`}
-	rules := models.ComplianceRules{OTAAutoUpdate: "stable"}
-
-	compliant, issues := Evaluate(dev, rules)
-	if compliant {
-		t.Fatalf("expected non-compliant device")
-	}
-	if len(issues) != 1 || issues[0] != "ota_auto_update unsupported" {
-		t.Fatalf("expected ota unsupported, got %v", issues)
-	}
-}
-
 func TestEvaluate_WSTLSModeIgnoredForPlainWSURL(t *testing.T) {
 	rawConfig := `{"ws":{"server":"ws://ha.home/api/shelly/ws","ssl_ca":"*"}}`
 	dev := models.Device{Gen: 4, RawConfig: rawConfig}

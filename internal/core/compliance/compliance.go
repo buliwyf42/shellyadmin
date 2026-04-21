@@ -43,20 +43,6 @@ func Evaluate(dev models.Device, rules models.ComplianceRules) (bool, []string) 
 			issues = append(issues, fmt.Sprintf("%s mismatch", label))
 		}
 	}
-	compareConfigStringOrUnsupported := func(rule, path, label string) {
-		if strings.TrimSpace(rule) == "" {
-			return
-		}
-		config := unmarshalMap(dev.RawConfig)
-		got, found := resolvePath(config, path)
-		if !found {
-			issues = append(issues, fmt.Sprintf("%s unsupported", label))
-			return
-		}
-		if strings.TrimSpace(got) != strings.TrimSpace(rule) {
-			issues = append(issues, fmt.Sprintf("%s mismatch", label))
-		}
-	}
 	compareConfigBool := func(rule *bool, path, label string) {
 		if rule == nil {
 			return
@@ -102,7 +88,6 @@ func Evaluate(dev models.Device, rules models.ComplianceRules) (bool, []string) 
 	compareFloat(rules.Lon, dev.Lon, "lon")
 	compareBoolPtr(rules.EcoMode, dev.EcoMode, "eco_mode")
 	compareBoolPtr(rules.Discoverable, dev.Discoverable, "discoverable")
-	compareConfigStringOrUnsupported(rules.OTAAutoUpdate, "ota.auto_update", "ota_auto_update")
 	compareConfigBool(rules.DebugWebSocket, "sys.debug.websocket.enable", "sys_debug_websocket")
 	compareConfigString(rules.DebugUDPHost, "sys.debug.udp.addr", "sys_debug_udp_host")
 	compareRPCUDPPort(&issues, config, rules.RPCUDPPort)
