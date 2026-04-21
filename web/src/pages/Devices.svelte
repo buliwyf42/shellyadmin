@@ -16,7 +16,8 @@
   let sortKey = 'device_num'
   let sortDir: 'asc' | 'desc' = 'asc'
   let autoRefreshTimer: ReturnType<typeof setInterval> | null = null
-  let rowBusy: Record<string, { refresh: boolean; remove: boolean }> = {}
+  let rowBusy: Record<string, { refresh: boolean; remove: boolean; reboot: boolean }> = {}
+  let rebootNotice = ''
 
   function captureError(err: unknown) {
     if (err instanceof APIError) {
@@ -58,13 +59,13 @@
   async function refreshOne(device: Device) {
     error = ''
     errorDetails = ''
-    rowBusy = { ...rowBusy, [device.mac]: { ...(rowBusy[device.mac] || { refresh: false, remove: false }), refresh: true } }
+    rowBusy = { ...rowBusy, [device.mac]: { ...(rowBusy[device.mac] || { refresh: false, remove: false, reboot: false }), refresh: true } }
     try {
       $devices = await api.refreshDevice(device.mac)
     } catch (err) {
       captureError(err)
     } finally {
-      rowBusy = { ...rowBusy, [device.mac]: { ...(rowBusy[device.mac] || { refresh: false, remove: false }), refresh: false } }
+      rowBusy = { ...rowBusy, [device.mac]: { ...(rowBusy[device.mac] || { refresh: false, remove: false, reboot: false }), refresh: false } }
     }
   }
 
@@ -73,14 +74,53 @@
     if (!confirm(`Delete device "${label}"?`)) return
     error = ''
     errorDetails = ''
-    rowBusy = { ...rowBusy, [device.mac]: { ...(rowBusy[device.mac] || { refresh: false, remove: false }), remove: true } }
+    rowBusy = { ...rowBusy, [device.mac]: { ...(rowBusy[device.mac] || { refresh: false, remove: false, reboot: false }), remove: true } }
     try {
       await api.forgetDevice(device.mac)
       await load()
     } catch (err) {
       captureError(err)
     } finally {
-      rowBusy = { ...rowBusy, [device.mac]: { ...(rowBusy[device.mac] || { refresh: false, remove: false }), remove: false } }
+      rowBusy = { ...rowBusy, [device.mac]: { ...(rowBusy[device.mac] || { refresh: false, remove: false, reboot: false }), remove: false } }
+    }
+  }
+
+  async function rebootOne(device: Device) {
+    const label = device.name || device.ip || device.mac
+    if (!confirm(`Reboot "${label}"?\n\nThe device will be unreachable for ~20s.`)) return
+    error = ''
+    errorDetails = ''
+    rebootNotice = ''
+    rowBusy = { ...rowBusy, [device.mac]: { ...(rowBusy[device.mac] || { refresh: false, remove: false, reboot: false }), reboot: true } }
+    try {
+      const res = await api.bulk({ action: 'reboot', macs: [device.mac] })
+      const r = res.results[0]
+      rebootNotice = r?.status === 'ok' ? `Rebooted ${label}.` : `Reboot failed for ${label}: ${r?.detail ?? 'unknown error'}`
+    } catch (err) {
+      captureError(err)
+    } finally {
+      rowBusy = { ...rowBusy, [device.mac]: { ...(rowBusy[device.mac] || { refresh: false, remove: false, reboot: false }), reboot: false } }
+    }
+  }
+
+  async function rebootAll() {
+    const macs = sorted.map((d) => d.mac)
+    if (!macs.length) return
+    if (!confirm(`Reboot all ${macs.length} listed device(s)?\n\nDevices will be unreachable for ~20s; active scan/refresh jobs may error.`)) return
+    error = ''
+    errorDetails = ''
+    rebootNotice = ''
+    loading = true
+    try {
+      const res = await api.bulk({ action: 'reboot', macs })
+      const failed = res.results.filter((r) => r.status !== 'ok')
+      rebootNotice = failed.length
+        ? `Rebooted ${macs.length - failed.length}/${macs.length} devices. ${failed.length} failed.`
+        : `Rebooted ${macs.length} device(s).`
+    } catch (err) {
+      captureError(err)
+    } finally {
+      loading = false
     }
   }
 
@@ -260,6 +300,7 @@
     </select>
     <button class="btn btn-outline-light" on:click={() => showColumns = !showColumns}>{showColumns ? 'Hide Columns' : 'Columns'}</button>
     <button class="btn btn-warning text-dark" on:click={() => load(true)} disabled={loading}>Refresh</button>
+    <button class="btn btn-outline-warning" on:click={rebootAll} disabled={loading || sorted.length === 0} title="Reboot all listed devices">Reboot All</button>
   </div>
 </section>
 
@@ -287,6 +328,13 @@
 {/if}
 
 <ErrorNotice summary={error} details={errorDetails} />
+
+{#if rebootNotice}
+  <div class="alert alert-info alert-dismissible py-2 mb-2" role="status">
+    {rebootNotice}
+    <button type="button" class="btn-close btn-close-white" aria-label="Dismiss" on:click={() => (rebootNotice = '')}></button>
+  </div>
+{/if}
 
 <div class="table-responsive dashboard-table-wrap">
   <table class="table table-dark table-striped align-middle table-nowrap dashboard-table">
@@ -389,11 +437,18 @@
                 disabled={rowBusy[device.mac]?.refresh || rowBusy[device.mac]?.remove}
               ><span aria-hidden="true">↻</span></button>
               <button
+                class="btn btn-sm btn-outline-warning row-action-btn"
+                title="Reboot this device"
+                aria-label={`Reboot ${device.name || device.mac}`}
+                on:click={() => rebootOne(device)}
+                disabled={rowBusy[device.mac]?.refresh || rowBusy[device.mac]?.remove || rowBusy[device.mac]?.reboot}
+              >{#if rowBusy[device.mac]?.reboot}<span class="spinner-border spinner-border-sm" aria-hidden="true"></span>{:else}<span aria-hidden="true">⏻</span>{/if}</button>
+              <button
                 class="btn btn-sm btn-outline-danger row-action-btn"
                 title="Delete this device"
                 aria-label={`Delete ${device.name || device.mac}`}
                 on:click={() => removeOne(device)}
-                disabled={rowBusy[device.mac]?.refresh || rowBusy[device.mac]?.remove}
+                disabled={rowBusy[device.mac]?.refresh || rowBusy[device.mac]?.remove || rowBusy[device.mac]?.reboot}
               ><span aria-hidden="true">🗑</span></button>
             </div>
           </td>
