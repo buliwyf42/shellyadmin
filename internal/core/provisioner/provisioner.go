@@ -26,9 +26,10 @@ type DeviceInfo struct {
 }
 
 type SectionResult struct {
-	Section string `json:"section"`
-	Status  string `json:"status"`
-	Detail  string `json:"detail"`
+	Section         string `json:"section"`
+	Status          string `json:"status"`
+	Detail          string `json:"detail"`
+	RestartRequired bool   `json:"restart_required,omitempty"`
 }
 
 func ProvisionDevice(ctx context.Context, ip string, template map[string]interface{}, timeout time.Duration) (DeviceInfo, []SectionResult) {
@@ -418,7 +419,10 @@ func rpcSection(ctx context.Context, client *http.Client, ip, method string, pay
 	}
 
 	var rpcResp struct {
-		Error any `json:"error"`
+		Error  any `json:"error"`
+		Result struct {
+			RestartRequired bool `json:"restart_required"`
+		} `json:"result"`
 	}
 	if len(body) > 0 {
 		if err := json.Unmarshal(body, &rpcResp); err == nil && rpcResp.Error != nil {
@@ -428,7 +432,7 @@ func rpcSection(ctx context.Context, client *http.Client, ip, method string, pay
 			return SectionResult{Section: section, Status: "failed", Detail: rpcErrorValue(rpcResp.Error)}
 		}
 	}
-	return SectionResult{Section: section, Status: "ok", Detail: method}
+	return SectionResult{Section: section, Status: "ok", Detail: method, RestartRequired: rpcResp.Result.RestartRequired}
 }
 
 func isMethodNotFound(raw any) bool {
