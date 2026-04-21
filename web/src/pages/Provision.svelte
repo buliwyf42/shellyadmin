@@ -9,45 +9,66 @@
   import WsForm from './provision/WsForm.svelte'
   import BleForm from './provision/BleForm.svelte'
   import MiscForm from './provision/MiscForm.svelte'
+  import WifiAPForm from './provision/WifiAPForm.svelte'
+  import EthForm from './provision/EthForm.svelte'
+  import ModbusForm from './provision/ModbusForm.svelte'
+  import ZigbeeForm from './provision/ZigbeeForm.svelte'
+  import UserCAForm from './provision/UserCAForm.svelte'
   import type {
     AuthState,
     BleState,
     CloudState,
+    EthState,
     MatterState,
+    ModbusState,
     MqttState,
     OtaState,
     SysState,
+    WifiAPState,
     WifiState,
     WsState,
+    ZigbeeState,
   } from './provision/types'
   import {
     buildAuth,
     buildBle,
     buildCloud,
+    buildEth,
     buildMatter,
+    buildModbus,
     buildMqtt,
     buildOta,
     buildSys,
     buildWifi,
+    buildWifiAP,
     buildWs,
+    buildZigbee,
     createAuthState,
     createBleState,
     createCloudState,
+    createEthState,
     createMatterState,
+    createModbusState,
     createMqttState,
     createOtaState,
     createSysState,
+    createWifiAPState,
     createWifiState,
     createWsState,
+    createZigbeeState,
     hydrateAuth,
     hydrateBle,
     hydrateCloud,
+    hydrateEth,
     hydrateMatter,
+    hydrateModbus,
     hydrateMqtt,
     hydrateOta,
     hydrateSys,
     hydrateWifi,
+    hydrateWifiAP,
     hydrateWs,
+    hydrateZigbee,
   } from './provision/state'
 
   type PrecheckIssue = { ip: string; label: string; reason: string; category: 'auth' | 'other' }
@@ -82,6 +103,10 @@
   let otaState: OtaState = createOtaState()
   let authState: AuthState = createAuthState()
   let wifiState: WifiState = createWifiState()
+  let wifiAPState: WifiAPState = createWifiAPState()
+  let ethState: EthState = createEthState()
+  let modbusState: ModbusState = createModbusState()
+  let zigbeeState: ZigbeeState = createZigbeeState()
 
   function captureError(err: unknown) {
     if (err instanceof APIError) {
@@ -272,6 +297,10 @@
     otaState = createOtaState()
     authState = createAuthState()
     wifiState = createWifiState()
+    wifiAPState = createWifiAPState()
+    ethState = createEthState()
+    modbusState = createModbusState()
+    zigbeeState = createZigbeeState()
   }
 
   function asRecord(value: unknown): Record<string, unknown> | null {
@@ -288,6 +317,10 @@
     let nextOta: OtaState | null = null
     let nextAuth: AuthState | null = null
     let nextWifi: WifiState | null = null
+    let nextWifiAP: WifiAPState | null = null
+    let nextEth: EthState | null = null
+    let nextModbus: ModbusState | null = null
+    let nextZigbee: ZigbeeState | null = null
     for (const [sectionName, rawSection] of Object.entries(template)) {
       const section = sectionName.trim().toLowerCase()
       const record = asRecord(rawSection)
@@ -347,6 +380,27 @@
           const r = hydrateWifi(record)
           if (!r.ok) return r
           nextWifi = r.state
+          const ap = hydrateWifiAP(record)
+          if (!ap.ok) return ap
+          nextWifiAP = ap.state
+          break
+        }
+        case 'eth': {
+          const r = hydrateEth(record)
+          if (!r.ok) return r
+          nextEth = r.state
+          break
+        }
+        case 'modbus': {
+          const r = hydrateModbus(record)
+          if (!r.ok) return r
+          nextModbus = r.state
+          break
+        }
+        case 'zigbee': {
+          const r = hydrateZigbee(record)
+          if (!r.ok) return r
+          nextZigbee = r.state
           break
         }
         default:
@@ -363,6 +417,10 @@
     if (nextOta) otaState = nextOta
     if (nextAuth) authState = nextAuth
     if (nextWifi) wifiState = nextWifi
+    if (nextWifiAP) wifiAPState = nextWifiAP
+    if (nextEth) ethState = nextEth
+    if (nextModbus) modbusState = nextModbus
+    if (nextZigbee) zigbeeState = nextZigbee
     return { ok: true }
   }
 
@@ -385,7 +443,16 @@
     const auth = buildAuth(authState)
     if (auth) out.auth = auth
     const wifi = buildWifi(wifiState)
-    if (wifi) out.wifi = wifi
+    const wifiAP = buildWifiAP(wifiAPState)
+    if (wifi || wifiAP) {
+      out.wifi = { ...(wifi ?? {}), ...(wifiAP ? { ap: wifiAP } : {}) }
+    }
+    const eth = buildEth(ethState)
+    if (eth) out.eth = eth
+    const modbus = buildModbus(modbusState)
+    if (modbus) out.modbus = modbus
+    const zigbee = buildZigbee(zigbeeState)
+    if (zigbee) out.zigbee = zigbee
     return out
   }
 
@@ -646,6 +713,11 @@
               bind:auth={authState}
               bind:wifi={wifiState}
             />
+            <WifiAPForm bind:state={wifiAPState} />
+            <EthForm bind:state={ethState} />
+            <ModbusForm bind:state={modbusState} />
+            <ZigbeeForm bind:state={zigbeeState} />
+            <UserCAForm {devices} {selected} />
           </div>
         {/if}
 

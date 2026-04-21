@@ -181,3 +181,215 @@ func TestEvaluate_MQTTConnectedCheck(t *testing.T) {
 		t.Fatalf("expected mqtt_connected mismatch, got %v", issues)
 	}
 }
+
+func TestEvaluate_WiFiAPEnabledMismatch(t *testing.T) {
+	rawConfig := `{"wifi":{"ap":{"enable":true,"is_open":false}}}`
+	dev := models.Device{Gen: 2, RawConfig: rawConfig}
+	rules := models.ComplianceRules{WiFiAPEnabled: boolPtr(false)}
+
+	compliant, issues := Evaluate(dev, rules)
+	if compliant {
+		t.Fatalf("expected non-compliant device with AP enabled")
+	}
+	if len(issues) != 1 || issues[0] != "wifi_ap_enabled mismatch" {
+		t.Fatalf("expected wifi_ap_enabled mismatch, got %v", issues)
+	}
+}
+
+func TestEvaluate_WiFiAPEnabledMatch(t *testing.T) {
+	rawConfig := `{"wifi":{"ap":{"enable":false,"is_open":false}}}`
+	dev := models.Device{Gen: 2, RawConfig: rawConfig}
+	rules := models.ComplianceRules{WiFiAPEnabled: boolPtr(false), WiFiAPIsOpen: boolPtr(false)}
+
+	compliant, issues := Evaluate(dev, rules)
+	if !compliant {
+		t.Fatalf("expected compliant device, got issues: %v", issues)
+	}
+}
+
+func TestEvaluate_WiFiAPIsOpenMismatch(t *testing.T) {
+	rawConfig := `{"wifi":{"ap":{"enable":true,"is_open":true}}}`
+	dev := models.Device{Gen: 2, RawConfig: rawConfig}
+	rules := models.ComplianceRules{WiFiAPIsOpen: boolPtr(false)}
+
+	compliant, issues := Evaluate(dev, rules)
+	if compliant {
+		t.Fatalf("expected non-compliant device with open AP")
+	}
+	if len(issues) != 1 || issues[0] != "wifi_ap_is_open mismatch" {
+		t.Fatalf("expected wifi_ap_is_open mismatch, got %v", issues)
+	}
+}
+
+func TestEvaluate_WiFiAPNilRuleSkipped(t *testing.T) {
+	rawConfig := `{"wifi":{"ap":{"enable":true,"is_open":true}}}`
+	dev := models.Device{Gen: 2, RawConfig: rawConfig}
+	rules := models.ComplianceRules{}
+
+	compliant, issues := Evaluate(dev, rules)
+	if !compliant {
+		t.Fatalf("expected compliant device when AP rules are nil, got %v", issues)
+	}
+}
+
+func TestEvaluate_EthEnabledMismatch(t *testing.T) {
+	rawConfig := `{"eth":{"enable":false,"ipv4mode":"dhcp"}}`
+	dev := models.Device{Gen: 2, RawConfig: rawConfig}
+	rules := models.ComplianceRules{EthEnabled: boolPtr(true)}
+
+	compliant, issues := Evaluate(dev, rules)
+	if compliant {
+		t.Fatalf("expected non-compliant device with eth disabled")
+	}
+	if len(issues) != 1 || issues[0] != "eth_enabled mismatch" {
+		t.Fatalf("expected eth_enabled mismatch, got %v", issues)
+	}
+}
+
+func TestEvaluate_EthIPv4ModeMatch(t *testing.T) {
+	rawConfig := `{"eth":{"enable":true,"ipv4mode":"dhcp"}}`
+	dev := models.Device{Gen: 2, RawConfig: rawConfig}
+	rules := models.ComplianceRules{EthEnabled: boolPtr(true), EthIPv4Mode: "dhcp"}
+
+	compliant, issues := Evaluate(dev, rules)
+	if !compliant {
+		t.Fatalf("expected compliant device, got issues: %v", issues)
+	}
+}
+
+func TestEvaluate_EthIPv4ModeMismatch(t *testing.T) {
+	rawConfig := `{"eth":{"enable":true,"ipv4mode":"static"}}`
+	dev := models.Device{Gen: 2, RawConfig: rawConfig}
+	rules := models.ComplianceRules{EthIPv4Mode: "dhcp"}
+
+	compliant, issues := Evaluate(dev, rules)
+	if compliant {
+		t.Fatalf("expected non-compliant device with wrong ipv4mode")
+	}
+	if len(issues) != 1 || issues[0] != "eth_ipv4mode mismatch" {
+		t.Fatalf("expected eth_ipv4mode mismatch, got %v", issues)
+	}
+}
+
+func TestEvaluate_EthRulesSkippedOnNonEthDevice(t *testing.T) {
+	// Plug/PlugS devices with no eth block in config — rules must not fire.
+	rawConfig := `{"sys":{"device":{"name":"plug"}}}`
+	dev := models.Device{Gen: 2, RawConfig: rawConfig}
+	rules := models.ComplianceRules{EthEnabled: boolPtr(true), EthIPv4Mode: "dhcp"}
+
+	// EthEnabled (bool path) fires a mismatch when path is not found; expected behaviour
+	// is documented by the BLE pattern. Confirm both messages appear together.
+	compliant, issues := Evaluate(dev, rules)
+	if compliant {
+		t.Fatalf("expected non-compliant when path missing")
+	}
+	if len(issues) != 2 {
+		t.Fatalf("expected exactly eth_enabled + eth_ipv4mode mismatch, got %v", issues)
+	}
+}
+
+func TestEvaluate_DebugMQTTMatch(t *testing.T) {
+	rawConfig := `{"sys":{"debug":{"mqtt":{"enable":true}}}}`
+	dev := models.Device{Gen: 2, RawConfig: rawConfig}
+	rules := models.ComplianceRules{DebugMQTT: boolPtr(true)}
+
+	compliant, issues := Evaluate(dev, rules)
+	if !compliant {
+		t.Fatalf("expected compliant device, got issues: %v", issues)
+	}
+}
+
+func TestEvaluate_DebugMQTTMismatch(t *testing.T) {
+	rawConfig := `{"sys":{"debug":{"mqtt":{"enable":true}}}}`
+	dev := models.Device{Gen: 2, RawConfig: rawConfig}
+	rules := models.ComplianceRules{DebugMQTT: boolPtr(false)}
+
+	compliant, issues := Evaluate(dev, rules)
+	if compliant {
+		t.Fatalf("expected non-compliant device")
+	}
+	if len(issues) != 1 || issues[0] != "sys_debug_mqtt mismatch" {
+		t.Fatalf("expected sys_debug_mqtt mismatch, got %v", issues)
+	}
+}
+
+func TestEvaluate_DebugMQTTNilRuleSkipped(t *testing.T) {
+	rawConfig := `{"sys":{"debug":{"mqtt":{"enable":true}}}}`
+	dev := models.Device{Gen: 2, RawConfig: rawConfig}
+	rules := models.ComplianceRules{}
+
+	compliant, issues := Evaluate(dev, rules)
+	if !compliant {
+		t.Fatalf("expected compliant device when rule is nil, got %v", issues)
+	}
+}
+
+func TestEvaluate_MatterEnabledMatch(t *testing.T) {
+	rawConfig := `{"matter":{"enable":true}}`
+	dev := models.Device{Gen: 2, RawConfig: rawConfig}
+	rules := models.ComplianceRules{MatterEnabled: boolPtr(true)}
+
+	compliant, issues := Evaluate(dev, rules)
+	if !compliant {
+		t.Fatalf("expected compliant device, got issues: %v", issues)
+	}
+}
+
+func TestEvaluate_MatterEnabledMismatch(t *testing.T) {
+	rawConfig := `{"matter":{"enable":false}}`
+	dev := models.Device{Gen: 2, RawConfig: rawConfig}
+	rules := models.ComplianceRules{MatterEnabled: boolPtr(true)}
+
+	compliant, issues := Evaluate(dev, rules)
+	if compliant {
+		t.Fatalf("expected non-compliant device")
+	}
+	if len(issues) != 1 || issues[0] != "matter_enabled mismatch" {
+		t.Fatalf("expected matter_enabled mismatch, got %v", issues)
+	}
+}
+
+func TestEvaluate_ModbusEnabledMismatch(t *testing.T) {
+	rawConfig := `{"modbus":{"enable":true}}`
+	dev := models.Device{Gen: 2, RawConfig: rawConfig}
+	rules := models.ComplianceRules{ModbusEnabled: boolPtr(false)}
+
+	compliant, issues := Evaluate(dev, rules)
+	if compliant {
+		t.Fatalf("expected non-compliant device with modbus enabled")
+	}
+	if len(issues) != 1 || issues[0] != "modbus_enabled mismatch" {
+		t.Fatalf("expected modbus_enabled mismatch, got %v", issues)
+	}
+}
+
+func TestEvaluate_ZigbeeEnabledMatch(t *testing.T) {
+	rawConfig := `{"zigbee":{"enable":false}}`
+	dev := models.Device{Gen: 2, RawConfig: rawConfig}
+	rules := models.ComplianceRules{ZigbeeEnabled: boolPtr(false)}
+
+	compliant, issues := Evaluate(dev, rules)
+	if !compliant {
+		t.Fatalf("expected compliant device, got issues: %v", issues)
+	}
+}
+
+func TestEvaluate_InfraRulesSkippedOnUnsupportedDevice(t *testing.T) {
+	// Plug device — no matter/modbus/zigbee blocks. Rules set to false should fire mismatch
+	// because path not found is treated as "not equal to expected", matching the BLE pattern.
+	rawConfig := `{"sys":{"device":{"name":"plug"}}}`
+	dev := models.Device{Gen: 2, RawConfig: rawConfig}
+	rules := models.ComplianceRules{
+		MatterEnabled: boolPtr(false),
+		ModbusEnabled: boolPtr(false),
+		ZigbeeEnabled: boolPtr(false),
+	}
+
+	compliant, issues := Evaluate(dev, rules)
+	if compliant {
+		t.Fatalf("expected non-compliant when paths missing")
+	}
+	if len(issues) != 3 {
+		t.Fatalf("expected all three mismatches, got %v", issues)
+	}
+}

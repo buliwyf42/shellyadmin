@@ -308,6 +308,122 @@ func isProvisionTargetAllowed(addr netip.Addr) bool {
 	return addr.IsPrivate() || addr.IsLinkLocalUnicast()
 }
 
+// MaxUserCABytes caps the PEM payload size accepted by UploadUserCA. A
+// single CA bundle is rarely larger than a few KB; 64KB is comfortably above
+// realistic certificate chains while bounding server memory use.
+const MaxUserCABytes = 64 * 1024
+
+// UploadUserCAResult reports a single-device user CA upload outcome for the
+// HTTP API (one entry per requested IP).
+type UploadUserCAResult struct {
+	IP        string `json:"ip"`
+	Status    string `json:"status"`
+	Chunks    int    `json:"chunks"`
+	BytesSent int    `json:"bytes_sent"`
+	Detail    string `json:"detail"`
+}
+
+// UploadUserCA sends a PEM-encoded certificate (user CA, TLS client cert, or
+// TLS client key, selected by kind) to one or more devices via chunked
+// Shelly.Put* RPCs. Targets are validated the same way Provision validates
+// IPs (local network only) and reserved through the Provision/FirmwareUpdate
+// exclusion slot so concurrent jobs can't collide on the same device.
+//
+// An empty kind defaults to "user_ca" for back-compat with original callers.
+func (s *AppService) UploadUserCA(ctx context.Context, ips []string, kind string, pem string) ([]UploadUserCAResult, error) {
+	if len(ips) == 0 {
+		return nil, errors.New("ips required")
+	}
+	if len(ips) > maxProvisionIPs {
+		return nil, fmt.Errorf("too many devices requested")
+	}
+	certKind, err := provisioner.ParseCertificateKind(kind)
+	if err != nil {
+		return nil, err
+	}
+	pem = strings.TrimSpace(pem)
+	if pem == "" {
+		return nil, errors.New("pem is required")
+	}
+	if len(pem) > MaxUserCABytes {
+		return nil, fmt.Errorf("pem exceeds %d byte limit", MaxUserCABytes)
+	}
+	if !strings.Contains(pem, "-----BEGIN") {
+		return nil, errors.New("pem must contain a PEM header (-----BEGIN ...-----)")
+	}
+	if latest, err := s.db.GetLatestJob("scan"); err == nil && latest.Status == "running" {
+		return nil, errors.New("certificate upload blocked while scan is running")
+	}
+	normalized := make([]string, 0, len(ips))
+	for _, raw := range ips {
+		addr, err := netip.ParseAddr(strings.TrimSpace(raw))
+		if err != nil {
+			return nil, fmt.Errorf("invalid ip: %q", raw)
+		}
+		if !isProvisionTargetAllowed(addr) {
+			return nil, fmt.Errorf("user-ca target %q is not in an allowed local range", raw)
+		}
+		normalized = append(normalized, strings.TrimSpace(raw))
+	}
+
+	// Resolve each IP to its MAC (if known) so the reservation key matches the
+	// one Provision/FirmwareUpdate use; fall back to "ip:<addr>" for unknown
+	// devices. Mirrors the pattern in Provision (app.go:216-246).
+	devices, err := s.db.ListDevices()
+	if err != nil {
+		return nil, err
+	}
+	ipToKey := map[string]string{}
+	for _, device := range devices {
+		key := "ip:" + device.IP
+		if device.MAC != "" {
+			key = "mac:" + device.MAC
+		}
+		ipToKey[device.IP] = key
+	}
+	requestedKeys := make([]string, 0, len(normalized))
+	keyToIP := map[string]string{}
+	for _, ip := range normalized {
+		key, ok := ipToKey[ip]
+		if !ok {
+			key = "ip:" + ip
+		}
+		requestedKeys = append(requestedKeys, key)
+		keyToIP[key] = ip
+	}
+	allowedKeys, skippedKeys := s.reserveProvisionTargets(requestedKeys)
+	defer s.releaseProvisionTargets(allowedKeys)
+
+	results := make([]UploadUserCAResult, 0, len(normalized))
+	for _, key := range skippedKeys {
+		results = append(results, UploadUserCAResult{
+			IP:     keyToIP[key],
+			Status: "skipped",
+			Detail: "device busy with firmware update",
+		})
+	}
+	for _, key := range allowedKeys {
+		ip := keyToIP[key]
+		res, err := provisioner.UploadCertificate(ctx, ip, certKind, pem, 20*time.Second)
+		entry := UploadUserCAResult{
+			IP:        ip,
+			Chunks:    res.Chunks,
+			BytesSent: res.BytesSent,
+		}
+		if err != nil {
+			entry.Status = "failed"
+			entry.Detail = err.Error()
+			s.Log("warn", fmt.Sprintf("%s upload to %s failed: %v", certKind, ip, err))
+		} else {
+			entry.Status = "ok"
+			entry.Detail = res.Detail
+			s.Log("info", fmt.Sprintf("%s uploaded to %s: %d chunks, %d bytes", certKind, ip, res.Chunks, res.BytesSent))
+		}
+		results = append(results, entry)
+	}
+	return results, nil
+}
+
 func checkAuthRequired(ctx context.Context, ip string, timeout time.Duration) (bool, string) {
 	client := &http.Client{Timeout: timeout}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+ip+"/shelly", nil)

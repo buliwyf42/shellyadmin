@@ -101,6 +101,8 @@ func applySection(ctx context.Context, client *http.Client, ip string, gen int, 
 		return rpcConfigSection(ctx, client, ip, "Cloud.SetConfig", payload, section)
 	case "wifi":
 		return rpcConfigSection(ctx, client, ip, "Wifi.SetConfig", payload, section)
+	case "eth":
+		return rpcConfigSection(ctx, client, ip, "Eth.SetConfig", payload, section)
 	case "kvs":
 		for key, val := range payload {
 			result := rpcSection(ctx, client, ip, "KVS.Set", map[string]interface{}{"key": key, "value": val}, section)

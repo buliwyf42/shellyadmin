@@ -290,6 +290,25 @@ func (h *Handler) Provision(c *gin.Context) {
 	c.JSON(http.StatusOK, results)
 }
 
+func (h *Handler) UploadUserCA(c *gin.Context) {
+	var req struct {
+		IPs  []string `json:"ips"`
+		Kind string   `json:"kind"`
+		PEM  string   `json:"pem"`
+	}
+	// PEM cap (MaxUserCABytes) plus headroom for the IP list and JSON envelope.
+	if err := decodeJSON(c, &req, services.MaxUserCABytes+32*1024); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
+		return
+	}
+	results, err := h.service.UploadUserCA(c.Request.Context(), req.IPs, req.Kind, req.PEM)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, results)
+}
+
 func (h *Handler) GetSettings(c *gin.Context) {
 	settings, err := h.service.GetSettings()
 	if err != nil {

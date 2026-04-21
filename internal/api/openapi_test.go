@@ -54,6 +54,7 @@ func TestDocumentedAPIRoutesMatchExpectedRouteSet(t *testing.T) {
 		http.MethodPost + " /api/login",
 		http.MethodPost + " /api/logout",
 		http.MethodPost + " /api/provision",
+		http.MethodPost + " /api/provision/user-ca",
 		http.MethodPost + " /api/scan/confirm",
 		http.MethodPost + " /api/scan/start",
 		http.MethodPost + " /api/settings",
