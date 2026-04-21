@@ -15,7 +15,7 @@ It is designed as a single-container deployment with:
 ## Status
 
 This repository is under active development.
-Current UI/API baseline is `v0.0.11`.
+Current UI/API baseline is `v0.0.14`.
 
 Public support posture:
 
@@ -62,13 +62,15 @@ Use strong secrets for real installs. The `COOKIE_SECURE=false` example above is
 
 - Scan with staging and explicit add-to-inventory
 - Device inventory table with sortable columns and per-user column visibility
-- Bulk actions with preview/apply for timezone, MQTT, location, and SNTP settings
+- Bulk actions with preview/apply for timezone, MQTT, location, SNTP, and reboot
 - Auto-refresh in Devices view (30s, 1m, 5m)
 - Separate scan timeout and refresh timeout in Settings
 - Optional mDNS-assisted discovery in addition to subnet scanning
 - Per-device row actions in Devices view:
   - immediate refresh
+  - per-row reboot (⏻) with inline spinner
   - delete/forget
+- Reboot All toolbar button for bulk device reboots
 - Per-device detail view with:
   - raw config/status snapshots
   - discovered capabilities
@@ -77,7 +79,10 @@ Use strong secrets for real installs. The `COOKIE_SECURE=false` example above is
 - Stale row signal when the latest refresh attempt fails
 - Compliance status in Devices view with hover details
 - Manual firmware check and update flow
-- Guided provisioning form plus JSON mode with template management (load, save, delete, rename) in-context
+- Guided provisioning form plus JSON mode with template management (load, save, delete, rename) in-context:
+  - full `Wifi.SetConfig` surface: primary STA, secondary STA (STA1), roaming (RSSI threshold, interval), static IPv4 per STA
+  - Script section (per-id loop), UI.SetConfig, Ethernet IPv6/DNS
+  - `restart_required` badge per device in results; "Reboot restart-required devices" button
 - Auth Groups page:
   - groups contain their own auth credentials (`username`, `password`/`ha1`, tags)
   - device-to-group assignment for future auth-required workflows

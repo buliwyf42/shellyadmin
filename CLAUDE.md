@@ -42,7 +42,7 @@ The Shelly Gen2 API has **no `OTA.SetConfig` method**. Available OTA methods:
 - `Shelly.Update` — one-shot firmware update (requires `stage` param: `"stable"` or `"beta"`)
 - `Shelly.CheckForUpdate` — check for available updates
 
-The provisioner's `ota` template section calls `OTA.SetConfig` which will always return a 404 from real devices (gracefully skipped). The `auto_update` field in the template is retained as policy-intent documentation, not an actual device setting.
+The `ota` provisioner section and the `ota_auto_update` compliance rule were **removed in v0.0.14**. The compliance check always fired "unsupported" because `ota.auto_update` is never present in any device config. The `ota` template section still exists in the catch-all handler (calls `OTA.SetConfig` → 404 → gracefully skipped) but is no longer exposed in the Provision form.
 
 ### mqtt.ssl_ca valid values
 The `mqtt.ssl_ca` field only accepts exactly four values:
@@ -61,7 +61,7 @@ Same four-value pattern as MQTT: `""`, `"*"`, `"ca.pem"`, `"user_ca.pem"`.
 | File | Role |
 |------|------|
 | `internal/services/app.go` | Service layer; job scheduling, refresh/scan orchestration |
-| `internal/services/device_surface.go` | Bulk actions (set_sntp_server, etc.) |
+| `internal/services/device_surface.go` | Bulk actions (set_sntp_server, reboot, etc.) |
 | `internal/core/scanner/scanner.go` | Device discovery & probing; populates `models.Device` |
 | `internal/core/provisioner/provisioner.go` | Template-based fleet provisioning |
 | `internal/core/compliance/compliance.go` | Compliance rule evaluation |
@@ -85,10 +85,12 @@ Sections in a template JSON map to backend handlers in `applySection()`:
 | `ble` | `BLE.SetConfig` |
 | `cloud` | `Cloud.SetConfig` |
 | `matter` | `Matter.SetConfig` |
-| `wifi` | `Wifi.SetConfig` |
+| `wifi` | `Wifi.SetConfig` (full surface: sta, sta1, roam, static IPv4) |
 | `auth` | `Shelly.SetAuth` |
-| `ota` | `OTA.SetConfig` (404 on all devices → skipped) |
+| `ota` | `OTA.SetConfig` (404 on all devices → skipped; form removed in v0.0.14) |
 | `kvs` | `KVS.Set` per key |
+| `script` | `Script.SetConfig` per id (loop like kvs) |
+| `ui` | `UI.SetConfig` |
 | `gen2_rpc` | arbitrary method map |
 | `gen1_http` | skipped (legacy; Gen1 no longer supported) |
 | anything else | `<Capitalized>.SetConfig` |

@@ -21,8 +21,9 @@ Additionally, the lat/lon inputs on the Provision page used plain text inputs, w
 - Rename is implemented as save-under-new-name followed by delete-old-name; no dedicated backend rename endpoint is needed.
 
 **Shared section ordering:**
-- Both Provision and Compliance pages follow the same section order: `sys → mqtt → cloud → ws → ble → wifi → ota`.
-- Sections that only exist on one page (e.g. `matter`, `auth`, `kvs` on Provision; `custom rules` on Compliance) are appended after the shared sections.
+- Both Provision and Compliance pages follow the same section order: `sys → mqtt → cloud → ws → ble → wifi`.
+- Sections that only exist on one page (e.g. `matter`, `auth`, `kvs`, `script`, `ui` on Provision; `custom rules` on Compliance) are appended after the shared sections.
+- `ota` was removed from the shared order in v0.0.14 (see implementation note below).
 
 **Shared sys field ordering:**
 - Both pages order sys fields as: `tz → sntp → time_format → debug_ws → debug_udp → rpc_udp → lat → lon → eco → discoverable`.
