@@ -284,7 +284,14 @@ func (s *AppService) Provision(ctx context.Context, ips []string, template map[s
 				}
 			}
 		}
-		body, merr := json.Marshal(map[string]any{"info": info, "results": results})
+		restartRequired := false
+		for _, r := range results {
+			if r.RestartRequired {
+				restartRequired = true
+				break
+			}
+		}
+		body, merr := json.Marshal(map[string]any{"info": info, "results": results, "restart_required": restartRequired})
 		if merr != nil {
 			s.Log("warn", fmt.Sprintf("provision: marshal result for %s: %v", ip, merr))
 			continue
