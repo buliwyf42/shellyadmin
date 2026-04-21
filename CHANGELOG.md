@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.0.13] - 2026-04-21
+
+Completes the WiFi / provisioning / UI improvement sprint: full Wifi.SetConfig surface coverage (STA1, roaming, static IPv4), new Script / UI / Eth-IPv6 provisioner sections, per-device restart_required feedback after provisioning, reboot controls on the Devices page, and a shared polished progress bar component.
+
+### Added
+- **WiFi STA1 + roaming + static IPv4** provisioner coverage. The Provision form now exposes the full `Wifi.SetConfig` surface: a second station (`sta1`), roaming config (`rssi_thr`, `interval`), and per-STA static IPv4 fields (`ip`, `netmask`, `gw`, `nameserver`). New `WifiStaForm.svelte` and `WifiRoamForm.svelte` components reuse the existing field-enable-checkbox pattern.
+- **Script, UI, and Eth-IPv6 provisioner sections**. `Script.SetConfig` per-id loop (mirrors the existing KVS handler), `UI.SetConfig` fields (`idle_brightness`, `debug_enable`), and Eth IPv6/DNS fields (`ipv6mode`, `ipv6` block). New `ScriptsForm.svelte` and `UIConfigForm.svelte` Provision-page forms; `EthForm.svelte` extended with a collapsible IPv6 section.
+- **`restart_required` surfaced after provisioning**. Every `*.SetConfig` RPC response includes a `restart_required` flag. `SectionResult` now carries this field; `rpcSection()` parses it; the provision API response includes a device-level `restart_required` boolean. The Provision results view shows a gold **"restart required"** badge per device and a "Reboot N restart-required devices" button.
+- **Reboot controls on the Devices page**. Per-row **⏻ reboot button** (confirm dialog, inline spinner, result notice) and a **Reboot All** toolbar button that reboots all currently-listed devices with a count-aware confirm. Both hit `POST /api/bulk` with `action: "reboot"`.
+- **Bulk `reboot` action** wired into the backend (`validateBulkAction`, `applyBulkAction` → `setters.Reboot`, `bulkActionSummary`, `bulkActionWarnings`).
+- **Shared `ProgressBar.svelte` component** (`web/src/components/`). Determinate mode: gold gradient fill with `width: 200ms` transition and animated 45° stripe overlay while running. Indeterminate mode (total = 0 while running): full-width stripe animation. Solid on completion, empty when idle at 0/0. Proper `aria-valuenow/min/max` when determinate, `aria-busy` while running, `aria-label` prop. Label inside fill when ≥ 25% wide, below otherwise.
+
+### Changed
+- Firmware and Scan pages now use `ProgressBar.svelte` instead of duplicated inline `<div class="progress">` markup. The unused `progress-bar-striped` class is gone.
+
+### Fixed
+- `SectionResult.RestartRequired` propagates correctly even when the section status is `ok` (previously the field was parsed but discarded before the return).
+
 ## [0.0.12] - 2026-04-21
 
 Closes several Shelly API coverage gaps identified in the 2026-04 review: new compliance rules and provisioning surfaces for previously-unexposed device subsystems, plus chunked certificate upload that unblocks MQTT/WS with a user-managed CA and mTLS-to-broker auth.
