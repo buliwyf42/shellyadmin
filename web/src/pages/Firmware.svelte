@@ -2,6 +2,7 @@
   import { APIError, api } from '../lib/api'
   import type { FirmwareStatus } from '../lib/types'
   import ErrorNotice from '../components/ErrorNotice.svelte'
+  import ProgressBar from '../components/ProgressBar.svelte'
 
   let stage = 'stable'
   let status: FirmwareStatus = { running: false, done: 0, total: 0, results: [] }
@@ -65,8 +66,8 @@
 
 <ErrorNotice summary={error} details={errorDetails} />
 
-<div class="progress mb-3" role="progressbar" aria-valuenow={status.done} aria-valuemin="0" aria-valuemax={status.total || 100} aria-label="Firmware check progress" aria-busy={status.running}>
-  <div class="progress-bar" style={`width:${status.total ? (status.done / status.total) * 100 : 0}%`}>{status.done}/{status.total}</div>
+<div class="mb-3">
+  <ProgressBar done={status.done} total={status.total} running={status.running} label="{status.done}/{status.total}" ariaLabel="Firmware check progress" />
 </div>
 
 <table class="table table-dark table-striped">
