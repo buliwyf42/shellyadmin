@@ -43,6 +43,14 @@ type ComplianceRules struct {
 	RPCUDPPort      *int         `json:"sys_rpc_udp_port"`
 	EcoMode         *bool        `json:"eco_mode"`
 	Discoverable    *bool        `json:"discoverable"`
+	WiFiAPEnabled   *bool        `json:"wifi_ap_enabled"`
+	WiFiAPIsOpen    *bool        `json:"wifi_ap_is_open"`
+	EthEnabled      *bool        `json:"eth_enabled"`
+	EthIPv4Mode     string       `json:"eth_ipv4mode"`
+	DebugMQTT       *bool        `json:"sys_debug_mqtt"`
+	MatterEnabled   *bool        `json:"matter_enabled"`
+	ModbusEnabled   *bool        `json:"modbus_enabled"`
+	ZigbeeEnabled   *bool        `json:"zigbee_enabled"`
 	CustomRules     []CustomRule `json:"custom_rules"`
 }
 
@@ -100,6 +108,16 @@ func (c *ComplianceRules) Normalize() {
 	if c.RPCUDPPort != nil && *c.RPCUDPPort < 0 {
 		zero := 0
 		c.RPCUDPPort = &zero
+	}
+	c.EthIPv4Mode = normalizeEthIPv4Mode(c.EthIPv4Mode)
+}
+
+func normalizeEthIPv4Mode(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "dhcp", "static":
+		return strings.ToLower(strings.TrimSpace(raw))
+	default:
+		return ""
 	}
 }
 

@@ -213,6 +213,16 @@ func documentedAPIRoutes() []apiRouteDoc {
 			},
 		},
 		{
+			Method:      http.MethodPost,
+			Path:        "/api/provision/user-ca",
+			Summary:     "Upload a user CA PEM to selected devices",
+			Description: "Chunked Shelly certificate upload. Accepts an optional kind field (\"user_ca\"|\"tls_client_cert\"|\"tls_client_key\"; default \"user_ca\") that selects Shelly.PutUserCA, Shelly.PutTLSClientCert, or Shelly.PutTLSClientKey. Sends the PEM in ~1KB chunks and commits so MQTT/WS configs referencing the corresponding file take effect.",
+			Auth:        true,
+			Register: func(routes gin.IRoutes, h *Handler) {
+				routes.POST("/api/provision/user-ca", h.UploadUserCA)
+			},
+		},
+		{
 			Method:  http.MethodGet,
 			Path:    "/api/settings",
 			Summary: "Read application settings",

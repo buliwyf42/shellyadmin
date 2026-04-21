@@ -70,6 +70,14 @@ export interface ComplianceRules {
   sys_rpc_udp_port?: number | null
   eco_mode?: boolean | null
   discoverable?: boolean | null
+  wifi_ap_enabled?: boolean | null
+  wifi_ap_is_open?: boolean | null
+  eth_enabled?: boolean | null
+  eth_ipv4mode?: 'dhcp' | 'static' | ''
+  sys_debug_mqtt?: boolean | null
+  matter_enabled?: boolean | null
+  modbus_enabled?: boolean | null
+  zigbee_enabled?: boolean | null
   custom_rules?: CustomRule[]
 }
 
@@ -196,6 +204,15 @@ export interface ProvisionResult {
 export interface FirmwareUpdateResult {
   ip: string
   status: string
+  detail: string
+}
+
+/** Mirrors internal/services/app.go:UploadUserCAResult. */
+export interface UploadUserCAResult {
+  ip: string
+  status: string
+  chunks: number
+  bytes_sent: number
   detail: string
 }
 

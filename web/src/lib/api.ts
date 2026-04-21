@@ -18,6 +18,7 @@ import type {
   ProvisionResult,
   ScanStatus,
   TemplateRecord,
+  UploadUserCAResult,
   VersionInfo,
 } from './types'
 
@@ -176,6 +177,8 @@ export const api = {
   firmwareStatus: () => req<FirmwareStatus>('GET', '/api/firmware/status'),
   firmwareUpdate: (macs: string[], stage: string) => req<FirmwareUpdateResult[]>('POST', '/api/firmware/update', { macs, stage }),
   provision: (ips: string[], template: Record<string, unknown>, credentialRef = '') => req<ProvisionResult[]>('POST', '/api/provision', { ips, template, credential_ref: credentialRef }),
+  uploadUserCA: (ips: string[], pem: string, kind: 'user_ca' | 'tls_client_cert' | 'tls_client_key' = 'user_ca') =>
+    req<UploadUserCAResult[]>('POST', '/api/provision/user-ca', { ips, pem, kind }),
   getSettings: () => req<AppSettings>('GET', '/api/settings'),
   saveSettings: (settings: AppSettings) => req<{ ok: true }>('POST', '/api/settings', settings),
   listTemplates: () => req<string[]>('GET', '/api/templates'),

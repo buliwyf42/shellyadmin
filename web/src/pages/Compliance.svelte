@@ -29,6 +29,7 @@
   ]
   type TlsMode = NonNullable<AppSettings['compliance']['ws_tls_mode']>
   type AutoUpdate = NonNullable<AppSettings['compliance']['ota_auto_update']>
+  type Ipv4Mode = NonNullable<AppSettings['compliance']['eth_ipv4mode']>
   const tlsModeOptions: Array<{ value: TlsMode; label: string }> = [
     { value: 'no_validation', label: 'TLS — no validation' },
     { value: 'default', label: 'TLS — default' },
@@ -38,6 +39,11 @@
     { value: 'off', label: 'Disabled', description: 'No automatic updates' },
     { value: 'stable', label: 'Auto update to stable' },
     { value: 'beta', label: 'Auto update to beta', description: 'Beta firmware may cause instability' },
+  ]
+  const ipv4ModeOptions: Array<{ value: Ipv4Mode; label: string }> = [
+    { value: '', label: '(any)' },
+    { value: 'dhcp', label: 'DHCP' },
+    { value: 'static', label: 'Static' },
   ]
 
   let wifiSSIDEnabled = false
@@ -74,13 +80,28 @@
   let ecoEnabled = false
   let discoverableEnabled = false
 
+  let wifiAPEnabledField = false
+  let wifiAPIsOpenField = false
+  let ethEnabledField = false
+  let ethIPv4ModeField = false
+
+  let sysDebugMQTTField = false
+  let matterEnabledField = false
+  let modbusEnabledField = false
+  let zigbeeEnabledField = false
+
   let wifiOpen = false
+  let wifiAPOpen = false
+  let ethOpen = false
   let mqttOpen = false
   let cloudOpen = false
   let wsOpen = false
   let bleOpen = false
   let sysOpen = false
   let otaOpen = false
+  let matterOpen = false
+  let modbusOpen = false
+  let zigbeeOpen = false
   let customOpen = false
 
   $: wifiExpanded = wifiSSIDEnabled
@@ -88,8 +109,13 @@
   $: cloudExpanded = cloudConnectedEnabled
   $: wsExpanded = wsEnabledField || wsConnectedField || wsServerField || wsTLSModeField || wsSSLCAField
   $: bleExpanded = bleGWEnabledField || bleRPCEnabledField || bleObserverEnabledField
-  $: sysExpanded = tzEnabled || sntpEnabled || sysDebugWSField || sysDebugUDPHostField || sysRPCUDPPortField || latEnabled || lonEnabled || ecoEnabled || discoverableEnabled
+  $: sysExpanded = tzEnabled || sntpEnabled || sysDebugWSField || sysDebugMQTTField || sysDebugUDPHostField || sysRPCUDPPortField || latEnabled || lonEnabled || ecoEnabled || discoverableEnabled
+  $: matterExpanded = matterEnabledField
+  $: modbusExpanded = modbusEnabledField
+  $: zigbeeExpanded = zigbeeEnabledField
   $: otaExpanded = otaAutoUpdateEnabled
+  $: wifiAPExpanded = wifiAPEnabledField || wifiAPIsOpenField
+  $: ethExpanded = ethEnabledField || ethIPv4ModeField
   $: customExpanded = (settings.compliance.custom_rules || []).length > 0
 
   function captureError(err: unknown) {
@@ -124,6 +150,14 @@
     if (settings.compliance.sys_rpc_udp_port === undefined) settings.compliance.sys_rpc_udp_port = null
     if (settings.compliance.eco_mode === undefined) settings.compliance.eco_mode = null
     if (settings.compliance.discoverable === undefined) settings.compliance.discoverable = null
+    if (settings.compliance.wifi_ap_enabled === undefined) settings.compliance.wifi_ap_enabled = null
+    if (settings.compliance.wifi_ap_is_open === undefined) settings.compliance.wifi_ap_is_open = null
+    if (settings.compliance.eth_enabled === undefined) settings.compliance.eth_enabled = null
+    if (settings.compliance.eth_ipv4mode === undefined) settings.compliance.eth_ipv4mode = ''
+    if (settings.compliance.sys_debug_mqtt === undefined) settings.compliance.sys_debug_mqtt = null
+    if (settings.compliance.matter_enabled === undefined) settings.compliance.matter_enabled = null
+    if (settings.compliance.modbus_enabled === undefined) settings.compliance.modbus_enabled = null
+    if (settings.compliance.zigbee_enabled === undefined) settings.compliance.zigbee_enabled = null
   }
 
   function initToggles() {
@@ -161,6 +195,16 @@
     lonEnabled = settings.compliance.lon !== null && settings.compliance.lon !== undefined
     ecoEnabled = settings.compliance.eco_mode !== null && settings.compliance.eco_mode !== undefined
     discoverableEnabled = settings.compliance.discoverable !== null && settings.compliance.discoverable !== undefined
+
+    wifiAPEnabledField = settings.compliance.wifi_ap_enabled !== null && settings.compliance.wifi_ap_enabled !== undefined
+    wifiAPIsOpenField = settings.compliance.wifi_ap_is_open !== null && settings.compliance.wifi_ap_is_open !== undefined
+    ethEnabledField = settings.compliance.eth_enabled !== null && settings.compliance.eth_enabled !== undefined
+    ethIPv4ModeField = Boolean(settings.compliance.eth_ipv4mode)
+
+    sysDebugMQTTField = settings.compliance.sys_debug_mqtt !== null && settings.compliance.sys_debug_mqtt !== undefined
+    matterEnabledField = settings.compliance.matter_enabled !== null && settings.compliance.matter_enabled !== undefined
+    modbusEnabledField = settings.compliance.modbus_enabled !== null && settings.compliance.modbus_enabled !== undefined
+    zigbeeEnabledField = settings.compliance.zigbee_enabled !== null && settings.compliance.zigbee_enabled !== undefined
   }
 
   function applyTogglesToSettings() {
@@ -198,6 +242,16 @@
     settings.compliance.lon = lonEnabled ? settings.compliance.lon : null
     settings.compliance.eco_mode = ecoEnabled ? Boolean(settings.compliance.eco_mode) : null
     settings.compliance.discoverable = discoverableEnabled ? Boolean(settings.compliance.discoverable) : null
+
+    settings.compliance.wifi_ap_enabled = wifiAPEnabledField ? Boolean(settings.compliance.wifi_ap_enabled) : null
+    settings.compliance.wifi_ap_is_open = wifiAPIsOpenField ? Boolean(settings.compliance.wifi_ap_is_open) : null
+    settings.compliance.eth_enabled = ethEnabledField ? Boolean(settings.compliance.eth_enabled) : null
+    settings.compliance.eth_ipv4mode = ethIPv4ModeField ? (settings.compliance.eth_ipv4mode || 'dhcp') : ''
+
+    settings.compliance.sys_debug_mqtt = sysDebugMQTTField ? Boolean(settings.compliance.sys_debug_mqtt) : null
+    settings.compliance.matter_enabled = matterEnabledField ? Boolean(settings.compliance.matter_enabled) : null
+    settings.compliance.modbus_enabled = modbusEnabledField ? Boolean(settings.compliance.modbus_enabled) : null
+    settings.compliance.zigbee_enabled = zigbeeEnabledField ? Boolean(settings.compliance.zigbee_enabled) : null
   }
 
   async function load() {
@@ -314,6 +368,11 @@
               <div data-span="4">
                 <FieldRow label="Debug WebSocket" bind:enabled={sysDebugWSField}>
                   <Toggle bind:checked={settings.compliance.sys_debug_websocket} disabled={!sysDebugWSField} label={settings.compliance.sys_debug_websocket ? 'On' : 'Off'} />
+                </FieldRow>
+              </div>
+              <div data-span="4">
+                <FieldRow label="Debug MQTT" bind:enabled={sysDebugMQTTField}>
+                  <Toggle bind:checked={settings.compliance.sys_debug_mqtt} disabled={!sysDebugMQTTField} label={settings.compliance.sys_debug_mqtt ? 'On' : 'Off'} />
                 </FieldRow>
               </div>
               <div data-span="4">
@@ -459,6 +518,66 @@
               <div data-span="6">
                 <FieldRow label="WiFi SSID" bind:enabled={wifiSSIDEnabled}>
                   <input class="form-control" bind:value={settings.compliance.wifi_ssid} disabled={!wifiSSIDEnabled} />
+                </FieldRow>
+              </div>
+            </div>
+          </SectionCard>
+
+          <SectionCard tag="wifi ap" bind:open={wifiAPOpen} forceOpen={wifiAPExpanded}>
+            <div class="sa-form-grid">
+              <div data-span="4">
+                <FieldRow label="AP Enabled" bind:enabled={wifiAPEnabledField}>
+                  <Toggle bind:checked={settings.compliance.wifi_ap_enabled} disabled={!wifiAPEnabledField} label={settings.compliance.wifi_ap_enabled ? 'On' : 'Off'} />
+                </FieldRow>
+              </div>
+              <div data-span="4">
+                <FieldRow label="Open AP" bind:enabled={wifiAPIsOpenField}>
+                  <Toggle bind:checked={settings.compliance.wifi_ap_is_open} disabled={!wifiAPIsOpenField} label={settings.compliance.wifi_ap_is_open ? 'Yes' : 'No'} />
+                </FieldRow>
+              </div>
+            </div>
+          </SectionCard>
+
+          <SectionCard tag="eth" bind:open={ethOpen} forceOpen={ethExpanded}>
+            <div class="sa-form-grid">
+              <div data-span="4">
+                <FieldRow label="Enabled" bind:enabled={ethEnabledField}>
+                  <Toggle bind:checked={settings.compliance.eth_enabled} disabled={!ethEnabledField} label={settings.compliance.eth_enabled ? 'On' : 'Off'} />
+                </FieldRow>
+              </div>
+              <div data-span="4">
+                <FieldRow label="IPv4 Mode" bind:enabled={ethIPv4ModeField}>
+                  <Select bind:value={settings.compliance.eth_ipv4mode} options={ipv4ModeOptions} disabled={!ethIPv4ModeField} ariaLabel="IPv4 Mode" />
+                </FieldRow>
+              </div>
+            </div>
+          </SectionCard>
+
+          <SectionCard tag="matter" bind:open={matterOpen} forceOpen={matterExpanded}>
+            <div class="sa-form-grid">
+              <div data-span="4">
+                <FieldRow label="Matter Enabled" bind:enabled={matterEnabledField}>
+                  <Toggle bind:checked={settings.compliance.matter_enabled} disabled={!matterEnabledField} label={settings.compliance.matter_enabled ? 'On' : 'Off'} />
+                </FieldRow>
+              </div>
+            </div>
+          </SectionCard>
+
+          <SectionCard tag="modbus" bind:open={modbusOpen} forceOpen={modbusExpanded}>
+            <div class="sa-form-grid">
+              <div data-span="4">
+                <FieldRow label="Modbus Enabled" bind:enabled={modbusEnabledField}>
+                  <Toggle bind:checked={settings.compliance.modbus_enabled} disabled={!modbusEnabledField} label={settings.compliance.modbus_enabled ? 'On' : 'Off'} />
+                </FieldRow>
+              </div>
+            </div>
+          </SectionCard>
+
+          <SectionCard tag="zigbee" bind:open={zigbeeOpen} forceOpen={zigbeeExpanded}>
+            <div class="sa-form-grid">
+              <div data-span="4">
+                <FieldRow label="Zigbee Enabled" bind:enabled={zigbeeEnabledField}>
+                  <Toggle bind:checked={settings.compliance.zigbee_enabled} disabled={!zigbeeEnabledField} label={settings.compliance.zigbee_enabled ? 'On' : 'Off'} />
                 </FieldRow>
               </div>
             </div>

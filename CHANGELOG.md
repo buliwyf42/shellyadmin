@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.0.12] - 2026-04-21
+
+Closes several Shelly API coverage gaps identified in the 2026-04 review: new compliance rules and provisioning surfaces for previously-unexposed device subsystems, plus chunked certificate upload that unblocks MQTT/WS with a user-managed CA and mTLS-to-broker auth.
+
+### Added
+- **User CA + TLS client cert/key upload** via chunked `Shelly.PutUserCA` / `Shelly.PutTLSClientCert` / `Shelly.PutTLSClientKey` RPCs. New `POST /api/provision/user-ca` endpoint (optional `kind` field: `user_ca` | `tls_client_cert` | `tls_client_key`) and a Provision-page **Upload Certificate (PEM)** form with a kind selector. Closes the MQTT/WS `user_ca.pem` loop and enables mTLS-to-broker authentication.
+- **Per-IP concurrency guard** on certificate uploads — reuses the existing Provision/Firmware reservation pattern; uploads that collide with an in-flight Provision or Firmware job on the same device return a `skipped` result with a `device busy` detail instead of silently racing.
+- **New compliance rules**: `wifi_ap_enabled`, `wifi_ap_is_open`, `eth_enabled`, `eth_ipv4mode` (`dhcp` | `static`), `sys_debug_mqtt`, `matter_enabled`, `modbus_enabled`, `zigbee_enabled`. Each rule surfaces in the Compliance page with the same toggle + enable-checkbox pattern as the existing rules.
+- **New provisioner sections + UI forms**: `eth` (via `Eth.SetConfig`) and UI-only `wifi_ap`, `modbus`, `zigbee`, `user_ca` forms wired into the Provision page. The `eth` section joins the existing `mqtt`/`ws`/`wifi`/… section handlers in `applySection()`.
+- Service-layer test suite `internal/services/user_ca_test.go` covering all input-validation paths (empty/too-many IPs, unknown kind, empty/headerless/oversized PEM, invalid/non-local IP) and a busy-target concurrency-guard case.
+- Parameterized provisioner tests in `internal/core/provisioner/user_ca_test.go` exercising the chunked-upload sequence and back-compat wrapper across all three certificate kinds.
+
+### Changed
+- `internal/core/provisioner/user_ca.go` generalized around a `CertificateKind` enum (`KindUserCA` / `KindTLSClientCert` / `KindTLSClientKey`) with shared `UploadCertificate` / `RemoveCertificate` helpers. The original `UploadUserCA` / `RemoveUserCA` entry points are preserved as thin back-compat wrappers.
+- `compliance.Evaluate` now honours the new rules via the existing `compareConfigBool` / `compareConfigString` helpers (no behaviour change for unset rules).
+- `ComplianceRules.Normalize` coerces `eth_ipv4mode` to `dhcp` / `static` / empty — anything else is dropped rather than applied literally.
+
 ## [0.0.11] - 2026-04-18
 
 Provision and Compliance UI refresh: dated `<select>`-based On/Off controls replaced with real toggle switches and a styled custom dropdown; section cards, field rows, and the Provision toolbar cleaned up. Plus a long-standing template-load bug fix.

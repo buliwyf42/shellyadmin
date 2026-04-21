@@ -2,13 +2,17 @@ import type {
   AuthState,
   BleState,
   CloudState,
+  EthState,
   HydrateResult,
   MatterState,
+  ModbusState,
   MqttState,
   OtaState,
   SysState,
+  WifiAPState,
   WifiState,
   WsState,
+  ZigbeeState,
 } from './types'
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -74,6 +78,8 @@ export function createSysState(): SysState {
     sntp: 'time.cloudflare.com',
     debugWSEnabled: false,
     debugWS: false,
+    debugMQTTEnabled: false,
+    debugMQTT: false,
     debugUDPHostEnabled: false,
     debugUDPHost: '',
     rpcUDPPortEnabled: false,
@@ -94,6 +100,7 @@ export function buildSys(s: SysState): Record<string, unknown> | null {
   const sntp: Record<string, unknown> = {}
   const debug: Record<string, unknown> = {}
   const debugWS: Record<string, unknown> = {}
+  const debugMQTT: Record<string, unknown> = {}
   const debugUDP: Record<string, unknown> = {}
   const rpcUDP: Record<string, unknown> = {}
 
@@ -103,6 +110,7 @@ export function buildSys(s: SysState): Record<string, unknown> | null {
   if (s.tzEnabled) location.tz = s.tz
   if (s.sntpEnabled) sntp.server = s.sntp
   if (s.debugWSEnabled) debugWS.enable = s.debugWS
+  if (s.debugMQTTEnabled) debugMQTT.enable = s.debugMQTT
   if (s.debugUDPHostEnabled && s.debugUDPHost.trim()) debugUDP.addr = s.debugUDPHost.trim()
   if (s.rpcUDPPortEnabled) {
     const port = maybeNum(s.rpcUDPPort)
@@ -120,6 +128,7 @@ export function buildSys(s: SysState): Record<string, unknown> | null {
   if (Object.keys(location).length > 0) sys.location = location
   if (Object.keys(sntp).length > 0) sys.sntp = sntp
   if (Object.keys(debugWS).length > 0) debug.websocket = debugWS
+  if (Object.keys(debugMQTT).length > 0) debug.mqtt = debugMQTT
   if (Object.keys(debugUDP).length > 0) debug.udp = debugUDP
   if (Object.keys(debug).length > 0) sys.debug = debug
   if (Object.keys(rpcUDP).length > 0) sys.rpc_udp = rpcUDP
@@ -152,12 +161,16 @@ export function hydrateSys(record: Record<string, unknown>): HydrateResult<SysSt
     return { ok: false, reason: 'Template sys.dbg section contains unsupported fields.' }
   }
   const debugWS = debug && debug.websocket ? asRecord(debug.websocket) : null
+  const debugMQTTRec = debug && debug.mqtt ? asRecord(debug.mqtt) : null
   const debugUDP = debug && debug.udp ? asRecord(debug.udp) : null
-  if ((debug && debug.websocket && !debugWS) || (debug && debug.udp && !debugUDP)) {
+  if ((debug && debug.websocket && !debugWS) || (debug && debug.mqtt && !debugMQTTRec) || (debug && debug.udp && !debugUDP)) {
     return { ok: false, reason: 'Template sys.debug section contains unsupported nested values.' }
   }
   if (debugWS && !hasOnlyKeys(debugWS, ['enable'])) {
     return { ok: false, reason: 'Template sys.debug.websocket section contains unsupported fields.' }
+  }
+  if (debugMQTTRec && !hasOnlyKeys(debugMQTTRec, ['enable'])) {
+    return { ok: false, reason: 'Template sys.debug.mqtt section contains unsupported fields.' }
   }
   if (debugUDP && !hasOnlyKeys(debugUDP, ['addr'])) {
     return { ok: false, reason: 'Template sys.debug.udp section contains unsupported fields.' }
@@ -215,6 +228,11 @@ export function hydrateSys(record: Record<string, unknown>): HydrateResult<SysSt
   if (finalDebugWS !== undefined) {
     state.debugWSEnabled = true
     state.debugWS = finalDebugWS
+  }
+  const debugMQTTValue = debugMQTTRec ? boolField(debugMQTTRec, 'enable') : undefined
+  if (debugMQTTValue !== undefined) {
+    state.debugMQTTEnabled = true
+    state.debugMQTT = debugMQTTValue
   }
   const legacyDebugUDPHost = dbg ? stringField(dbg, 'udp_addr') : undefined
   const nestedDebugUDPHost = debugUDP ? stringField(debugUDP, 'addr') : undefined
@@ -643,7 +661,7 @@ export function buildWifi(s: WifiState): Record<string, unknown> | null {
 }
 
 export function hydrateWifi(record: Record<string, unknown>): HydrateResult<WifiState> {
-  if (!hasOnlyKeys(record, ['sta'])) {
+  if (!hasOnlyKeys(record, ['sta', 'ap'])) {
     return { ok: false, reason: 'Template wifi section contains unsupported fields.' }
   }
   const sta = record.sta ? asRecord(record.sta) : null
@@ -666,6 +684,196 @@ export function hydrateWifi(record: Record<string, unknown>): HydrateResult<Wifi
   if (passValue !== undefined) {
     state.passEnabled = true
     state.pass = passValue
+  }
+  return { ok: true, state }
+}
+
+// --- wifi AP ---
+
+export function createWifiAPState(): WifiAPState {
+  return {
+    enabled: false,
+    enableField: false,
+    enable: false,
+    ssidEnabled: false,
+    ssid: '',
+    passEnabled: false,
+    pass: '',
+    isOpenField: false,
+    isOpen: false,
+    open: false,
+  }
+}
+
+export function buildWifiAP(s: WifiAPState): Record<string, unknown> | null {
+  if (!s.enabled) return null
+  const ap: Record<string, unknown> = {}
+  if (s.enableField) ap.enable = s.enable
+  if (s.ssidEnabled) ap.ssid = s.ssid
+  if (s.passEnabled) ap.pass = s.pass
+  if (s.isOpenField) ap.is_open = s.isOpen
+  return Object.keys(ap).length > 0 ? ap : null
+}
+
+export function hydrateWifiAP(record: Record<string, unknown>): HydrateResult<WifiAPState> {
+  const ap = record.ap ? asRecord(record.ap) : null
+  if (record.ap && !ap) {
+    return { ok: false, reason: 'Template wifi.ap section is not representable in the form.' }
+  }
+  if (ap && !hasOnlyKeys(ap, ['enable', 'ssid', 'pass', 'is_open'])) {
+    return { ok: false, reason: 'Template wifi.ap section contains unsupported fields.' }
+  }
+  const state = createWifiAPState()
+  if (!ap) return { ok: true, state }
+  state.enabled = true
+  const enableValue = boolField(ap, 'enable')
+  if (enableValue !== undefined) {
+    state.enableField = true
+    state.enable = enableValue
+  }
+  const ssidValue = stringField(ap, 'ssid')
+  if (ssidValue !== undefined) {
+    state.ssidEnabled = true
+    state.ssid = ssidValue
+  }
+  const passValue = stringField(ap, 'pass')
+  if (passValue !== undefined) {
+    state.passEnabled = true
+    state.pass = passValue
+  }
+  const isOpenValue = boolField(ap, 'is_open')
+  if (isOpenValue !== undefined) {
+    state.isOpenField = true
+    state.isOpen = isOpenValue
+  }
+  return { ok: true, state }
+}
+
+// --- eth ---
+
+export function createEthState(): EthState {
+  return {
+    enabled: false,
+    enableField: false,
+    enable: true,
+    ipv4ModeEnabled: false,
+    ipv4Mode: 'dhcp',
+    ipEnabled: false,
+    ip: '',
+    netmaskEnabled: false,
+    netmask: '',
+    gwEnabled: false,
+    gw: '',
+    nameserverEnabled: false,
+    nameserver: '',
+    open: false,
+  }
+}
+
+export function buildEth(s: EthState): Record<string, unknown> | null {
+  if (!s.enabled) return null
+  const eth: Record<string, unknown> = {}
+  if (s.enableField) eth.enable = s.enable
+  if (s.ipv4ModeEnabled) eth.ipv4mode = s.ipv4Mode
+  if (s.ipEnabled && s.ip.trim() !== '') eth.ip = s.ip.trim()
+  if (s.netmaskEnabled && s.netmask.trim() !== '') eth.netmask = s.netmask.trim()
+  if (s.gwEnabled && s.gw.trim() !== '') eth.gw = s.gw.trim()
+  if (s.nameserverEnabled && s.nameserver.trim() !== '') eth.nameserver = s.nameserver.trim()
+  return Object.keys(eth).length > 0 ? eth : null
+}
+
+export function hydrateEth(record: Record<string, unknown>): HydrateResult<EthState> {
+  if (!hasOnlyKeys(record, ['enable', 'ipv4mode', 'ip', 'netmask', 'gw', 'nameserver'])) {
+    return { ok: false, reason: 'Template eth section contains unsupported fields.' }
+  }
+  const ipv4Mode = stringField(record, 'ipv4mode')
+  if (ipv4Mode !== undefined && ipv4Mode !== 'dhcp' && ipv4Mode !== 'static') {
+    return { ok: false, reason: 'Template eth ipv4mode is not representable in the form.' }
+  }
+  const state = createEthState()
+  state.enabled = true
+  const enableValue = boolField(record, 'enable')
+  if (enableValue !== undefined) {
+    state.enableField = true
+    state.enable = enableValue
+  }
+  if (ipv4Mode !== undefined) {
+    state.ipv4ModeEnabled = true
+    state.ipv4Mode = ipv4Mode
+  }
+  const ipValue = stringField(record, 'ip')
+  if (ipValue !== undefined) {
+    state.ipEnabled = true
+    state.ip = ipValue
+  }
+  const netmaskValue = stringField(record, 'netmask')
+  if (netmaskValue !== undefined) {
+    state.netmaskEnabled = true
+    state.netmask = netmaskValue
+  }
+  const gwValue = stringField(record, 'gw')
+  if (gwValue !== undefined) {
+    state.gwEnabled = true
+    state.gw = gwValue
+  }
+  const nameserverValue = stringField(record, 'nameserver')
+  if (nameserverValue !== undefined) {
+    state.nameserverEnabled = true
+    state.nameserver = nameserverValue
+  }
+  return { ok: true, state }
+}
+
+// --- modbus ---
+
+export function createModbusState(): ModbusState {
+  return { enabled: false, enableField: false, enable: false, open: false }
+}
+
+export function buildModbus(s: ModbusState): Record<string, unknown> | null {
+  if (!s.enabled) return null
+  const modbus: Record<string, unknown> = {}
+  if (s.enableField) modbus.enable = s.enable
+  return Object.keys(modbus).length > 0 ? modbus : null
+}
+
+export function hydrateModbus(record: Record<string, unknown>): HydrateResult<ModbusState> {
+  if (!hasOnlyKeys(record, ['enable'])) {
+    return { ok: false, reason: 'Template modbus section contains unsupported fields.' }
+  }
+  const state = createModbusState()
+  state.enabled = true
+  const enableValue = boolField(record, 'enable')
+  if (enableValue !== undefined) {
+    state.enableField = true
+    state.enable = enableValue
+  }
+  return { ok: true, state }
+}
+
+// --- zigbee ---
+
+export function createZigbeeState(): ZigbeeState {
+  return { enabled: false, enableField: false, enable: false, open: false }
+}
+
+export function buildZigbee(s: ZigbeeState): Record<string, unknown> | null {
+  if (!s.enabled) return null
+  const zigbee: Record<string, unknown> = {}
+  if (s.enableField) zigbee.enable = s.enable
+  return Object.keys(zigbee).length > 0 ? zigbee : null
+}
+
+export function hydrateZigbee(record: Record<string, unknown>): HydrateResult<ZigbeeState> {
+  if (!hasOnlyKeys(record, ['enable'])) {
+    return { ok: false, reason: 'Template zigbee section contains unsupported fields.' }
+  }
+  const state = createZigbeeState()
+  state.enabled = true
+  const enableValue = boolField(record, 'enable')
+  if (enableValue !== undefined) {
+    state.enableField = true
+    state.enable = enableValue
   }
   return { ok: true, state }
 }

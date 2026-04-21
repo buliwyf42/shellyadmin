@@ -14,6 +14,8 @@ export type SysState = {
   sntp: string
   debugWSEnabled: boolean
   debugWS: boolean
+  debugMQTTEnabled: boolean
+  debugMQTT: boolean
   debugUDPHostEnabled: boolean
   debugUDPHost: string
   rpcUDPPortEnabled: boolean
@@ -115,5 +117,49 @@ export type WifiState = {
   ssid: string
   passEnabled: boolean
   pass: string
+  open: boolean
+}
+
+export type WifiAPState = {
+  enabled: boolean
+  enableField: boolean
+  enable: boolean
+  ssidEnabled: boolean
+  ssid: string
+  passEnabled: boolean
+  pass: string
+  isOpenField: boolean
+  isOpen: boolean
+  open: boolean
+}
+
+export type ModbusState = {
+  enabled: boolean
+  enableField: boolean
+  enable: boolean
+  open: boolean
+}
+
+export type ZigbeeState = {
+  enabled: boolean
+  enableField: boolean
+  enable: boolean
+  open: boolean
+}
+
+export type EthState = {
+  enabled: boolean
+  enableField: boolean
+  enable: boolean
+  ipv4ModeEnabled: boolean
+  ipv4Mode: 'dhcp' | 'static'
+  ipEnabled: boolean
+  ip: string
+  netmaskEnabled: boolean
+  netmask: string
+  gwEnabled: boolean
+  gw: string
+  nameserverEnabled: boolean
+  nameserver: string
   open: boolean
 }

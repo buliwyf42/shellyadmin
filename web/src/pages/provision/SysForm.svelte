@@ -14,6 +14,7 @@
     state.lonEnabled ||
     state.sntpEnabled ||
     state.debugWSEnabled ||
+    state.debugMQTTEnabled ||
     state.debugUDPHostEnabled ||
     state.rpcUDPPortEnabled ||
     state.ecoEnabled ||
@@ -40,6 +41,11 @@
     <div data-span="6">
       <FieldRow label="Debug WebSocket (stream logs)" bind:enabled={state.debugWSEnabled} disabled={!state.enabled}>
         <Toggle bind:checked={state.debugWS} disabled={!state.enabled || !state.debugWSEnabled} label={state.debugWS ? 'On' : 'Off'} />
+      </FieldRow>
+    </div>
+    <div data-span="6">
+      <FieldRow label="Debug MQTT" bind:enabled={state.debugMQTTEnabled} disabled={!state.enabled}>
+        <Toggle bind:checked={state.debugMQTT} disabled={!state.enabled || !state.debugMQTTEnabled} label={state.debugMQTT ? 'On' : 'Off'} />
       </FieldRow>
     </div>
     <div data-span="6">
