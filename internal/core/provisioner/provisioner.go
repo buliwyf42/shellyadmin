@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -111,6 +112,22 @@ func applySection(ctx context.Context, client *http.Client, ip string, gen int, 
 			}
 		}
 		return SectionResult{Section: section, Status: "ok", Detail: "keys written"}
+	case "script":
+		for idStr, val := range payload {
+			id, err := strconv.Atoi(idStr)
+			if err != nil {
+				return SectionResult{Section: section, Status: "failed", Detail: fmt.Sprintf("script id %q is not an integer", idStr)}
+			}
+			config, ok := val.(map[string]interface{})
+			if !ok {
+				return SectionResult{Section: section, Status: "failed", Detail: fmt.Sprintf("script %s config must be an object", idStr)}
+			}
+			result := rpcSection(ctx, client, ip, "Script.SetConfig", map[string]interface{}{"id": id, "config": config}, section)
+			if result.Status != "ok" {
+				return result
+			}
+		}
+		return SectionResult{Section: section, Status: "ok", Detail: "scripts configured"}
 	case "ota":
 		config, warning := normalizeOTAPayload(payload)
 		return applyConfigWithWarning(ctx, client, ip, "OTA.SetConfig", config, section, warning)
