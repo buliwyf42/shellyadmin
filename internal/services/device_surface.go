@@ -327,6 +327,8 @@ func validateBulkAction(req BulkActionRequest) error {
 		if req.Enabled == nil {
 			return fmt.Errorf("%s requires enabled", req.Action)
 		}
+	case "reboot":
+		// no extra fields required
 	default:
 		return fmt.Errorf("unsupported action: %s", req.Action)
 	}
@@ -356,6 +358,9 @@ func applyBulkAction(ctx context.Context, req BulkActionRequest, device models.D
 	case "set_ble_enabled":
 		ok := setters.SetBLEEnabled(ctx, device.IP, *req.Enabled, device.Gen, timeout)
 		return ok, fmt.Sprintf("set BLE %s", ternary(*req.Enabled, "enabled", "disabled"))
+	case "reboot":
+		ok := setters.Reboot(ctx, device.IP, device.Gen, timeout)
+		return ok, "rebooted"
 	default:
 		return false, "unsupported action"
 	}
@@ -377,6 +382,8 @@ func bulkActionSummary(req BulkActionRequest) string {
 		return fmt.Sprintf("Set Cloud %s on the selected devices.", ternary(*req.Enabled, "enabled", "disabled"))
 	case "set_ble_enabled":
 		return fmt.Sprintf("Set BLE %s on the selected devices.", ternary(*req.Enabled, "enabled", "disabled"))
+	case "reboot":
+		return "Reboot the selected devices."
 	default:
 		return "Apply a bulk action to the selected devices."
 	}
@@ -386,6 +393,8 @@ func bulkActionWarnings(req BulkActionRequest) []string {
 	switch req.Action {
 	case "set_location", "set_timezone", "set_mqtt_server", "set_mqtt_enabled", "set_sntp_server", "set_cloud_enabled", "set_ble_enabled":
 		return []string{"Changes are sent directly to the devices and should be followed by a refresh to confirm the final state."}
+	case "reboot":
+		return []string{"Devices will be unreachable for ~20s; active scan/refresh jobs may error."}
 	default:
 		return nil
 	}
