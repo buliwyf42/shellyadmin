@@ -66,7 +66,6 @@
 
   let tzEnabled = false
   let sntpEnabled = false
-  let otaAutoUpdateEnabled = false
   let sysDebugWSField = false
   let sysDebugUDPHostField = false
   let sysRPCUDPPortField = false
@@ -93,7 +92,6 @@
   let wsOpen = false
   let bleOpen = false
   let sysOpen = false
-  let otaOpen = false
   let matterOpen = false
   let modbusOpen = false
   let zigbeeOpen = false
@@ -108,7 +106,6 @@
   $: matterExpanded = matterEnabledField
   $: modbusExpanded = modbusEnabledField
   $: zigbeeExpanded = zigbeeEnabledField
-  $: otaExpanded = otaAutoUpdateEnabled
   $: wifiAPExpanded = wifiAPEnabledField || wifiAPIsOpenField
   $: ethExpanded = ethEnabledField || ethIPv4ModeField
   $: customExpanded = (settings.compliance.custom_rules || []).length > 0
@@ -182,7 +179,6 @@
 
     tzEnabled = Boolean(settings.compliance.tz)
     sntpEnabled = Boolean(settings.compliance.sntp_server)
-    otaAutoUpdateEnabled = Boolean(settings.compliance.ota_auto_update)
     sysDebugWSField = settings.compliance.sys_debug_websocket !== null && settings.compliance.sys_debug_websocket !== undefined
     sysDebugUDPHostField = Boolean(settings.compliance.sys_debug_udp_host)
     sysRPCUDPPortField = settings.compliance.sys_rpc_udp_port !== null && settings.compliance.sys_rpc_udp_port !== undefined
@@ -229,7 +225,7 @@
 
     settings.compliance.tz = tzEnabled ? (settings.compliance.tz || '') : ''
     settings.compliance.sntp_server = sntpEnabled ? (settings.compliance.sntp_server || '') : ''
-    settings.compliance.ota_auto_update = otaAutoUpdateEnabled ? (settings.compliance.ota_auto_update || 'off') : ''
+    settings.compliance.ota_auto_update = ''
     settings.compliance.sys_debug_websocket = sysDebugWSField ? Boolean(settings.compliance.sys_debug_websocket) : null
     settings.compliance.sys_debug_udp_host = sysDebugUDPHostField ? (settings.compliance.sys_debug_udp_host || '') : ''
     settings.compliance.sys_rpc_udp_port = sysRPCUDPPortField ? Number(settings.compliance.sys_rpc_udp_port ?? 0) : null
@@ -573,32 +569,6 @@
               <div data-span="4">
                 <FieldRow label="Zigbee Enabled" bind:enabled={zigbeeEnabledField}>
                   <Toggle bind:checked={settings.compliance.zigbee_enabled} disabled={!zigbeeEnabledField} label={settings.compliance.zigbee_enabled ? 'On' : 'Off'} />
-                </FieldRow>
-              </div>
-            </div>
-          </SectionCard>
-
-          <SectionCard tag="ota" bind:open={otaOpen} forceOpen={otaExpanded}>
-            <div class="sa-form-grid">
-              <div data-span="6">
-                <FieldRow label="Update automatically" bind:enabled={otaAutoUpdateEnabled}>
-                  <div class="d-flex flex-column gap-1">
-                    <label class="d-flex align-items-center gap-2">
-                      <input type="radio" bind:group={settings.compliance.ota_auto_update} value="off" disabled={!otaAutoUpdateEnabled} />
-                      Disable auto update
-                    </label>
-                    <label class="d-flex align-items-center gap-2">
-                      <input type="radio" bind:group={settings.compliance.ota_auto_update} value="stable" disabled={!otaAutoUpdateEnabled} />
-                      Enable update to stable version
-                    </label>
-                    <label class="d-flex align-items-center gap-2">
-                      <input type="radio" bind:group={settings.compliance.ota_auto_update} value="beta" disabled={!otaAutoUpdateEnabled} />
-                      Enable update to beta version
-                    </label>
-                    {#if settings.compliance.ota_auto_update === 'beta' && otaAutoUpdateEnabled}
-                      <p class="text-secondary fst-italic small mb-0">Beta firmware may cause instability</p>
-                    {/if}
-                  </div>
                 </FieldRow>
               </div>
             </div>
