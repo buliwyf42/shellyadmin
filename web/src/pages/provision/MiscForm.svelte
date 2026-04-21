@@ -4,6 +4,8 @@
   import FieldRow from '../../components/FieldRow.svelte'
   import Toggle from '../../components/Toggle.svelte'
   import Select from '../../components/Select.svelte'
+  import WifiStaForm from './WifiStaForm.svelte'
+  import WifiRoamForm from './WifiRoamForm.svelte'
 
   export let matter: MatterState
   export let cloud: CloudState
@@ -25,7 +27,7 @@
   $: cloudExpanded = cloud.enabled || cloud.enableField
   $: otaExpanded = ota.enabled || ota.stageEnabled || ota.autoUpdateEnabled
   $: authExpanded = auth.enabled || auth.passEnabled
-  $: wifiExpanded = wifi.enabled || wifi.staEnabled || wifi.ssidEnabled || wifi.passEnabled
+  $: wifiExpanded = wifi.enabled || wifi.staEnabled || wifi.sta.ssidEnabled || wifi.sta.passEnabled || wifi.sta1Enabled || wifi.roamEnabled
 </script>
 
 <SectionCard tag="matter" title="Matter (Gen 2+)" bind:open={matter.open} forceOpen={matterExpanded} bind:enabled={matter.enabled}>
@@ -81,17 +83,22 @@
 <SectionCard tag="wifi" title="WiFi STA" bind:open={wifi.open} forceOpen={wifiExpanded} bind:enabled={wifi.enabled}>
   <div class="sa-form-grid">
     <div data-span="4">
-      <FieldRow label="Enable STA" bind:enabled={wifi.staEnabled} disabled={!wifi.enabled} help="On when section selected" />
+      <FieldRow label="Configure primary STA" bind:enabled={wifi.staEnabled} disabled={!wifi.enabled} />
     </div>
     <div data-span="4">
-      <FieldRow label="SSID" bind:enabled={wifi.ssidEnabled} disabled={!wifi.enabled}>
-        <input class="form-control" bind:value={wifi.ssid} disabled={!wifi.enabled || !wifi.ssidEnabled} />
-      </FieldRow>
+      <FieldRow label="Configure secondary STA (STA1)" bind:enabled={wifi.sta1Enabled} disabled={!wifi.enabled} />
     </div>
     <div data-span="4">
-      <FieldRow label="Password" bind:enabled={wifi.passEnabled} disabled={!wifi.enabled}>
-        <input class="form-control" type="password" bind:value={wifi.pass} disabled={!wifi.enabled || !wifi.passEnabled} />
-      </FieldRow>
+      <FieldRow label="Configure roaming" bind:enabled={wifi.roamEnabled} disabled={!wifi.enabled} />
     </div>
   </div>
+  {#if wifi.staEnabled}
+    <WifiStaForm label="Primary STA" bind:value={wifi.sta} disabled={!wifi.enabled} />
+  {/if}
+  {#if wifi.sta1Enabled}
+    <WifiStaForm label="Secondary STA (STA1)" bind:value={wifi.sta1} disabled={!wifi.enabled} />
+  {/if}
+  {#if wifi.roamEnabled}
+    <WifiRoamForm bind:value={wifi.roam} disabled={!wifi.enabled} />
+  {/if}
 </SectionCard>
