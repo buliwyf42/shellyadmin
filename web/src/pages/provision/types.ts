@@ -110,13 +110,40 @@ export type AuthState = {
   open: boolean
 }
 
-export type WifiState = {
-  enabled: boolean
-  staEnabled: boolean
+export type WifiStaEntry = {
+  enableField: boolean
+  enable: boolean
   ssidEnabled: boolean
   ssid: string
   passEnabled: boolean
   pass: string
+  ipv4ModeEnabled: boolean
+  ipv4mode: 'dhcp' | 'static'
+  ipEnabled: boolean
+  ip: string
+  netmaskEnabled: boolean
+  netmask: string
+  gwEnabled: boolean
+  gw: string
+  nameserverEnabled: boolean
+  nameserver: string
+}
+
+export type WifiRoamState = {
+  rssiThrEnabled: boolean
+  rssiThr: number
+  intervalEnabled: boolean
+  interval: number
+}
+
+export type WifiState = {
+  enabled: boolean
+  staEnabled: boolean
+  sta: WifiStaEntry
+  sta1Enabled: boolean
+  sta1: WifiStaEntry
+  roamEnabled: boolean
+  roam: WifiRoamState
   open: boolean
 }
 

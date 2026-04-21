@@ -10,6 +10,8 @@ import type {
   OtaState,
   SysState,
   WifiAPState,
+  WifiRoamState,
+  WifiStaEntry,
   WifiState,
   WsState,
   ZigbeeState,
@@ -637,53 +639,133 @@ export function hydrateAuth(record: Record<string, unknown>): HydrateResult<Auth
 
 // --- wifi ---
 
-export function createWifiState(): WifiState {
+function createStaEntry(): WifiStaEntry {
   return {
-    enabled: false,
-    staEnabled: false,
+    enableField: false,
+    enable: true,
     ssidEnabled: false,
     ssid: '',
     passEnabled: false,
     pass: '',
+    ipv4ModeEnabled: false,
+    ipv4mode: 'dhcp',
+    ipEnabled: false,
+    ip: '',
+    netmaskEnabled: false,
+    netmask: '',
+    gwEnabled: false,
+    gw: '',
+    nameserverEnabled: false,
+    nameserver: '',
+  }
+}
+
+function createRoamState(): WifiRoamState {
+  return { rssiThrEnabled: false, rssiThr: -80, intervalEnabled: false, interval: 60 }
+}
+
+export function createWifiState(): WifiState {
+  return {
+    enabled: false,
+    staEnabled: false,
+    sta: createStaEntry(),
+    sta1Enabled: false,
+    sta1: createStaEntry(),
+    roamEnabled: false,
+    roam: createRoamState(),
     open: false,
   }
+}
+
+function buildStaEntry(s: WifiStaEntry): Record<string, unknown> {
+  const sta: Record<string, unknown> = {}
+  if (s.enableField) sta.enable = s.enable
+  if (s.ssidEnabled) sta.ssid = s.ssid
+  if (s.passEnabled) sta.pass = s.pass
+  if (s.ipv4ModeEnabled) sta.ipv4mode = s.ipv4mode
+  if (s.ipv4mode === 'static') {
+    if (s.ipEnabled && s.ip.trim()) sta.ip = s.ip.trim()
+    if (s.netmaskEnabled && s.netmask.trim()) sta.netmask = s.netmask.trim()
+    if (s.gwEnabled && s.gw.trim()) sta.gw = s.gw.trim()
+    if (s.nameserverEnabled && s.nameserver.trim()) sta.nameserver = s.nameserver.trim()
+  }
+  return sta
+}
+
+function hydrateStaEntry(record: Record<string, unknown>): WifiStaEntry {
+  const entry = createStaEntry()
+  const enableValue = boolField(record, 'enable')
+  if (enableValue !== undefined) { entry.enableField = true; entry.enable = enableValue }
+  const ssid = stringField(record, 'ssid')
+  if (ssid !== undefined) { entry.ssidEnabled = true; entry.ssid = ssid }
+  const pass = stringField(record, 'pass')
+  if (pass !== undefined) { entry.passEnabled = true; entry.pass = pass }
+  const ipv4mode = stringField(record, 'ipv4mode')
+  if (ipv4mode !== undefined) {
+    entry.ipv4ModeEnabled = true
+    entry.ipv4mode = ipv4mode === 'static' ? 'static' : 'dhcp'
+  }
+  const ip = stringField(record, 'ip')
+  if (ip !== undefined) { entry.ipEnabled = true; entry.ip = ip }
+  const netmask = stringField(record, 'netmask')
+  if (netmask !== undefined) { entry.netmaskEnabled = true; entry.netmask = netmask }
+  const gw = stringField(record, 'gw')
+  if (gw !== undefined) { entry.gwEnabled = true; entry.gw = gw }
+  const nameserver = stringField(record, 'nameserver')
+  if (nameserver !== undefined) { entry.nameserverEnabled = true; entry.nameserver = nameserver }
+  return entry
 }
 
 export function buildWifi(s: WifiState): Record<string, unknown> | null {
   if (!s.enabled) return null
   const wifi: Record<string, unknown> = {}
-  const sta: Record<string, unknown> = {}
-  if (s.staEnabled) sta.enable = true
-  if (s.ssidEnabled) sta.ssid = s.ssid
-  if (s.passEnabled) sta.pass = s.pass
-  if (Object.keys(sta).length > 0) wifi.sta = sta
+  if (s.staEnabled) {
+    const sta = buildStaEntry(s.sta)
+    if (Object.keys(sta).length > 0) wifi.sta = sta
+  }
+  if (s.sta1Enabled) {
+    const sta1 = buildStaEntry(s.sta1)
+    if (Object.keys(sta1).length > 0) wifi.sta1 = sta1
+  }
+  if (s.roamEnabled) {
+    const roam: Record<string, unknown> = {}
+    if (s.roam.rssiThrEnabled) roam.rssi_thr = s.roam.rssiThr
+    if (s.roam.intervalEnabled) roam.interval = s.roam.interval
+    if (Object.keys(roam).length > 0) wifi.roam = roam
+  }
   return Object.keys(wifi).length > 0 ? wifi : null
 }
 
 export function hydrateWifi(record: Record<string, unknown>): HydrateResult<WifiState> {
-  if (!hasOnlyKeys(record, ['sta', 'ap'])) {
+  if (!hasOnlyKeys(record, ['sta', 'sta1', 'ap', 'roam'])) {
     return { ok: false, reason: 'Template wifi section contains unsupported fields.' }
   }
   const sta = record.sta ? asRecord(record.sta) : null
-  if (record.sta && !sta) {
-    return { ok: false, reason: 'Template wifi.sta section is not representable in the form.' }
-  }
-  if (sta && !hasOnlyKeys(sta, ['enable', 'ssid', 'pass'])) {
+  const sta1 = record.sta1 ? asRecord(record.sta1) : null
+  const roam = record.roam ? asRecord(record.roam) : null
+  if (record.sta && !sta) return { ok: false, reason: 'Template wifi.sta is not representable in the form.' }
+  if (record.sta1 && !sta1) return { ok: false, reason: 'Template wifi.sta1 is not representable in the form.' }
+  if (record.roam && !roam) return { ok: false, reason: 'Template wifi.roam is not representable in the form.' }
+  const staFields = ['enable', 'ssid', 'pass', 'ipv4mode', 'ip', 'netmask', 'gw', 'nameserver']
+  if (sta && !hasOnlyKeys(sta, staFields)) {
     return { ok: false, reason: 'Template wifi.sta section contains unsupported fields.' }
+  }
+  if (sta1 && !hasOnlyKeys(sta1, staFields)) {
+    return { ok: false, reason: 'Template wifi.sta1 section contains unsupported fields.' }
+  }
+  if (roam && !hasOnlyKeys(roam, ['rssi_thr', 'interval'])) {
+    return { ok: false, reason: 'Template wifi.roam section contains unsupported fields.' }
   }
   const state = createWifiState()
   state.enabled = true
-  const staEnabled = sta ? boolField(sta, 'enable') : undefined
-  if (staEnabled !== undefined) state.staEnabled = staEnabled
-  const ssidValue = sta ? stringField(sta, 'ssid') : undefined
-  if (ssidValue !== undefined) {
-    state.ssidEnabled = true
-    state.ssid = ssidValue
-  }
-  const passValue = sta ? stringField(sta, 'pass') : undefined
-  if (passValue !== undefined) {
-    state.passEnabled = true
-    state.pass = passValue
+  if (sta) { state.staEnabled = true; state.sta = hydrateStaEntry(sta) }
+  if (sta1) { state.sta1Enabled = true; state.sta1 = hydrateStaEntry(sta1) }
+  if (roam) {
+    state.roamEnabled = true
+    const rssiThr = numberField(roam, 'rssi_thr')
+    if (rssiThr !== undefined) { state.roam.rssiThrEnabled = true; state.roam.rssiThr = rssiThr }
+    const interval = numberField(roam, 'interval')
+    if (interval !== undefined) { state.roam.intervalEnabled = true; state.roam.interval = interval }
   }
   return { ok: true, state }
 }
