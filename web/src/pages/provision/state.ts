@@ -8,7 +8,10 @@ import type {
   ModbusState,
   MqttState,
   OtaState,
+  ScriptEntry,
+  ScriptsState,
   SysState,
+  UIState,
   WifiAPState,
   WifiRoamState,
   WifiStaEntry,
@@ -848,6 +851,16 @@ export function createEthState(): EthState {
     gw: '',
     nameserverEnabled: false,
     nameserver: '',
+    ipv6Enabled: false,
+    ipv6Mode: 'disabled',
+    ipv6IpEnabled: false,
+    ipv6Ip: '',
+    ipv6NetmaskEnabled: false,
+    ipv6Netmask: '',
+    ipv6GwEnabled: false,
+    ipv6Gw: '',
+    ipv6NameserverEnabled: false,
+    ipv6Nameserver: '',
     open: false,
   }
 }
@@ -861,16 +874,28 @@ export function buildEth(s: EthState): Record<string, unknown> | null {
   if (s.netmaskEnabled && s.netmask.trim() !== '') eth.netmask = s.netmask.trim()
   if (s.gwEnabled && s.gw.trim() !== '') eth.gw = s.gw.trim()
   if (s.nameserverEnabled && s.nameserver.trim() !== '') eth.nameserver = s.nameserver.trim()
+  if (s.ipv6Enabled) {
+    eth.ipv6mode = s.ipv6Mode
+    if (s.ipv6IpEnabled && s.ipv6Ip.trim() !== '') eth.ipv6_addr = s.ipv6Ip.trim()
+    if (s.ipv6NetmaskEnabled && s.ipv6Netmask.trim() !== '') eth.ipv6_netmask = s.ipv6Netmask.trim()
+    if (s.ipv6GwEnabled && s.ipv6Gw.trim() !== '') eth.ipv6_gw = s.ipv6Gw.trim()
+    if (s.ipv6NameserverEnabled && s.ipv6Nameserver.trim() !== '') eth.ipv6_nameserver = s.ipv6Nameserver.trim()
+  }
   return Object.keys(eth).length > 0 ? eth : null
 }
 
 export function hydrateEth(record: Record<string, unknown>): HydrateResult<EthState> {
-  if (!hasOnlyKeys(record, ['enable', 'ipv4mode', 'ip', 'netmask', 'gw', 'nameserver'])) {
+  const knownKeys = ['enable', 'ipv4mode', 'ip', 'netmask', 'gw', 'nameserver', 'ipv6mode', 'ipv6_addr', 'ipv6_netmask', 'ipv6_gw', 'ipv6_nameserver']
+  if (!hasOnlyKeys(record, knownKeys)) {
     return { ok: false, reason: 'Template eth section contains unsupported fields.' }
   }
   const ipv4Mode = stringField(record, 'ipv4mode')
   if (ipv4Mode !== undefined && ipv4Mode !== 'dhcp' && ipv4Mode !== 'static') {
     return { ok: false, reason: 'Template eth ipv4mode is not representable in the form.' }
+  }
+  const ipv6Mode = stringField(record, 'ipv6mode')
+  if (ipv6Mode !== undefined && ipv6Mode !== 'disabled' && ipv6Mode !== 'slaac') {
+    return { ok: false, reason: 'Template eth ipv6mode is not representable in the form.' }
   }
   const state = createEthState()
   state.enabled = true
@@ -884,25 +909,25 @@ export function hydrateEth(record: Record<string, unknown>): HydrateResult<EthSt
     state.ipv4Mode = ipv4Mode
   }
   const ipValue = stringField(record, 'ip')
-  if (ipValue !== undefined) {
-    state.ipEnabled = true
-    state.ip = ipValue
-  }
+  if (ipValue !== undefined) { state.ipEnabled = true; state.ip = ipValue }
   const netmaskValue = stringField(record, 'netmask')
-  if (netmaskValue !== undefined) {
-    state.netmaskEnabled = true
-    state.netmask = netmaskValue
-  }
+  if (netmaskValue !== undefined) { state.netmaskEnabled = true; state.netmask = netmaskValue }
   const gwValue = stringField(record, 'gw')
-  if (gwValue !== undefined) {
-    state.gwEnabled = true
-    state.gw = gwValue
-  }
+  if (gwValue !== undefined) { state.gwEnabled = true; state.gw = gwValue }
   const nameserverValue = stringField(record, 'nameserver')
-  if (nameserverValue !== undefined) {
-    state.nameserverEnabled = true
-    state.nameserver = nameserverValue
+  if (nameserverValue !== undefined) { state.nameserverEnabled = true; state.nameserver = nameserverValue }
+  if (ipv6Mode !== undefined) {
+    state.ipv6Enabled = true
+    state.ipv6Mode = ipv6Mode
   }
+  const ipv6Ip = stringField(record, 'ipv6_addr')
+  if (ipv6Ip !== undefined) { state.ipv6Enabled = true; state.ipv6IpEnabled = true; state.ipv6Ip = ipv6Ip }
+  const ipv6Netmask = stringField(record, 'ipv6_netmask')
+  if (ipv6Netmask !== undefined) { state.ipv6Enabled = true; state.ipv6NetmaskEnabled = true; state.ipv6Netmask = ipv6Netmask }
+  const ipv6Gw = stringField(record, 'ipv6_gw')
+  if (ipv6Gw !== undefined) { state.ipv6Enabled = true; state.ipv6GwEnabled = true; state.ipv6Gw = ipv6Gw }
+  const ipv6Nameserver = stringField(record, 'ipv6_nameserver')
+  if (ipv6Nameserver !== undefined) { state.ipv6Enabled = true; state.ipv6NameserverEnabled = true; state.ipv6Nameserver = ipv6Nameserver }
   return { ok: true, state }
 }
 
@@ -958,4 +983,67 @@ export function hydrateZigbee(record: Record<string, unknown>): HydrateResult<Zi
     state.enable = enableValue
   }
   return { ok: true, state }
+}
+
+// --- ui ---
+
+export function createUIState(): UIState {
+  return { enabled: false, idleBrightnessEnabled: false, idleBrightness: 30, open: false }
+}
+
+export function buildUI(s: UIState): Record<string, unknown> | null {
+  if (!s.enabled) return null
+  const ui: Record<string, unknown> = {}
+  if (s.idleBrightnessEnabled) ui.idle_brightness = s.idleBrightness
+  return Object.keys(ui).length > 0 ? ui : null
+}
+
+export function hydrateUI(record: Record<string, unknown>): HydrateResult<UIState> {
+  if (!hasOnlyKeys(record, ['idle_brightness'])) {
+    return { ok: false, reason: 'Template ui section contains unsupported fields.' }
+  }
+  const state = createUIState()
+  state.enabled = true
+  const brightness = numberField(record, 'idle_brightness')
+  if (brightness !== undefined) {
+    state.idleBrightnessEnabled = true
+    state.idleBrightness = brightness
+  }
+  return { ok: true, state }
+}
+
+// --- script ---
+
+export function createScriptsState(): ScriptsState {
+  return { enabled: false, scripts: [], open: false }
+}
+
+export function buildScripts(s: ScriptsState): Record<string, unknown> | null {
+  if (!s.enabled || s.scripts.length === 0) return null
+  const out: Record<string, unknown> = {}
+  for (const entry of s.scripts) {
+    if (entry.id.trim() === '') continue
+    out[entry.id.trim()] = { name: entry.name, enable: entry.enable }
+  }
+  return Object.keys(out).length > 0 ? out : null
+}
+
+export function hydrateScripts(record: Record<string, unknown>): HydrateResult<ScriptsState> {
+  const scripts: ScriptEntry[] = []
+  for (const [key, val] of Object.entries(record)) {
+    if (!/^\d+$/.test(key)) {
+      return { ok: false, reason: `Template script section key "${key}" is not a numeric id.` }
+    }
+    const cfg = asRecord(val)
+    if (!cfg) {
+      return { ok: false, reason: `Template script ${key} config must be an object.` }
+    }
+    if (!hasOnlyKeys(cfg, ['name', 'enable'])) {
+      return { ok: false, reason: `Template script ${key} contains unsupported fields.` }
+    }
+    const name = stringField(cfg, 'name') ?? ''
+    const enable = boolField(cfg, 'enable') ?? true
+    scripts.push({ id: key, name, enable })
+  }
+  return { ok: true, state: { enabled: true, scripts, open: false } }
 }

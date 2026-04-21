@@ -1,17 +1,19 @@
 <script lang="ts">
-  import type { AuthState, CloudState, MatterState, OtaState, WifiState } from './types'
+  import type { AuthState, CloudState, MatterState, OtaState, UIState, WifiState } from './types'
   import SectionCard from '../../components/SectionCard.svelte'
   import FieldRow from '../../components/FieldRow.svelte'
   import Toggle from '../../components/Toggle.svelte'
   import Select from '../../components/Select.svelte'
   import WifiStaForm from './WifiStaForm.svelte'
   import WifiRoamForm from './WifiRoamForm.svelte'
+  import UIConfigForm from './UIConfigForm.svelte'
 
   export let matter: MatterState
   export let cloud: CloudState
   export let ota: OtaState
   export let auth: AuthState
   export let wifi: WifiState
+  export let ui: UIState
 
   const stageOptions: Array<{ value: OtaState['stage']; label: string }> = [
     { value: 'stable', label: 'Stable' },
@@ -28,6 +30,7 @@
   $: otaExpanded = ota.enabled || ota.stageEnabled || ota.autoUpdateEnabled
   $: authExpanded = auth.enabled || auth.passEnabled
   $: wifiExpanded = wifi.enabled || wifi.staEnabled || wifi.sta.ssidEnabled || wifi.sta.passEnabled || wifi.sta1Enabled || wifi.roamEnabled
+  $: uiExpanded = ui.enabled || ui.idleBrightnessEnabled
 </script>
 
 <SectionCard tag="matter" title="Matter (Gen 2+)" bind:open={matter.open} forceOpen={matterExpanded} bind:enabled={matter.enabled}>
@@ -79,6 +82,8 @@
     </div>
   </div>
 </SectionCard>
+
+<UIConfigForm bind:state={ui} />
 
 <SectionCard tag="wifi" title="WiFi STA" bind:open={wifi.open} forceOpen={wifiExpanded} bind:enabled={wifi.enabled}>
   <div class="sa-form-grid">

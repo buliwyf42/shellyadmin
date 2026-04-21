@@ -14,6 +14,7 @@
   import ModbusForm from './provision/ModbusForm.svelte'
   import ZigbeeForm from './provision/ZigbeeForm.svelte'
   import UserCAForm from './provision/UserCAForm.svelte'
+  import ScriptsForm from './provision/ScriptsForm.svelte'
   import type {
     AuthState,
     BleState,
@@ -23,7 +24,9 @@
     ModbusState,
     MqttState,
     OtaState,
+    ScriptsState,
     SysState,
+    UIState,
     WifiAPState,
     WifiState,
     WsState,
@@ -38,7 +41,9 @@
     buildModbus,
     buildMqtt,
     buildOta,
+    buildScripts,
     buildSys,
+    buildUI,
     buildWifi,
     buildWifiAP,
     buildWs,
@@ -51,7 +56,9 @@
     createModbusState,
     createMqttState,
     createOtaState,
+    createScriptsState,
     createSysState,
+    createUIState,
     createWifiAPState,
     createWifiState,
     createWsState,
@@ -64,7 +71,9 @@
     hydrateModbus,
     hydrateMqtt,
     hydrateOta,
+    hydrateScripts,
     hydrateSys,
+    hydrateUI,
     hydrateWifi,
     hydrateWifiAP,
     hydrateWs,
@@ -107,6 +116,8 @@
   let ethState: EthState = createEthState()
   let modbusState: ModbusState = createModbusState()
   let zigbeeState: ZigbeeState = createZigbeeState()
+  let uiState: UIState = createUIState()
+  let scriptsState: ScriptsState = createScriptsState()
 
   function captureError(err: unknown) {
     if (err instanceof APIError) {
@@ -301,6 +312,8 @@
     ethState = createEthState()
     modbusState = createModbusState()
     zigbeeState = createZigbeeState()
+    uiState = createUIState()
+    scriptsState = createScriptsState()
   }
 
   function asRecord(value: unknown): Record<string, unknown> | null {
@@ -321,6 +334,8 @@
     let nextEth: EthState | null = null
     let nextModbus: ModbusState | null = null
     let nextZigbee: ZigbeeState | null = null
+    let nextUI: UIState | null = null
+    let nextScripts: ScriptsState | null = null
     for (const [sectionName, rawSection] of Object.entries(template)) {
       const section = sectionName.trim().toLowerCase()
       const record = asRecord(rawSection)
@@ -403,6 +418,18 @@
           nextZigbee = r.state
           break
         }
+        case 'ui': {
+          const r = hydrateUI(record)
+          if (!r.ok) return r
+          nextUI = r.state
+          break
+        }
+        case 'script': {
+          const r = hydrateScripts(record)
+          if (!r.ok) return r
+          nextScripts = r.state
+          break
+        }
         default:
           return { ok: false, reason: `Template section "${sectionName}" is not supported by the form editor.` }
       }
@@ -421,6 +448,8 @@
     if (nextEth) ethState = nextEth
     if (nextModbus) modbusState = nextModbus
     if (nextZigbee) zigbeeState = nextZigbee
+    if (nextUI) uiState = nextUI
+    if (nextScripts) scriptsState = nextScripts
     return { ok: true }
   }
 
@@ -453,6 +482,10 @@
     if (modbus) out.modbus = modbus
     const zigbee = buildZigbee(zigbeeState)
     if (zigbee) out.zigbee = zigbee
+    const ui = buildUI(uiState)
+    if (ui) out.ui = ui
+    const scripts = buildScripts(scriptsState)
+    if (scripts) out.script = scripts
     return out
   }
 
@@ -712,11 +745,13 @@
               bind:ota={otaState}
               bind:auth={authState}
               bind:wifi={wifiState}
+              bind:ui={uiState}
             />
             <WifiAPForm bind:state={wifiAPState} />
             <EthForm bind:state={ethState} />
             <ModbusForm bind:state={modbusState} />
             <ZigbeeForm bind:state={zigbeeState} />
+            <ScriptsForm bind:state={scriptsState} />
             <UserCAForm {devices} {selected} />
           </div>
         {/if}
