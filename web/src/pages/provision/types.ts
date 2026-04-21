@@ -188,5 +188,34 @@ export type EthState = {
   gw: string
   nameserverEnabled: boolean
   nameserver: string
+  ipv6Enabled: boolean
+  ipv6Mode: 'disabled' | 'slaac'
+  ipv6IpEnabled: boolean
+  ipv6Ip: string
+  ipv6NetmaskEnabled: boolean
+  ipv6Netmask: string
+  ipv6GwEnabled: boolean
+  ipv6Gw: string
+  ipv6NameserverEnabled: boolean
+  ipv6Nameserver: string
+  open: boolean
+}
+
+export type UIState = {
+  enabled: boolean
+  idleBrightnessEnabled: boolean
+  idleBrightness: number
+  open: boolean
+}
+
+export type ScriptEntry = {
+  id: string
+  name: string
+  enable: boolean
+}
+
+export type ScriptsState = {
+  enabled: boolean
+  scripts: ScriptEntry[]
   open: boolean
 }
