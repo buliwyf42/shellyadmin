@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.0.14] - 2026-04-21
+
+Bug fixes for the v0.0.13 UI improvements.
+
+### Fixed
+- **ProgressBar idle state** — bar now renders empty at 0/0 instead of showing a full-width gold fill (the fill div previously had no explicit width when `total=0`).
+- **ProgressBar label split** — the "label below" span was inside `.pb-track` (which has `overflow:hidden`), causing the track to expand vertically and the fill to cover only the upper half. Span moved outside the track div.
+- **OTA compliance rule always firing "unsupported"** — `OTA.SetConfig` does not exist on Shelly Gen2 devices so `ota.auto_update` is never present in any device config; the compliance check therefore always returned "unsupported" regardless of the configured rule. Removed the evaluation from the backend (`compareConfigStringOrUnsupported` helper and `OTAAutoUpdate` call), removed the OTA section from the Compliance settings UI, and cleared any previously saved value on next settings save.
+- **OTA form radio buttons** — the "Update automatically" field in the Provision form and (previously) Compliance page used a `<Select>` dropdown; replaced with radio buttons matching the Shelly web interface (Disable / Enable stable / Enable beta, with an italic beta-instability warning).
+
 ## [0.0.13] - 2026-04-21
 
 Completes the WiFi / provisioning / UI improvement sprint: full Wifi.SetConfig surface coverage (STA1, roaming, static IPv4), new Script / UI / Eth-IPv6 provisioner sections, per-device restart_required feedback after provisioning, reboot controls on the Devices page, and a shared polished progress bar component.
