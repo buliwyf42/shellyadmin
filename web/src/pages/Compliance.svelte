@@ -35,11 +35,6 @@
     { value: 'default', label: 'TLS — default' },
     { value: 'user', label: 'TLS — user CA' },
   ]
-  const autoUpdateOptions: Array<{ value: AutoUpdate; label: string; description?: string }> = [
-    { value: 'off', label: 'Disabled', description: 'No automatic updates' },
-    { value: 'stable', label: 'Auto update to stable' },
-    { value: 'beta', label: 'Auto update to beta', description: 'Beta firmware may cause instability' },
-  ]
   const ipv4ModeOptions: Array<{ value: Ipv4Mode; label: string }> = [
     { value: '', label: '(any)' },
     { value: 'dhcp', label: 'DHCP' },
@@ -587,7 +582,23 @@
             <div class="sa-form-grid">
               <div data-span="6">
                 <FieldRow label="Update automatically" bind:enabled={otaAutoUpdateEnabled}>
-                  <Select bind:value={settings.compliance.ota_auto_update} options={autoUpdateOptions} disabled={!otaAutoUpdateEnabled} ariaLabel="Auto update" />
+                  <div class="d-flex flex-column gap-1">
+                    <label class="d-flex align-items-center gap-2">
+                      <input type="radio" bind:group={settings.compliance.ota_auto_update} value="off" disabled={!otaAutoUpdateEnabled} />
+                      Disable auto update
+                    </label>
+                    <label class="d-flex align-items-center gap-2">
+                      <input type="radio" bind:group={settings.compliance.ota_auto_update} value="stable" disabled={!otaAutoUpdateEnabled} />
+                      Enable update to stable version
+                    </label>
+                    <label class="d-flex align-items-center gap-2">
+                      <input type="radio" bind:group={settings.compliance.ota_auto_update} value="beta" disabled={!otaAutoUpdateEnabled} />
+                      Enable update to beta version
+                    </label>
+                    {#if settings.compliance.ota_auto_update === 'beta' && otaAutoUpdateEnabled}
+                      <p class="text-secondary fst-italic small mb-0">Beta firmware may cause instability</p>
+                    {/if}
+                  </div>
                 </FieldRow>
               </div>
             </div>
