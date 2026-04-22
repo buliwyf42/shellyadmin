@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -99,7 +100,8 @@ func TestRequestIDTruncatesLongInbound(t *testing.T) {
 }
 
 func TestFromContextNilSafe(t *testing.T) {
-	if FromContext(nil) != "" {
+	var nilCtx context.Context
+	if FromContext(nilCtx) != "" {
 		t.Fatalf("FromContext(nil) should return empty")
 	}
 	if FromGinContext(nil) != "" {

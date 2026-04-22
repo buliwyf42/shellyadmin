@@ -359,7 +359,7 @@ func compareWSTLSSettings(issues *[]string, config map[string]any, rules models.
 	sslCA, _ := resolvePath(config, "ws.ssl_ca")
 	sslCA = strings.TrimSpace(sslCA)
 	if mode := strings.TrimSpace(rules.WSTLSMode); mode != "" {
-		gotMode := "default"
+		var gotMode string
 		switch sslCA {
 		case "*":
 			gotMode = "no_validation"

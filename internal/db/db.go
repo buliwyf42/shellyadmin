@@ -243,7 +243,7 @@ func (db *DB) UpsertDevices(scanned []models.Device) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	seen := map[string]bool{}
 	for _, d := range scanned {
 		seen[d.MAC] = true
@@ -623,7 +623,7 @@ func (db *DB) DeleteCredentialGroup(name string) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	if _, err := tx.Exec(`DELETE FROM device_credential_groups WHERE group_name = ?`, name); err != nil {
 		return err
 	}
@@ -655,7 +655,7 @@ func (db *DB) SaveDeviceCredentialGroupAssignments(macs []string, groupName stri
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	for _, mac := range macs {
 		if strings.TrimSpace(groupName) == "" {
 			if _, err := tx.Exec(`DELETE FROM device_credential_groups WHERE mac = ?`, mac); err != nil {
@@ -680,7 +680,7 @@ func (db *DB) ReplaceDeviceCredentialGroupAssignments(assignments map[string]str
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	if _, err := tx.Exec(`DELETE FROM device_credential_groups`); err != nil {
 		return err
 	}

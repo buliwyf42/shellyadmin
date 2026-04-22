@@ -130,15 +130,6 @@ func normalizeWSTLSMode(raw string) string {
 	}
 }
 
-func normalizeHourFormat(raw string) string {
-	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case "12h", "24h":
-		return strings.ToLower(strings.TrimSpace(raw))
-	default:
-		return ""
-	}
-}
-
 func normalizeOTAAutoUpdate(raw string) string {
 	switch strings.ToLower(strings.TrimSpace(raw)) {
 	case "off", "stable", "beta":
