@@ -15,7 +15,7 @@ It is designed as a single-container deployment with:
 ## Status
 
 This repository is under active development.
-Current UI/API baseline is `v0.0.14`.
+Current UI/API baseline is `v0.0.15`.
 
 Public support posture:
 
