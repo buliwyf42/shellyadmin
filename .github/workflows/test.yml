@@ -37,7 +37,7 @@ jobs:
 
       - uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.62
+          version: v1.64
 
   frontend:
     name: Frontend build
