@@ -1,13 +1,13 @@
 <script lang="ts">
-  export let compliant = false
-  export let issues: string[] | null = []
+  export let compliant = false;
+  export let issues: string[] | null = [];
 
-  $: normalizedIssues = issues ?? []
+  $: normalizedIssues = issues ?? [];
   $: hoverText = compliant
     ? 'Compliant'
     : normalizedIssues.length > 0
       ? `Non-compliant: ${normalizedIssues.join(', ')}`
-      : 'Non-compliant'
+      : 'Non-compliant';
 </script>
 
 <span class={`badge ${compliant ? 'bg-success' : 'bg-danger'}`} title={hoverText}>

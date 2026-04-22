@@ -389,7 +389,6 @@ func isTLSServerURL(raw string) bool {
 	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(raw)), "wss://")
 }
 
-
 func rpcConfigSection(ctx context.Context, client *http.Client, ip, method string, payload map[string]interface{}, section string) SectionResult {
 	return rpcSection(ctx, client, ip, method, map[string]interface{}{"config": payload}, section)
 }

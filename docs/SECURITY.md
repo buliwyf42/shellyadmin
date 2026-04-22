@@ -21,6 +21,15 @@ It is not designed for:
 - login rate limiting
 - POST logout
 
+### Admin password storage
+
+- Preferred: set `SHELLYADMIN_PASS_HASH` (or `_FILE`) to an argon2id PHC string.
+  Generate with `shellyctl hash-password <plaintext>`. Only the hash sits in
+  env/memory at runtime — constant-time compared on login.
+- Deprecated: `SHELLYADMIN_PASS` still accepts a plaintext password for
+  existing deployments. Startup logs a deprecation warning. Plaintext support
+  will be removed in a future release.
+
 ## Session Security
 
 - signed cookies
@@ -57,6 +66,25 @@ Required safeguards:
 - secret-bearing auth groups should be clearly marked in the UI
 - exports should redact secret values by default
 - password-derived device auth material should remain ephemeral during execution
+
+### Encryption at Rest
+
+Device credential `password` and `ha1` values stored in `credentials` and
+`credential_groups` are encrypted with XSalsa20-Poly1305 (NaCl secretbox). The
+32-byte key is resolved in this order at startup:
+
+1. `SHELLYADMIN_ENCRYPTION_KEY` — base64-encoded 32-byte key. Also honours the
+   `_FILE` suffix (reads the key from a file path).
+2. `${DATA_DIR}/shellyadmin.key` — generated on first boot if nothing else is
+   configured. The file is written `0600`.
+
+The key never leaves process memory at runtime; the SQLite file alone is not
+enough to recover credentials. **Back up the key file alongside the database**
+— losing the key permanently orphans every stored credential.
+
+This defends against offline DB exposure (stolen backup, container escape
+reading `/data`, misconfigured volume). It does not defend against an attacker
+with live access to the running process.
 
 ## Network Scope
 

@@ -1,6 +1,7 @@
 # Architecture Decision Records (ADRs)
 
 This directory captures the agreed, implementation-driving decisions for ShellyAdmin.
+For planned direction (rather than already-agreed decisions), see [../roadmap.md](../roadmap.md).
 
 Status key:
 

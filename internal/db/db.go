@@ -14,6 +14,7 @@ import (
 
 	_ "modernc.org/sqlite"
 
+	"shellyadmin/internal/core/secretbox"
 	"shellyadmin/internal/models"
 )
 
@@ -25,10 +26,11 @@ type DB struct {
 }
 
 type LogEntry struct {
-	ID      int    `json:"id"`
-	TS      string `json:"ts"`
-	Level   string `json:"level"`
-	Message string `json:"message"`
+	ID        int    `json:"id"`
+	TS        string `json:"ts"`
+	Level     string `json:"level"`
+	Message   string `json:"message"`
+	RequestID string `json:"request_id,omitempty"`
 }
 
 func Open(dataDir string) (*DB, error) {
@@ -47,7 +49,91 @@ func Open(dataDir string) (*DB, error) {
 	if err := db.migrate(); err != nil {
 		return nil, err
 	}
+	if err := db.encryptPlaintextCredentials(); err != nil {
+		return nil, err
+	}
 	return db, nil
+}
+
+// resolveSecret picks between the legacy plaintext column and the cipher_blob
+// column depending on what the row actually holds. New rows leave the
+// plaintext side empty; pre-upgrade rows still have it populated. If the
+// startup sweep has run, every row has cipher_blob populated.
+func resolveSecret(plain, cipher string) (string, error) {
+	if cipher != "" {
+		return secretbox.OpenString(cipher)
+	}
+	return plain, nil
+}
+
+// encryptPlaintextCredentials does a one-shot sweep at Open() time: any row
+// with a non-empty plaintext password/ha1 and an empty cipher column gets
+// re-written with the encrypted form and the plaintext column cleared.
+// After this runs once there is no cleartext secret in the DB file.
+//
+// Skips silently if the secretbox key has not been installed yet — callers
+// that never populate a key (e.g. the odd test that opens the DB without
+// provisioning encryption) keep the legacy behaviour.
+func (db *DB) encryptPlaintextCredentials() error {
+	if !secretbox.HasKey() {
+		return nil
+	}
+	for _, table := range []string{"credentials", "credential_groups"} {
+		rows, err := db.sql.Query(fmt.Sprintf(
+			`SELECT name, password, ha1, password_cipher, ha1_cipher FROM %s`, table))
+		if err != nil {
+			return err
+		}
+		type pending struct {
+			name, password, ha1 string
+		}
+		var todo []pending
+		for rows.Next() {
+			var name, plainPass, plainHA1, cipherPass, cipherHA1 string
+			if err := rows.Scan(&name, &plainPass, &plainHA1, &cipherPass, &cipherHA1); err != nil {
+				rows.Close()
+				return err
+			}
+			if plainPass == "" && plainHA1 == "" {
+				continue
+			}
+			// If cipher is already populated we treat it as the source of
+			// truth — do not overwrite, just clear plaintext.
+			if cipherPass != "" {
+				plainPass = ""
+			}
+			if cipherHA1 != "" {
+				plainHA1 = ""
+			}
+			todo = append(todo, pending{name: name, password: plainPass, ha1: plainHA1})
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		for _, p := range todo {
+			sealedPass, err := secretbox.SealString(p.password)
+			if err != nil {
+				return fmt.Errorf("sweep %s %q password: %w", table, p.name, err)
+			}
+			sealedHA1, err := secretbox.SealString(p.ha1)
+			if err != nil {
+				return fmt.Errorf("sweep %s %q ha1: %w", table, p.name, err)
+			}
+			// COALESCE: preserve any cipher column that's already populated.
+			if _, err := db.sql.Exec(fmt.Sprintf(
+				`UPDATE %s
+				SET password='', ha1='',
+					password_cipher=CASE WHEN password_cipher='' THEN ? ELSE password_cipher END,
+					ha1_cipher=CASE WHEN ha1_cipher='' THEN ? ELSE ha1_cipher END,
+					updated_at=?
+				WHERE name=?`, table),
+				sealedPass, sealedHA1, now(), p.name); err != nil {
+				return fmt.Errorf("sweep %s %q update: %w", table, p.name, err)
+			}
+		}
+	}
+	return nil
 }
 
 func (db *DB) Close() error { return db.sql.Close() }
@@ -399,7 +485,7 @@ func (db *DB) DeleteTemplate(name string) error {
 }
 
 func (db *DB) ListCredentials() ([]models.Credential, error) {
-	rows, err := db.sql.Query(`SELECT name, username, password, ha1, tags FROM credentials ORDER BY name ASC`)
+	rows, err := db.sql.Query(`SELECT name, username, password, ha1, password_cipher, ha1_cipher, tags FROM credentials ORDER BY name ASC`)
 	if err != nil {
 		return nil, err
 	}
@@ -407,9 +493,17 @@ func (db *DB) ListCredentials() ([]models.Credential, error) {
 	out := []models.Credential{}
 	for rows.Next() {
 		var c models.Credential
-		var tagsRaw string
-		if err := rows.Scan(&c.Name, &c.Username, &c.Password, &c.HA1, &tagsRaw); err != nil {
+		var plainPassword, plainHA1, passwordCipher, ha1Cipher, tagsRaw string
+		if err := rows.Scan(&c.Name, &c.Username, &plainPassword, &plainHA1, &passwordCipher, &ha1Cipher, &tagsRaw); err != nil {
 			return nil, err
+		}
+		c.Password, err = resolveSecret(plainPassword, passwordCipher)
+		if err != nil {
+			return nil, fmt.Errorf("credential %q password decrypt: %w", c.Name, err)
+		}
+		c.HA1, err = resolveSecret(plainHA1, ha1Cipher)
+		if err != nil {
+			return nil, fmt.Errorf("credential %q ha1 decrypt: %w", c.Name, err)
 		}
 		_ = json.Unmarshal([]byte(tagsRaw), &c.Tags)
 		out = append(out, c)
@@ -419,10 +513,18 @@ func (db *DB) ListCredentials() ([]models.Credential, error) {
 
 func (db *DB) GetCredential(name string) (models.Credential, error) {
 	var c models.Credential
-	var tagsRaw string
-	err := db.sql.QueryRow(`SELECT name, username, password, ha1, tags FROM credentials WHERE name = ?`, name).Scan(&c.Name, &c.Username, &c.Password, &c.HA1, &tagsRaw)
+	var plainPassword, plainHA1, passwordCipher, ha1Cipher, tagsRaw string
+	err := db.sql.QueryRow(`SELECT name, username, password, ha1, password_cipher, ha1_cipher, tags FROM credentials WHERE name = ?`, name).Scan(&c.Name, &c.Username, &plainPassword, &plainHA1, &passwordCipher, &ha1Cipher, &tagsRaw)
 	if err != nil {
 		return models.Credential{}, err
+	}
+	c.Password, err = resolveSecret(plainPassword, passwordCipher)
+	if err != nil {
+		return models.Credential{}, fmt.Errorf("credential %q password decrypt: %w", c.Name, err)
+	}
+	c.HA1, err = resolveSecret(plainHA1, ha1Cipher)
+	if err != nil {
+		return models.Credential{}, fmt.Errorf("credential %q ha1 decrypt: %w", c.Name, err)
 	}
 	_ = json.Unmarshal([]byte(tagsRaw), &c.Tags)
 	return c, nil
@@ -433,15 +535,27 @@ func (db *DB) SaveCredential(c models.Credential) error {
 	if err != nil {
 		return err
 	}
-	_, err = db.sql.Exec(`INSERT INTO credentials(name, username, password, ha1, tags, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
+	passwordCipher, err := secretbox.SealString(c.Password)
+	if err != nil {
+		return fmt.Errorf("credential %q password encrypt: %w", c.Name, err)
+	}
+	ha1Cipher, err := secretbox.SealString(c.HA1)
+	if err != nil {
+		return fmt.Errorf("credential %q ha1 encrypt: %w", c.Name, err)
+	}
+	// New rows only populate the cipher columns; the plaintext columns stay
+	// empty so anything reading the SQLite file sees no sensitive material.
+	_, err = db.sql.Exec(`INSERT INTO credentials(name, username, password, ha1, password_cipher, ha1_cipher, tags, created_at, updated_at)
+		VALUES (?, ?, '', '', ?, ?, ?, ?, ?)
 		ON CONFLICT(name) DO UPDATE SET
 			username=excluded.username,
-			password=excluded.password,
-			ha1=excluded.ha1,
+			password='',
+			ha1='',
+			password_cipher=excluded.password_cipher,
+			ha1_cipher=excluded.ha1_cipher,
 			tags=excluded.tags,
 			updated_at=excluded.updated_at`,
-		c.Name, c.Username, c.Password, c.HA1, string(tagsBody), now(), now())
+		c.Name, c.Username, passwordCipher, ha1Cipher, string(tagsBody), now(), now())
 	return err
 }
 
@@ -451,7 +565,7 @@ func (db *DB) DeleteCredential(name string) error {
 }
 
 func (db *DB) ListCredentialGroups() ([]models.CredentialGroup, error) {
-	rows, err := db.sql.Query(`SELECT name, password, ha1, tags FROM credential_groups ORDER BY name ASC`)
+	rows, err := db.sql.Query(`SELECT name, password, ha1, password_cipher, ha1_cipher, tags FROM credential_groups ORDER BY name ASC`)
 	if err != nil {
 		return nil, err
 	}
@@ -459,9 +573,17 @@ func (db *DB) ListCredentialGroups() ([]models.CredentialGroup, error) {
 	out := []models.CredentialGroup{}
 	for rows.Next() {
 		var g models.CredentialGroup
-		var tagsRaw string
-		if err := rows.Scan(&g.Name, &g.Password, &g.HA1, &tagsRaw); err != nil {
+		var plainPassword, plainHA1, passwordCipher, ha1Cipher, tagsRaw string
+		if err := rows.Scan(&g.Name, &plainPassword, &plainHA1, &passwordCipher, &ha1Cipher, &tagsRaw); err != nil {
 			return nil, err
+		}
+		g.Password, err = resolveSecret(plainPassword, passwordCipher)
+		if err != nil {
+			return nil, fmt.Errorf("group %q password decrypt: %w", g.Name, err)
+		}
+		g.HA1, err = resolveSecret(plainHA1, ha1Cipher)
+		if err != nil {
+			return nil, fmt.Errorf("group %q ha1 decrypt: %w", g.Name, err)
 		}
 		_ = json.Unmarshal([]byte(tagsRaw), &g.Tags)
 		out = append(out, g)
@@ -474,15 +596,25 @@ func (db *DB) SaveCredentialGroup(group models.CredentialGroup) error {
 	if err != nil {
 		return err
 	}
-	_, err = db.sql.Exec(`INSERT INTO credential_groups(name, credential_ref, password, ha1, tags, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
+	passwordCipher, err := secretbox.SealString(group.Password)
+	if err != nil {
+		return fmt.Errorf("group %q password encrypt: %w", group.Name, err)
+	}
+	ha1Cipher, err := secretbox.SealString(group.HA1)
+	if err != nil {
+		return fmt.Errorf("group %q ha1 encrypt: %w", group.Name, err)
+	}
+	_, err = db.sql.Exec(`INSERT INTO credential_groups(name, credential_ref, password, ha1, password_cipher, ha1_cipher, tags, created_at, updated_at)
+		VALUES (?, ?, '', '', ?, ?, ?, ?, ?)
 		ON CONFLICT(name) DO UPDATE SET
 			credential_ref=excluded.credential_ref,
-			password=excluded.password,
-			ha1=excluded.ha1,
+			password='',
+			ha1='',
+			password_cipher=excluded.password_cipher,
+			ha1_cipher=excluded.ha1_cipher,
 			tags=excluded.tags,
 			updated_at=excluded.updated_at`,
-		group.Name, group.Name, group.Password, group.HA1, string(tagsBody), now(), now())
+		group.Name, group.Name, passwordCipher, ha1Cipher, string(tagsBody), now(), now())
 	return err
 }
 
@@ -564,12 +696,21 @@ func (db *DB) ReplaceDeviceCredentialGroupAssignments(assignments map[string]str
 }
 
 func (db *DB) AddLog(level, message string) error {
-	_, err := db.sql.Exec(`INSERT INTO audit_log(ts, level, message) VALUES (?, ?, ?)`, now(), level, message)
+	return db.AddLogWithRequestID(level, message, "")
+}
+
+// AddLogWithRequestID persists an audit entry tagged with the originating
+// HTTP request's correlation ID (empty for jobs triggered outside a request).
+func (db *DB) AddLogWithRequestID(level, message, requestID string) error {
+	_, err := db.sql.Exec(
+		`INSERT INTO audit_log(ts, level, message, request_id) VALUES (?, ?, ?, ?)`,
+		now(), level, message, requestID,
+	)
 	return err
 }
 
 func (db *DB) GetLogs(level, search string) ([]LogEntry, error) {
-	query := `SELECT id, ts, level, message FROM audit_log WHERE 1=1`
+	query := `SELECT id, ts, level, message, request_id FROM audit_log WHERE 1=1`
 	args := []any{}
 	if level != "" {
 		query += ` AND level = ?`
@@ -588,7 +729,7 @@ func (db *DB) GetLogs(level, search string) ([]LogEntry, error) {
 	var out []LogEntry
 	for rows.Next() {
 		var entry LogEntry
-		if err := rows.Scan(&entry.ID, &entry.TS, &entry.Level, &entry.Message); err != nil {
+		if err := rows.Scan(&entry.ID, &entry.TS, &entry.Level, &entry.Message, &entry.RequestID); err != nil {
 			return nil, err
 		}
 		out = append(out, entry)
@@ -600,7 +741,7 @@ func (db *DB) GetLogsForExport(level, search string, limit int) ([]LogEntry, err
 	if limit <= 0 {
 		limit = 100000
 	}
-	query := `SELECT id, ts, level, message FROM audit_log WHERE 1=1`
+	query := `SELECT id, ts, level, message, request_id FROM audit_log WHERE 1=1`
 	args := []any{}
 	if level != "" {
 		query += ` AND level = ?`
@@ -620,7 +761,7 @@ func (db *DB) GetLogsForExport(level, search string, limit int) ([]LogEntry, err
 	var out []LogEntry
 	for rows.Next() {
 		var entry LogEntry
-		if err := rows.Scan(&entry.ID, &entry.TS, &entry.Level, &entry.Message); err != nil {
+		if err := rows.Scan(&entry.ID, &entry.TS, &entry.Level, &entry.Message, &entry.RequestID); err != nil {
 			return nil, err
 		}
 		out = append(out, entry)

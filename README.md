@@ -35,18 +35,23 @@ The target architecture is documented in [docs/ARCHITECTURE.md](/Users/buliwyf/D
 
 ## Quick Start
 
-Fastest Docker run for a trusted LAN test setup:
+Fastest Docker run for a trusted LAN test setup. Prefer
+`SHELLYADMIN_PASS_HASH` (argon2id) — generate one with
+`docker run --rm ghcr.io/buliwyf42/shellyadmin:latest shellyctl hash-password <plaintext>`:
 
 ```bash
 docker run -d \
   --name shellyadmin \
   -p 8080:8080 \
   -v shellyadmin-data:/data \
-  -e SHELLYADMIN_PASS='change-this-admin-password' \
+  -e SHELLYADMIN_PASS_HASH='$argon2id$v=19$m=65536,t=2,p=1$…' \
   -e SHELLYADMIN_SECRET='change-this-cookie-secret' \
   -e COOKIE_SECURE=false \
   ghcr.io/buliwyf42/shellyadmin:latest
 ```
+
+`SHELLYADMIN_PASS` (plaintext) still works for backward compatibility but logs
+a deprecation warning on startup.
 
 Then open `http://localhost:8080`.
 
@@ -97,6 +102,8 @@ Use strong secrets for real installs. The `COOKIE_SECURE=false` example above is
 - Documented API surface and OpenAPI JSON for the supported v1 routes
 
 ## Planned / In Progress
+
+See [docs/roadmap.md](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/docs/roadmap.md) for the current roadmap. Headline items:
 
 - Broader action discovery for device components where protocol support is reliable
 - CLI after the external API contract settles

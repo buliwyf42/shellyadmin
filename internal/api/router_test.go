@@ -127,3 +127,32 @@ func TestStaticSubFSWithoutStaticReturnsNotExist(t *testing.T) {
 		t.Fatalf("err = %v, want fs.ErrNotExist", err)
 	}
 }
+
+func TestRequestIDEchoedOnEveryResponse(t *testing.T) {
+	router := newTestRouter(t, Config{})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/does-not-exist", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	id := rec.Header().Get("X-Request-ID")
+	if id == "" {
+		t.Fatalf("expected generated X-Request-ID header on response")
+	}
+	if len(id) != 16 {
+		t.Fatalf("expected 16-hex id, got %q", id)
+	}
+}
+
+func TestRequestIDHonoursInboundHeader(t *testing.T) {
+	router := newTestRouter(t, Config{})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/does-not-exist", nil)
+	req.Header.Set("X-Request-ID", "op-trace-42")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if got := rec.Header().Get("X-Request-ID"); got != "op-trace-42" {
+		t.Fatalf("response should echo inbound id, got %q", got)
+	}
+}

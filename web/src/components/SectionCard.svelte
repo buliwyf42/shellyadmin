@@ -1,32 +1,32 @@
 <script lang="ts">
-  export let tag: string = ''
-  export let title: string = ''
-  export let open: boolean
-  export let forceOpen: boolean = false
-  export let enabled: boolean | null = null
-  export let enableDisabled: boolean = false
+  export let tag: string = '';
+  export let title: string = '';
+  export let open: boolean;
+  export let forceOpen: boolean = false;
+  export let enabled: boolean | null = null;
+  export let enableDisabled: boolean = false;
 
-  $: visible = forceOpen || open
-  $: hasEnable = enabled !== null
+  $: visible = forceOpen || open;
+  $: hasEnable = enabled !== null;
 
   function toggleOpen() {
-    open = !open
+    open = !open;
   }
 
   function onHeadKey(e: KeyboardEvent) {
     if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault()
-      toggleOpen()
+      e.preventDefault();
+      toggleOpen();
     }
   }
 
   function onEnableClick(e: Event) {
-    e.stopPropagation()
+    e.stopPropagation();
   }
 
   function onEnableKey(e: KeyboardEvent) {
     if (e.key === ' ' || e.key === 'Enter') {
-      e.stopPropagation()
+      e.stopPropagation();
     }
   }
 </script>
@@ -52,7 +52,14 @@
             on:keydown={onEnableKey}
           />
           <svg viewBox="0 0 12 12" aria-hidden="true" class="sa-check-mark">
-            <path d="M2 6.4 L4.8 9 L10 3.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            <path
+              d="M2 6.4 L4.8 9 L10 3.2"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
           </svg>
         </span>
       </span>

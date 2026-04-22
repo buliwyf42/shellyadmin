@@ -16,8 +16,13 @@ import (
 )
 
 type Config struct {
-	User           string
-	Pass           string
+	User string
+	// Pass holds a plaintext admin password for deprecated backward compat.
+	// New deployments should set PassHash (argon2id PHC) instead.
+	Pass string
+	// PassHash, when non-empty, takes precedence over Pass. Generate with
+	// `shellyctl hash-password`.
+	PassHash       string
 	Secret         string
 	CookieSecure   bool
 	DataDir        string
@@ -30,6 +35,7 @@ type Config struct {
 
 func NewRouter(database *db.DB, cfg Config) *gin.Engine {
 	r := gin.Default()
+	r.Use(middleware.RequestID())
 	r.Use(middleware.SecurityHeaders())
 	store := cookie.NewStore([]byte(cfg.Secret))
 	store.Options(sessions.Options{

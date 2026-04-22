@@ -358,11 +358,11 @@ func documentedAPIRoutes() []apiRouteDoc {
 			},
 		},
 		{
-			Method:       http.MethodGet,
-			Path:         "/api/logs/export",
-			Summary:      "Export audit logs as CSV or NDJSON",
-			Description:  "Same `level` + `search` filter as `/api/logs`. Pass `format=csv` (default) or `format=ndjson`. Caps at 100000 rows.",
-			Auth:         true,
+			Method:      http.MethodGet,
+			Path:        "/api/logs/export",
+			Summary:     "Export audit logs as CSV or NDJSON",
+			Description: "Same `level` + `search` filter as `/api/logs`. Pass `format=csv` (default) or `format=ndjson`. Caps at 100000 rows.",
+			Auth:        true,
 			Register: func(routes gin.IRoutes, h *Handler) {
 				routes.GET("/api/logs/export", h.ExportLogs)
 			},

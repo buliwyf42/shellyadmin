@@ -1,20 +1,20 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
-  import { api } from '../lib/api'
-  import type { VersionInfo } from '../lib/types'
-  import { APP_VERSION } from '../lib/version'
+  import { onMount } from 'svelte';
+  import { api } from '../lib/api';
+  import type { VersionInfo } from '../lib/types';
+  import { APP_VERSION } from '../lib/version';
 
-  let backend: VersionInfo = { backend_version: 'unknown', commit: 'unknown' }
-  let loadError = ''
-  const projectURL = 'https://github.com/buliwyf42/shellyadmin'
+  let backend: VersionInfo = { backend_version: 'unknown', commit: 'unknown' };
+  let loadError = '';
+  const projectURL = 'https://github.com/buliwyf42/shellyadmin';
 
   onMount(async () => {
     try {
-      backend = await api.getVersion()
+      backend = await api.getVersion();
     } catch (err) {
-      loadError = (err as Error).message
+      loadError = (err as Error).message;
     }
-  })
+  });
 </script>
 
 <div class="row justify-content-center">
@@ -25,9 +25,13 @@
         <div class="about-hero">
           <div>
             <h1 class="h4 mb-2">ShellyAdmin</h1>
-            <p class="mb-0 text-secondary">Self-hosted device management for trusted Shelly fleets.</p>
+            <p class="mb-0 text-secondary">
+              Self-hosted device management for trusted Shelly fleets.
+            </p>
           </div>
-          <a class="btn btn-outline-light" href={projectURL} target="_blank" rel="noreferrer">Project on GitHub</a>
+          <a class="btn btn-outline-light" href={projectURL} target="_blank" rel="noreferrer"
+            >Project on GitHub</a
+          >
         </div>
         {#if loadError}
           <div class="alert alert-warning py-2">{loadError}</div>
@@ -36,11 +40,17 @@
           <dt class="col-sm-4 text-secondary">Frontend Version</dt>
           <dd class="col-sm-8"><span class="badge bg-warning text-dark">v{APP_VERSION}</span></dd>
           <dt class="col-sm-4 text-secondary">Backend Version</dt>
-          <dd class="col-sm-8"><span class="badge bg-info text-dark">v{backend.backend_version || 'unknown'}</span></dd>
+          <dd class="col-sm-8">
+            <span class="badge bg-info text-dark">v{backend.backend_version || 'unknown'}</span>
+          </dd>
           <dt class="col-sm-4 text-secondary">Commit</dt>
           <dd class="col-sm-8"><code>{backend.commit || 'unknown'}</code></dd>
           <dt class="col-sm-4 text-secondary">Project</dt>
-          <dd class="col-sm-8"><a class="project-link" href={projectURL} target="_blank" rel="noreferrer">{projectURL}</a></dd>
+          <dd class="col-sm-8">
+            <a class="project-link" href={projectURL} target="_blank" rel="noreferrer"
+              >{projectURL}</a
+            >
+          </dd>
           <dt class="col-sm-4 text-secondary">Frontend Stack</dt>
           <dd class="col-sm-8">Svelte + Vite</dd>
           <dt class="col-sm-4 text-secondary">Backend Stack</dt>

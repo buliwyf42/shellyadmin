@@ -1,13 +1,13 @@
 <script lang="ts">
-  export let done: number
-  export let total: number
-  export let running: boolean
-  export let label: string | undefined = undefined
-  export let ariaLabel: string
+  export let done: number;
+  export let total: number;
+  export let running: boolean;
+  export let label: string | undefined = undefined;
+  export let ariaLabel: string;
 
-  $: pct = total > 0 ? Math.min(100, (done / total) * 100) : 0
-  $: determinate = total > 0
-  $: labelInside = determinate && pct >= 25
+  $: pct = total > 0 ? Math.min(100, (done / total) * 100) : 0;
+  $: determinate = total > 0;
+  $: labelInside = determinate && pct >= 25;
 </script>
 
 <div
@@ -22,7 +22,7 @@
   <div
     class="pb-fill"
     class:pb-running={running}
-    style={determinate ? `width:${pct}%` : (running ? 'width:100%' : 'width:0')}
+    style={determinate ? `width:${pct}%` : running ? 'width:100%' : 'width:0'}
   >
     {#if label && labelInside}
       <span class="pb-label">{label}</span>
@@ -72,8 +72,12 @@
   }
 
   @keyframes pb-stripes {
-    from { background-position: 0 0; }
-    to   { background-position: 40px 0; }
+    from {
+      background-position: 0 0;
+    }
+    to {
+      background-position: 40px 0;
+    }
   }
 
   .pb-label {

@@ -57,11 +57,11 @@ func (s *AppService) ExportLogs(level, search, format string) (body []byte, file
 	case "csv":
 		var buf bytes.Buffer
 		w := csv.NewWriter(&buf)
-		if err := w.Write([]string{"id", "ts", "level", "message"}); err != nil {
+		if err := w.Write([]string{"id", "ts", "level", "request_id", "message"}); err != nil {
 			return nil, "", "", err
 		}
 		for _, entry := range entries {
-			if err := w.Write([]string{strconv.Itoa(entry.ID), entry.TS, entry.Level, entry.Message}); err != nil {
+			if err := w.Write([]string{strconv.Itoa(entry.ID), entry.TS, entry.Level, entry.RequestID, entry.Message}); err != nil {
 				return nil, "", "", err
 			}
 		}

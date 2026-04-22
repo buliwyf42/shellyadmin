@@ -1,170 +1,173 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
-  import { APIError, api } from '../lib/api'
-  import type { CredentialGroup, Device } from '../lib/types'
-  import ErrorNotice from '../components/ErrorNotice.svelte'
+  import { onMount } from 'svelte';
+  import { APIError, api } from '../lib/api';
+  import type { CredentialGroup, Device } from '../lib/types';
+  import ErrorNotice from '../components/ErrorNotice.svelte';
 
-  let groups: CredentialGroup[] = []
-  let devices: Device[] = []
-  let assignments: Record<string, string> = {}
-  let selected = new Set<string>()
+  let groups: CredentialGroup[] = [];
+  let devices: Device[] = [];
+  let assignments: Record<string, string> = {};
+  let selected = new Set<string>();
 
-  let groupName = ''
-  let groupPassword = ''
-  let groupHA1 = ''
-  let groupTags = ''
-  let assignGroupName = ''
+  let groupName = '';
+  let groupPassword = '';
+  let groupHA1 = '';
+  let groupTags = '';
+  let assignGroupName = '';
 
-  let loading = false
-  let saving = false
-  let error = ''
-  let errorDetails = ''
-  let status = ''
+  let loading = false;
+  let saving = false;
+  let error = '';
+  let errorDetails = '';
+  let status = '';
 
   function captureError(err: unknown) {
     if (err instanceof APIError) {
-      error = err.message
-      errorDetails = `${err.method} ${err.path} -> ${err.status}\n${JSON.stringify(err.detail ?? {}, null, 2)}`
-      return
+      error = err.message;
+      errorDetails = `${err.method} ${err.path} -> ${err.status}\n${JSON.stringify(err.detail ?? {}, null, 2)}`;
+      return;
     }
-    error = (err as Error).message
-    errorDetails = String(err)
+    error = (err as Error).message;
+    errorDetails = String(err);
   }
 
   function setStatus(message: string) {
-    status = message
+    status = message;
     setTimeout(() => {
-      if (status === message) status = ''
-    }, 2000)
+      if (status === message) status = '';
+    }, 2000);
   }
 
   async function load() {
-    loading = true
-    error = ''
-    errorDetails = ''
+    loading = true;
+    error = '';
+    errorDetails = '';
     try {
       const [loadedGroups, loadedDevices, loadedAssignments] = await Promise.all([
         api.listCredentialGroups(),
         api.getDevices(),
         api.getCredentialGroupAssignments(),
-      ])
-      groups = loadedGroups
-      devices = loadedDevices
-      assignments = loadedAssignments.assignments
+      ]);
+      groups = loadedGroups;
+      devices = loadedDevices;
+      assignments = loadedAssignments.assignments;
     } catch (err) {
-      captureError(err)
+      captureError(err);
     } finally {
-      loading = false
+      loading = false;
     }
   }
 
   function toggle(mac: string, checked: boolean) {
-    if (checked) selected.add(mac)
-    else selected.delete(mac)
-    selected = new Set(selected)
+    if (checked) selected.add(mac);
+    else selected.delete(mac);
+    selected = new Set(selected);
   }
 
   function selectAll() {
-    selected = new Set(devices.map((device) => device.mac))
+    selected = new Set(devices.map((device) => device.mac));
   }
 
   function clearSelection() {
-    selected = new Set()
+    selected = new Set();
   }
 
   function editGroup(group: CredentialGroup) {
-    groupName = group.name
-    groupPassword = group.password
-    groupHA1 = group.ha1
-    groupTags = (group.tags || []).join(', ')
+    groupName = group.name;
+    groupPassword = group.password;
+    groupHA1 = group.ha1;
+    groupTags = (group.tags || []).join(', ');
   }
 
   async function saveGroup() {
     if (!groupName.trim()) {
-      error = 'Group name is required'
-      errorDetails = ''
-      return
+      error = 'Group name is required';
+      errorDetails = '';
+      return;
     }
     if (!groupPassword.trim() && !groupHA1.trim()) {
-      error = 'Group requires password or HA1'
-      errorDetails = ''
-      return
+      error = 'Group requires password or HA1';
+      errorDetails = '';
+      return;
     }
-    saving = true
-    error = ''
-    errorDetails = ''
+    saving = true;
+    error = '';
+    errorDetails = '';
     try {
       await api.saveCredentialGroup({
         name: groupName.trim(),
         password: groupPassword,
         ha1: groupHA1.trim(),
-        tags: groupTags.split(',').map((item) => item.trim()).filter(Boolean),
-      })
-      await load()
-      setStatus('Group saved')
+        tags: groupTags
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean),
+      });
+      await load();
+      setStatus('Group saved');
     } catch (err) {
-      captureError(err)
+      captureError(err);
     } finally {
-      saving = false
+      saving = false;
     }
   }
 
   async function removeGroup(name: string) {
-    if (!confirm(`Delete group "${name}"?`)) return
-    saving = true
-    error = ''
-    errorDetails = ''
+    if (!confirm(`Delete group "${name}"?`)) return;
+    saving = true;
+    error = '';
+    errorDetails = '';
     try {
-      await api.deleteCredentialGroup(name)
-      if (assignGroupName === name) assignGroupName = ''
+      await api.deleteCredentialGroup(name);
+      if (assignGroupName === name) assignGroupName = '';
       if (groupName === name) {
-        groupName = ''
-        groupPassword = ''
-        groupHA1 = ''
-        groupTags = ''
+        groupName = '';
+        groupPassword = '';
+        groupHA1 = '';
+        groupTags = '';
       }
-      await load()
-      setStatus('Group deleted')
+      await load();
+      setStatus('Group deleted');
     } catch (err) {
-      captureError(err)
+      captureError(err);
     } finally {
-      saving = false
+      saving = false;
     }
   }
 
   async function assignSelected() {
-    if (selected.size === 0 || !assignGroupName.trim()) return
-    saving = true
-    error = ''
-    errorDetails = ''
+    if (selected.size === 0 || !assignGroupName.trim()) return;
+    saving = true;
+    error = '';
+    errorDetails = '';
     try {
-      await api.saveCredentialGroupAssignments([...selected], assignGroupName.trim())
-      await load()
-      setStatus(`Assigned ${selected.size} devices`)
+      await api.saveCredentialGroupAssignments([...selected], assignGroupName.trim());
+      await load();
+      setStatus(`Assigned ${selected.size} devices`);
     } catch (err) {
-      captureError(err)
+      captureError(err);
     } finally {
-      saving = false
+      saving = false;
     }
   }
 
   async function unassignSelected() {
-    if (selected.size === 0) return
-    saving = true
-    error = ''
-    errorDetails = ''
+    if (selected.size === 0) return;
+    saving = true;
+    error = '';
+    errorDetails = '';
     try {
-      await api.saveCredentialGroupAssignments([...selected], '')
-      await load()
-      setStatus(`Unassigned ${selected.size} devices`)
+      await api.saveCredentialGroupAssignments([...selected], '');
+      await load();
+      setStatus(`Unassigned ${selected.size} devices`);
     } catch (err) {
-      captureError(err)
+      captureError(err);
     } finally {
-      saving = false
+      saving = false;
     }
   }
 
-  onMount(() => void load())
+  onMount(() => void load());
 </script>
 
 <ErrorNotice summary={error} details={errorDetails} />
@@ -177,7 +180,10 @@
     <div class="card bg-dark border-secondary">
       <div class="card-body">
         <h2 class="h5">Auth Groups</h2>
-        <p class="text-secondary mb-3">Password-first groups for Gen2+ devices. The system keeps any compatibility username handling behind the scenes.</p>
+        <p class="text-secondary mb-3">
+          Password-first groups for Gen2+ devices. The system keeps any compatibility username
+          handling behind the scenes.
+        </p>
         <div class="d-flex flex-column gap-2 mb-3">
           {#if groups.length === 0}
             <div class="text-secondary">No groups created yet.</div>
@@ -187,8 +193,14 @@
                 <div class="d-flex justify-content-between align-items-center gap-2">
                   <strong>{group.name}</strong>
                   <div class="d-flex gap-2">
-                    <button class="btn btn-sm btn-outline-light" on:click={() => editGroup(group)}>Edit</button>
-                    <button class="btn btn-sm btn-outline-danger" on:click={() => removeGroup(group.name)} disabled={saving}>Delete</button>
+                    <button class="btn btn-sm btn-outline-light" on:click={() => editGroup(group)}
+                      >Edit</button
+                    >
+                    <button
+                      class="btn btn-sm btn-outline-danger"
+                      on:click={() => removeGroup(group.name)}
+                      disabled={saving}>Delete</button
+                    >
                   </div>
                 </div>
                 <div class="text-secondary">{group.password ? 'Password stored' : 'HA1 only'}</div>
@@ -200,26 +212,58 @@
           <div class="row g-2">
             <div class="col-md-12">
               <label class="form-label" for="group-name">Group name</label>
-              <input id="group-name" class="form-control mb-2" placeholder="Example: site-a" bind:value={groupName} />
+              <input
+                id="group-name"
+                class="form-control mb-2"
+                placeholder="Example: site-a"
+                bind:value={groupName}
+              />
             </div>
             <div class="col-md-6">
               <label class="form-label" for="group-password">Device password</label>
-              <input id="group-password" class="form-control mb-2" type="password" placeholder="New device password" bind:value={groupPassword} />
+              <input
+                id="group-password"
+                class="form-control mb-2"
+                type="password"
+                placeholder="New device password"
+                bind:value={groupPassword}
+              />
             </div>
             <div class="col-md-6">
               <label class="form-label" for="group-ha1">Group HA1 (optional)</label>
-              <input id="group-ha1" class="form-control mb-2" placeholder="Use when password is not available" bind:value={groupHA1} />
+              <input
+                id="group-ha1"
+                class="form-control mb-2"
+                placeholder="Use when password is not available"
+                bind:value={groupHA1}
+              />
             </div>
             <div class="col-md-12">
               <label class="form-label" for="group-tags">Group tags (optional)</label>
-              <input id="group-tags" class="form-control" placeholder="Comma-separated labels" bind:value={groupTags} />
+              <input
+                id="group-tags"
+                class="form-control"
+                placeholder="Comma-separated labels"
+                bind:value={groupTags}
+              />
             </div>
           </div>
         </div>
 
         <div class="d-flex gap-2 flex-wrap">
-          <button class="btn btn-outline-light" on:click={saveGroup} disabled={saving}>Save Group</button>
-          <button class="btn btn-outline-light" on:click={() => { groupName = ''; groupPassword = ''; groupHA1 = ''; groupTags = '' }} disabled={saving}>Clear</button>
+          <button class="btn btn-outline-light" on:click={saveGroup} disabled={saving}
+            >Save Group</button
+          >
+          <button
+            class="btn btn-outline-light"
+            on:click={() => {
+              groupName = '';
+              groupPassword = '';
+              groupHA1 = '';
+              groupTags = '';
+            }}
+            disabled={saving}>Clear</button
+          >
         </div>
       </div>
     </div>
@@ -231,8 +275,14 @@
         <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3">
           <h2 class="h5 mb-0">Device Assignments</h2>
           <div class="d-flex gap-2 flex-wrap">
-            <button class="btn btn-sm btn-outline-light" on:click={selectAll} disabled={loading}>All</button>
-            <button class="btn btn-sm btn-outline-light" on:click={clearSelection} disabled={loading}>None</button>
+            <button class="btn btn-sm btn-outline-light" on:click={selectAll} disabled={loading}
+              >All</button
+            >
+            <button
+              class="btn btn-sm btn-outline-light"
+              on:click={clearSelection}
+              disabled={loading}>None</button
+            >
           </div>
         </div>
         <div class="d-flex gap-2 align-items-center flex-wrap mb-3">
@@ -242,8 +292,16 @@
               <option value={group.name}>{group.name}</option>
             {/each}
           </select>
-          <button class="btn btn-outline-light" on:click={assignSelected} disabled={saving || selected.size === 0 || !assignGroupName}>Assign Selected</button>
-          <button class="btn btn-outline-light" on:click={unassignSelected} disabled={saving || selected.size === 0}>Unassign Selected</button>
+          <button
+            class="btn btn-outline-light"
+            on:click={assignSelected}
+            disabled={saving || selected.size === 0 || !assignGroupName}>Assign Selected</button
+          >
+          <button
+            class="btn btn-outline-light"
+            on:click={unassignSelected}
+            disabled={saving || selected.size === 0}>Unassign Selected</button
+          >
           <span class="text-secondary">{selected.size} selected</span>
         </div>
         {#if loading}
@@ -268,7 +326,15 @@
                   {@const groupName = assignments[device.mac] || ''}
                   {@const group = groups.find((item) => item.name === groupName)}
                   <tr>
-                    <td><input type="checkbox" class="form-check-input" checked={selected.has(device.mac)} on:change={(e) => toggle(device.mac, (e.currentTarget as HTMLInputElement).checked)} /></td>
+                    <td
+                      ><input
+                        type="checkbox"
+                        class="form-check-input"
+                        checked={selected.has(device.mac)}
+                        on:change={(e) =>
+                          toggle(device.mac, (e.currentTarget as HTMLInputElement).checked)}
+                      /></td
+                    >
                     <td>{device.name || device.serial || device.mac}</td>
                     <td>{device.ip}</td>
                     <td class="font-monospace">{device.mac}</td>

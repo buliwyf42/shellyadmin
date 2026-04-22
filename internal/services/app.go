@@ -29,7 +29,7 @@ const (
 )
 
 type AppService struct {
-	db      *db.DB
+	db      Store
 	logf    func(level, msg string)
 	dataDir string
 
@@ -52,7 +52,7 @@ type TemplateRecord struct {
 	CredentialRef string `json:"credential_ref"`
 }
 
-func NewAppService(database *db.DB, dataDir string, logf func(level, msg string)) *AppService {
+func NewAppService(database Store, dataDir string, logf func(level, msg string)) *AppService {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &AppService{
 		db:              database,

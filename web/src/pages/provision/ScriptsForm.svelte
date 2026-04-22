@@ -1,27 +1,34 @@
 <script lang="ts">
-  import type { ScriptsState } from './types'
-  import SectionCard from '../../components/SectionCard.svelte'
-  import Toggle from '../../components/Toggle.svelte'
+  import type { ScriptsState } from './types';
+  import SectionCard from '../../components/SectionCard.svelte';
+  import Toggle from '../../components/Toggle.svelte';
 
-  export let state: ScriptsState
+  export let state: ScriptsState;
 
-  $: expanded = state.enabled || state.scripts.length > 0
+  $: expanded = state.enabled || state.scripts.length > 0;
 
   function addScript() {
-    const nextId = state.scripts.length > 0
-      ? String(Math.max(...state.scripts.map((s) => parseInt(s.id) || 0)) + 1)
-      : '1'
-    state.scripts = [...state.scripts, { id: nextId, name: '', enable: true }]
-    state.enabled = true
+    const nextId =
+      state.scripts.length > 0
+        ? String(Math.max(...state.scripts.map((s) => parseInt(s.id) || 0)) + 1)
+        : '1';
+    state.scripts = [...state.scripts, { id: nextId, name: '', enable: true }];
+    state.enabled = true;
   }
 
   function removeScript(index: number) {
-    state.scripts = state.scripts.filter((_, i) => i !== index)
-    if (state.scripts.length === 0) state.enabled = false
+    state.scripts = state.scripts.filter((_, i) => i !== index);
+    if (state.scripts.length === 0) state.enabled = false;
   }
 </script>
 
-<SectionCard tag="script" title="Scripts" bind:open={state.open} forceOpen={expanded} bind:enabled={state.enabled}>
+<SectionCard
+  tag="script"
+  title="Scripts"
+  bind:open={state.open}
+  forceOpen={expanded}
+  bind:enabled={state.enabled}
+>
   <div class="sa-scripts-notice">
     Script source code (Script.PutCode) is not yet supported — configure name and enable state only.
   </div>
@@ -58,15 +65,19 @@
                 />
               </td>
               <td class="sa-scripts-toggle-cell">
-                <Toggle bind:checked={entry.enable} disabled={!state.enabled} label={entry.enable ? 'On' : 'Off'} />
+                <Toggle
+                  bind:checked={entry.enable}
+                  disabled={!state.enabled}
+                  label={entry.enable ? 'On' : 'Off'}
+                />
               </td>
               <td>
                 <button
                   class="btn btn-sm btn-outline-danger"
                   on:click={() => removeScript(i)}
                   disabled={!state.enabled}
-                  aria-label="Remove script"
-                >×</button>
+                  aria-label="Remove script">×</button
+                >
               </td>
             </tr>
           {/each}

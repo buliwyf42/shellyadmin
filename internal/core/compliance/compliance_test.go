@@ -89,7 +89,6 @@ func TestEvaluate_WSTLSModeIgnoredForPlainWSURL(t *testing.T) {
 	}
 }
 
-
 func TestEvaluate_CloudEnabledMatch(t *testing.T) {
 	enabled := true
 	dev := models.Device{Gen: 2, CloudEnabled: &enabled}

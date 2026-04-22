@@ -36,11 +36,11 @@ func TestExportLogsCSVShape(t *testing.T) {
 	if len(records) < 3 {
 		t.Fatalf("records = %d, want >= 3 (header + 2 rows)", len(records))
 	}
-	if records[0][0] != "id" || records[0][3] != "message" {
-		t.Fatalf("header = %v, want id..message", records[0])
+	if records[0][0] != "id" || records[0][3] != "request_id" || records[0][4] != "message" {
+		t.Fatalf("header = %v, want id..request_id..message", records[0])
 	}
 	// Newest row is first after header.
-	if records[1][2] != "ERROR" || records[1][3] != "two, with comma" {
+	if records[1][2] != "ERROR" || records[1][4] != "two, with comma" {
 		t.Fatalf("row 1 = %v, want ERROR/comma-safe quoting", records[1])
 	}
 }
@@ -109,7 +109,7 @@ func TestExportLogsFiltersByLevel(t *testing.T) {
 	if len(records) != 2 {
 		t.Fatalf("records = %d, want 2 (header + 1 kept)", len(records))
 	}
-	if records[1][3] != "kept" {
+	if records[1][4] != "kept" {
 		t.Fatalf("row = %v, want ERROR row only", records[1])
 	}
 }

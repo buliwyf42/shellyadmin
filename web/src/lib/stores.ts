@@ -1,7 +1,7 @@
-import { writable } from 'svelte/store'
-import type { Device } from './types'
+import { writable } from 'svelte/store';
+import type { Device } from './types';
 
-export type UIScale = 'compact' | 'default' | 'large' | 'xlarge' | 'xxlarge'
+export type UIScale = 'compact' | 'default' | 'large' | 'xlarge' | 'xxlarge';
 
 export const deviceColumns = [
   { key: 'device_num', label: '#' },
@@ -30,37 +30,54 @@ export const deviceColumns = [
   { key: 'first_seen', label: 'First Seen' },
   { key: 'last_seen', label: 'Last Seen' },
   { key: 'compliance', label: 'Compliance' },
-] as const
+] as const;
 
-const defaultCols: Record<string, boolean> = Object.fromEntries(deviceColumns.map((column) => [
-  column.key,
-  ['device_num', 'name', 'ip', 'mac', 'gen', 'model', 'fw', 'online', 'wifi_ssid', 'mqtt_enabled', 'cloud_connected', 'tz', 'compliance'].includes(column.key),
-]))
+const defaultCols: Record<string, boolean> = Object.fromEntries(
+  deviceColumns.map((column) => [
+    column.key,
+    [
+      'device_num',
+      'name',
+      'ip',
+      'mac',
+      'gen',
+      'model',
+      'fw',
+      'online',
+      'wifi_ssid',
+      'mqtt_enabled',
+      'cloud_connected',
+      'tz',
+      'compliance',
+    ].includes(column.key),
+  ]),
+);
 
 function persisted<T>(key: string, fallback: T) {
-  const initial = typeof localStorage === 'undefined'
-    ? fallback
-    : JSON.parse(localStorage.getItem(key) ?? JSON.stringify(fallback))
-  const store = writable<T>(initial)
+  const initial =
+    typeof localStorage === 'undefined'
+      ? fallback
+      : JSON.parse(localStorage.getItem(key) ?? JSON.stringify(fallback));
+  const store = writable<T>(initial);
   store.subscribe((value) => {
     if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(key, JSON.stringify(value))
+      localStorage.setItem(key, JSON.stringify(value));
     }
-  })
-  return store
+  });
+  return store;
 }
 
-export const devices = writable<Device[]>([])
-export const colVis = persisted<Record<string, boolean>>('colVis', defaultCols)
-export const refreshInterval = persisted<number>('refreshInterval', 0)
-export const uiScale = persisted<UIScale>('uiScale', 'default')
-export const currentPath = writable<string>(window.location.pathname)
+export const devices = writable<Device[]>([]);
+export const colVis = persisted<Record<string, boolean>>('colVis', defaultCols);
+export const refreshInterval = persisted<number>('refreshInterval', 0);
+export const uiScale = persisted<UIScale>('uiScale', 'default');
+export const currentPath = writable<string>(window.location.pathname);
 
 export function navigate(path: string): void {
   if (window.location.pathname !== path) {
-    history.pushState({}, '', path)
+    history.pushState({}, '', path);
   }
-  currentPath.set(path)
+  currentPath.set(path);
 }
 
-window.addEventListener('popstate', () => currentPath.set(window.location.pathname))
+window.addEventListener('popstate', () => currentPath.set(window.location.pathname));

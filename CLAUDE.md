@@ -66,6 +66,11 @@ Same four-value pattern as MQTT: `""`, `"*"`, `"ca.pem"`, `"user_ca.pem"`.
 | `internal/core/provisioner/provisioner.go` | Template-based fleet provisioning |
 | `internal/core/compliance/compliance.go` | Compliance rule evaluation |
 | `internal/core/setters/setters.go` | Targeted single-field setters for bulk actions |
+| `internal/core/secretbox/secretbox.go` | NaCl secretbox envelope encryption for credential at-rest storage |
+| `internal/middleware/requestid.go` | `X-Request-ID` middleware; IDs propagate to audit_log rows and slog attrs |
+| `internal/services/password.go` | Argon2id hash/verify for `SHELLYADMIN_PASS_HASH` |
+| `internal/services/store.go` | `Store` interface at the service/DB boundary |
+| `internal/api/errors.go` | `respondError` / `respondUserError` — sanitized HTTP error responses |
 | `internal/models/device.go` | Device struct (source of truth for all device fields) |
 | `internal/models/settings.go` | ComplianceRules, AppSettings, etc. |
 | `web/src/pages/Provision.svelte` | Provisioning UI — form editor + JSON editor |

@@ -1,285 +1,340 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
-  import { APIError, api } from '../lib/api'
-  import { colVis, deviceColumns, devices, navigate, refreshInterval } from '../lib/stores'
-  import { formatDateTime, formatRelativeDateTime } from '../lib/time'
-  import type { Device } from '../lib/types'
-  import ComplianceBadge from '../components/ComplianceBadge.svelte'
-  import ErrorNotice from '../components/ErrorNotice.svelte'
-  import SortHeader from '../components/SortHeader.svelte'
+  import { onMount } from 'svelte';
+  import { APIError, api } from '../lib/api';
+  import { colVis, deviceColumns, devices, navigate, refreshInterval } from '../lib/stores';
+  import { formatDateTime, formatRelativeDateTime } from '../lib/time';
+  import type { Device } from '../lib/types';
+  import ComplianceBadge from '../components/ComplianceBadge.svelte';
+  import ErrorNotice from '../components/ErrorNotice.svelte';
+  import SortHeader from '../components/SortHeader.svelte';
 
-  let filter = ''
-  let loading = false
-  let error = ''
-  let errorDetails = ''
-  let showColumns = false
-  let sortKey = 'device_num'
-  let sortDir: 'asc' | 'desc' = 'asc'
-  let autoRefreshTimer: ReturnType<typeof setInterval> | null = null
-  let rowBusy: Record<string, { refresh: boolean; remove: boolean; reboot: boolean }> = {}
-  let rebootNotice = ''
+  let filter = '';
+  let loading = false;
+  let error = '';
+  let errorDetails = '';
+  let showColumns = false;
+  let sortKey = 'device_num';
+  let sortDir: 'asc' | 'desc' = 'asc';
+  let autoRefreshTimer: ReturnType<typeof setInterval> | null = null;
+  let rowBusy: Record<string, { refresh: boolean; remove: boolean; reboot: boolean }> = {};
+  let rebootNotice = '';
 
   function captureError(err: unknown) {
     if (err instanceof APIError) {
-      error = err.message
-      errorDetails = `${err.method} ${err.path} -> ${err.status}\n${JSON.stringify(err.detail ?? {}, null, 2)}`
-      return
+      error = err.message;
+      errorDetails = `${err.method} ${err.path} -> ${err.status}\n${JSON.stringify(err.detail ?? {}, null, 2)}`;
+      return;
     }
-    error = (err as Error).message
-    errorDetails = String(err)
+    error = (err as Error).message;
+    errorDetails = String(err);
   }
 
   async function load(refresh = false) {
-    loading = true
-    error = ''
-    errorDetails = ''
+    loading = true;
+    error = '';
+    errorDetails = '';
     try {
-      $devices = refresh ? await api.refreshDevices() : await api.getDevices()
+      $devices = refresh ? await api.refreshDevices() : await api.getDevices();
     } catch (err) {
-      captureError(err)
+      captureError(err);
     } finally {
-      loading = false
+      loading = false;
     }
   }
 
   function toggleColumn(key: string, checked: boolean) {
-    $colVis = { ...$colVis, [key]: checked }
+    $colVis = { ...$colVis, [key]: checked };
   }
 
   function setSort(key: string) {
     if (sortKey === key) {
-      sortDir = sortDir === 'asc' ? 'desc' : 'asc'
-      return
+      sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+      return;
     }
-    sortKey = key
-    sortDir = 'asc'
+    sortKey = key;
+    sortDir = 'asc';
   }
 
-
   async function refreshOne(device: Device) {
-    error = ''
-    errorDetails = ''
-    rowBusy = { ...rowBusy, [device.mac]: { ...(rowBusy[device.mac] || { refresh: false, remove: false, reboot: false }), refresh: true } }
+    error = '';
+    errorDetails = '';
+    rowBusy = {
+      ...rowBusy,
+      [device.mac]: {
+        ...(rowBusy[device.mac] || { refresh: false, remove: false, reboot: false }),
+        refresh: true,
+      },
+    };
     try {
-      $devices = await api.refreshDevice(device.mac)
+      $devices = await api.refreshDevice(device.mac);
     } catch (err) {
-      captureError(err)
+      captureError(err);
     } finally {
-      rowBusy = { ...rowBusy, [device.mac]: { ...(rowBusy[device.mac] || { refresh: false, remove: false, reboot: false }), refresh: false } }
+      rowBusy = {
+        ...rowBusy,
+        [device.mac]: {
+          ...(rowBusy[device.mac] || { refresh: false, remove: false, reboot: false }),
+          refresh: false,
+        },
+      };
     }
   }
 
   async function removeOne(device: Device) {
-    const label = device.name || device.ip || device.mac
-    if (!confirm(`Delete device "${label}"?`)) return
-    error = ''
-    errorDetails = ''
-    rowBusy = { ...rowBusy, [device.mac]: { ...(rowBusy[device.mac] || { refresh: false, remove: false, reboot: false }), remove: true } }
+    const label = device.name || device.ip || device.mac;
+    if (!confirm(`Delete device "${label}"?`)) return;
+    error = '';
+    errorDetails = '';
+    rowBusy = {
+      ...rowBusy,
+      [device.mac]: {
+        ...(rowBusy[device.mac] || { refresh: false, remove: false, reboot: false }),
+        remove: true,
+      },
+    };
     try {
-      await api.forgetDevice(device.mac)
-      await load()
+      await api.forgetDevice(device.mac);
+      await load();
     } catch (err) {
-      captureError(err)
+      captureError(err);
     } finally {
-      rowBusy = { ...rowBusy, [device.mac]: { ...(rowBusy[device.mac] || { refresh: false, remove: false, reboot: false }), remove: false } }
+      rowBusy = {
+        ...rowBusy,
+        [device.mac]: {
+          ...(rowBusy[device.mac] || { refresh: false, remove: false, reboot: false }),
+          remove: false,
+        },
+      };
     }
   }
 
   async function rebootOne(device: Device) {
-    const label = device.name || device.ip || device.mac
-    if (!confirm(`Reboot "${label}"?\n\nThe device will be unreachable for ~20s.`)) return
-    error = ''
-    errorDetails = ''
-    rebootNotice = ''
-    rowBusy = { ...rowBusy, [device.mac]: { ...(rowBusy[device.mac] || { refresh: false, remove: false, reboot: false }), reboot: true } }
+    const label = device.name || device.ip || device.mac;
+    if (!confirm(`Reboot "${label}"?\n\nThe device will be unreachable for ~20s.`)) return;
+    error = '';
+    errorDetails = '';
+    rebootNotice = '';
+    rowBusy = {
+      ...rowBusy,
+      [device.mac]: {
+        ...(rowBusy[device.mac] || { refresh: false, remove: false, reboot: false }),
+        reboot: true,
+      },
+    };
     try {
-      const res = await api.bulk({ action: 'reboot', macs: [device.mac] })
-      const r = res.results[0]
-      rebootNotice = r?.status === 'ok' ? `Rebooted ${label}.` : `Reboot failed for ${label}: ${r?.detail ?? 'unknown error'}`
+      const res = await api.bulk({ action: 'reboot', macs: [device.mac] });
+      const r = res.results[0];
+      rebootNotice =
+        r?.status === 'ok'
+          ? `Rebooted ${label}.`
+          : `Reboot failed for ${label}: ${r?.detail ?? 'unknown error'}`;
     } catch (err) {
-      captureError(err)
+      captureError(err);
     } finally {
-      rowBusy = { ...rowBusy, [device.mac]: { ...(rowBusy[device.mac] || { refresh: false, remove: false, reboot: false }), reboot: false } }
+      rowBusy = {
+        ...rowBusy,
+        [device.mac]: {
+          ...(rowBusy[device.mac] || { refresh: false, remove: false, reboot: false }),
+          reboot: false,
+        },
+      };
     }
   }
 
   async function rebootAll() {
-    const macs = sorted.map((d) => d.mac)
-    if (!macs.length) return
-    if (!confirm(`Reboot all ${macs.length} listed device(s)?\n\nDevices will be unreachable for ~20s; active scan/refresh jobs may error.`)) return
-    error = ''
-    errorDetails = ''
-    rebootNotice = ''
-    loading = true
+    const macs = sorted.map((d) => d.mac);
+    if (!macs.length) return;
+    if (
+      !confirm(
+        `Reboot all ${macs.length} listed device(s)?\n\nDevices will be unreachable for ~20s; active scan/refresh jobs may error.`,
+      )
+    )
+      return;
+    error = '';
+    errorDetails = '';
+    rebootNotice = '';
+    loading = true;
     try {
-      const res = await api.bulk({ action: 'reboot', macs })
-      const failed = res.results.filter((r) => r.status !== 'ok')
+      const res = await api.bulk({ action: 'reboot', macs });
+      const failed = res.results.filter((r) => r.status !== 'ok');
       rebootNotice = failed.length
         ? `Rebooted ${macs.length - failed.length}/${macs.length} devices. ${failed.length} failed.`
-        : `Rebooted ${macs.length} device(s).`
+        : `Rebooted ${macs.length} device(s).`;
     } catch (err) {
-      captureError(err)
+      captureError(err);
     } finally {
-      loading = false
+      loading = false;
     }
   }
 
   function openDetail(device: Device) {
-    navigate(`/devices/${encodeURIComponent(device.mac)}`)
+    navigate(`/devices/${encodeURIComponent(device.mac)}`);
   }
 
   function generationLabel(device: Device): string {
-    return `Gen ${device.gen}.x`
+    return `Gen ${device.gen}.x`;
   }
 
   function supportClass(device: Device): string {
-    if (device.gen === 2) return 'bg-warning text-dark'
-    return 'bg-success'
+    if (device.gen === 2) return 'bg-warning text-dark';
+    return 'bg-success';
   }
 
   function supportTitle(device: Device): string {
-    if (device.gen === 2) return 'Limited support'
-    return 'Supported'
+    if (device.gen === 2) return 'Limited support';
+    return 'Supported';
   }
 
-  function statusBadgeClass(value: boolean | null | undefined, positive = 'bg-success', negative = 'bg-danger', unknown = 'bg-secondary') {
-    if (value === null || value === undefined) return 'bg-secondary'
-    return value ? positive : negative
+  function statusBadgeClass(
+    value: boolean | null | undefined,
+    positive = 'bg-success',
+    negative = 'bg-danger',
+    unknown = 'bg-secondary',
+  ) {
+    if (value === null || value === undefined) return 'bg-secondary';
+    return value ? positive : negative;
   }
 
-  function statusText(value: boolean | null | undefined, on = 'On', off = 'Off', na = 'n/a'): string {
-    if (value === null || value === undefined) return na
-    return value ? on : off
+  function statusText(
+    value: boolean | null | undefined,
+    on = 'On',
+    off = 'Off',
+    na = 'n/a',
+  ): string {
+    if (value === null || value === undefined) return na;
+    return value ? on : off;
   }
 
   function mqttManagedByCloud(_device: Device): boolean {
-    return false
+    return false;
   }
 
   function formatCoords(device: Device): string {
-    if (device.lat === null || device.lon === null) return 'n/a'
-    return `${device.lat.toFixed(5)}, ${device.lon.toFixed(5)}`
+    if (device.lat === null || device.lon === null) return 'n/a';
+    return `${device.lat.toFixed(5)}, ${device.lon.toFixed(5)}`;
   }
 
   function supportsWebSocket(_device: Device): boolean {
-    return true
+    return true;
   }
 
   function refreshState(device: Device): 'fresh' | 'stale' {
-    return device.last_refresh_ok ? 'fresh' : 'stale'
+    return device.last_refresh_ok ? 'fresh' : 'stale';
   }
 
   function refreshStateBadgeClass(device: Device): string {
-    return refreshState(device) === 'fresh' ? 'bg-success' : 'bg-secondary'
+    return refreshState(device) === 'fresh' ? 'bg-success' : 'bg-secondary';
   }
 
   function refreshStateText(device: Device): string {
-    return refreshState(device) === 'fresh' ? 'Fresh' : 'Stale'
+    return refreshState(device) === 'fresh' ? 'Fresh' : 'Stale';
   }
 
   function refreshStateTitle(device: Device): string {
     if (device.last_refresh_ok) {
-      return `Last successful refresh: ${formatDateTime(device.last_seen)}`
+      return `Last successful refresh: ${formatDateTime(device.last_seen)}`;
     }
-    const lastSuccess = device.last_seen ? formatDateTime(device.last_seen) : 'never'
-    const lastAttempt = device.last_refresh_attempt ? formatDateTime(device.last_refresh_attempt) : 'unknown'
-    const reason = device.last_refresh_error || 'latest refresh did not return device data'
-    return `Latest refresh failed: ${reason}. Last attempt: ${lastAttempt}. Last successful refresh: ${lastSuccess}.`
+    const lastSuccess = device.last_seen ? formatDateTime(device.last_seen) : 'never';
+    const lastAttempt = device.last_refresh_attempt
+      ? formatDateTime(device.last_refresh_attempt)
+      : 'unknown';
+    const reason = device.last_refresh_error || 'latest refresh did not return device data';
+    return `Latest refresh failed: ${reason}. Last attempt: ${lastAttempt}. Last successful refresh: ${lastSuccess}.`;
   }
 
   function clearAutoRefresh(): void {
     if (autoRefreshTimer) {
-      clearInterval(autoRefreshTimer)
-      autoRefreshTimer = null
+      clearInterval(autoRefreshTimer);
+      autoRefreshTimer = null;
     }
   }
 
   function setupAutoRefresh(intervalMs: number): void {
-    clearAutoRefresh()
+    clearAutoRefresh();
     if (intervalMs > 0) {
       autoRefreshTimer = setInterval(() => {
-        void load(true)
-      }, intervalMs)
+        void load(true);
+      }, intervalMs);
     }
   }
 
   function compare(a: Device, b: Device, key: string): number {
     switch (key) {
       case 'device_num':
-        return a.device_num - b.device_num
+        return a.device_num - b.device_num;
       case 'name':
-        return (a.name || a.serial || a.mac).localeCompare(b.name || b.serial || b.mac)
+        return (a.name || a.serial || a.mac).localeCompare(b.name || b.serial || b.mac);
       case 'ip':
-        return a.ip.localeCompare(b.ip, undefined, { numeric: true })
+        return a.ip.localeCompare(b.ip, undefined, { numeric: true });
       case 'mac':
-        return a.mac.localeCompare(b.mac)
+        return a.mac.localeCompare(b.mac);
       case 'gen':
-        return a.gen - b.gen
+        return a.gen - b.gen;
       case 'model':
-        return (a.model || '').localeCompare(b.model || '')
+        return (a.model || '').localeCompare(b.model || '');
       case 'fw':
-        return (a.fw || '').localeCompare(b.fw || '')
+        return (a.fw || '').localeCompare(b.fw || '');
       case 'online':
-        return Number(a.online) - Number(b.online)
+        return Number(a.online) - Number(b.online);
       case 'wifi_ssid':
-        return (a.wifi_ssid || '').localeCompare(b.wifi_ssid || '')
+        return (a.wifi_ssid || '').localeCompare(b.wifi_ssid || '');
       case 'mqtt_enabled':
-        return Number(Boolean(a.mqtt_enabled)) - Number(Boolean(b.mqtt_enabled))
+        return Number(Boolean(a.mqtt_enabled)) - Number(Boolean(b.mqtt_enabled));
       case 'mqtt_server':
-        return (a.mqtt_server || '').localeCompare(b.mqtt_server || '')
+        return (a.mqtt_server || '').localeCompare(b.mqtt_server || '');
       case 'mqtt_client_id':
-        return (a.mqtt_client_id || '').localeCompare(b.mqtt_client_id || '')
+        return (a.mqtt_client_id || '').localeCompare(b.mqtt_client_id || '');
       case 'mqtt_topic_prefix':
-        return (a.mqtt_topic_prefix || '').localeCompare(b.mqtt_topic_prefix || '')
+        return (a.mqtt_topic_prefix || '').localeCompare(b.mqtt_topic_prefix || '');
       case 'cloud_connected':
-        return Number(a.cloud_connected) - Number(b.cloud_connected)
+        return Number(a.cloud_connected) - Number(b.cloud_connected);
       case 'ws_connected':
-        return Number(a.ws_connected) - Number(b.ws_connected)
+        return Number(a.ws_connected) - Number(b.ws_connected);
       case 'tz':
-        return (a.tz || '').localeCompare(b.tz || '')
+        return (a.tz || '').localeCompare(b.tz || '');
       case 'sntp_server':
-        return (a.sntp_server || '').localeCompare(b.sntp_server || '')
+        return (a.sntp_server || '').localeCompare(b.sntp_server || '');
       case 'serial':
-        return (a.serial || '').localeCompare(b.serial || '')
+        return (a.serial || '').localeCompare(b.serial || '');
       case 'matter_enabled':
-        return Number(Boolean(a.matter_enabled)) - Number(Boolean(b.matter_enabled))
+        return Number(Boolean(a.matter_enabled)) - Number(Boolean(b.matter_enabled));
       case 'ble_gw_enabled':
-        return Number(Boolean(a.ble_gw_enabled)) - Number(Boolean(b.ble_gw_enabled))
+        return Number(Boolean(a.ble_gw_enabled)) - Number(Boolean(b.ble_gw_enabled));
       case 'coords':
-        return formatCoords(a).localeCompare(formatCoords(b))
+        return formatCoords(a).localeCompare(formatCoords(b));
       case 'eco_mode':
-        return Number(Boolean(a.eco_mode)) - Number(Boolean(b.eco_mode))
+        return Number(Boolean(a.eco_mode)) - Number(Boolean(b.eco_mode));
       case 'discoverable':
-        return Number(Boolean(a.discoverable)) - Number(Boolean(b.discoverable))
+        return Number(Boolean(a.discoverable)) - Number(Boolean(b.discoverable));
       case 'first_seen':
-        return (a.first_seen || '').localeCompare(b.first_seen || '')
+        return (a.first_seen || '').localeCompare(b.first_seen || '');
       case 'last_seen':
-        return (a.last_seen || '').localeCompare(b.last_seen || '')
+        return (a.last_seen || '').localeCompare(b.last_seen || '');
       case 'compliance':
-        return Number(a.compliant) - Number(b.compliant)
+        return Number(a.compliant) - Number(b.compliant);
       default:
-        return 0
+        return 0;
     }
   }
 
   $: filtered = $devices.filter((d: Device) => {
-    const haystack = `${d.name} ${d.ip} ${d.mac} ${d.model} ${d.serial}`.toLowerCase()
-    return haystack.includes(filter.toLowerCase())
-  })
+    const haystack = `${d.name} ${d.ip} ${d.mac} ${d.model} ${d.serial}`.toLowerCase();
+    return haystack.includes(filter.toLowerCase());
+  });
 
-  $: onlineCount = $devices.filter((device) => device.online).length
+  $: onlineCount = $devices.filter((device) => device.online).length;
 
   $: sorted = [...filtered].sort((a, b) => {
-    const result = compare(a, b, sortKey)
-    return sortDir === 'asc' ? result : -result
-  })
+    const result = compare(a, b, sortKey);
+    return sortDir === 'asc' ? result : -result;
+  });
 
-  $: setupAutoRefresh($refreshInterval)
+  $: setupAutoRefresh($refreshInterval);
 
   onMount(() => {
-    void load()
-    return () => clearAutoRefresh()
-  })
+    void load();
+    return () => clearAutoRefresh();
+  });
 </script>
 
 <section class="page-hero">
@@ -291,16 +346,29 @@
     {/if}
   </div>
   <div class="page-hero-controls">
-    <input class="form-control toolbar-search" placeholder="Filter name / IP / MAC / model" bind:value={filter} />
+    <input
+      class="form-control toolbar-search"
+      placeholder="Filter name / IP / MAC / model"
+      bind:value={filter}
+    />
     <select class="form-select toolbar-select" bind:value={$refreshInterval}>
       <option value={0}>Auto refresh: Off</option>
       <option value={30000}>Auto refresh: 30 sec</option>
       <option value={60000}>Auto refresh: 1 min</option>
       <option value={300000}>Auto refresh: 5 min</option>
     </select>
-    <button class="btn btn-outline-light" on:click={() => showColumns = !showColumns}>{showColumns ? 'Hide Columns' : 'Columns'}</button>
-    <button class="btn btn-warning text-dark" on:click={() => load(true)} disabled={loading}>Refresh</button>
-    <button class="btn btn-outline-warning" on:click={rebootAll} disabled={loading || sorted.length === 0} title="Reboot all listed devices">Reboot All</button>
+    <button class="btn btn-outline-light" on:click={() => (showColumns = !showColumns)}
+      >{showColumns ? 'Hide Columns' : 'Columns'}</button
+    >
+    <button class="btn btn-warning text-dark" on:click={() => load(true)} disabled={loading}
+      >Refresh</button
+    >
+    <button
+      class="btn btn-outline-warning"
+      on:click={rebootAll}
+      disabled={loading || sorted.length === 0}
+      title="Reboot all listed devices">Reboot All</button
+    >
   </div>
 </section>
 
@@ -316,7 +384,8 @@
                 class="form-check-input"
                 type="checkbox"
                 checked={$colVis[column.key] ?? false}
-                on:change={(e) => toggleColumn(column.key, (e.currentTarget as HTMLInputElement).checked)}
+                on:change={(e) =>
+                  toggleColumn(column.key, (e.currentTarget as HTMLInputElement).checked)}
               />
               <span>{column.label}</span>
             </label>
@@ -332,7 +401,12 @@
 {#if rebootNotice}
   <div class="alert alert-info alert-dismissible py-2 mb-2" role="status">
     {rebootNotice}
-    <button type="button" class="btn-close btn-close-white" aria-label="Dismiss" on:click={() => (rebootNotice = '')}></button>
+    <button
+      type="button"
+      class="btn-close btn-close-white"
+      aria-label="Dismiss"
+      on:click={() => (rebootNotice = '')}
+    ></button>
   </div>
 {/if}
 
@@ -340,32 +414,188 @@
   <table class="table table-dark table-striped align-middle table-nowrap dashboard-table">
     <thead>
       <tr>
-        {#if $colVis.device_num}<SortHeader label="#" column="device_num" {sortKey} {sortDir} onSort={setSort} />{/if}
-        {#if $colVis.name}<SortHeader label="Name" column="name" {sortKey} {sortDir} onSort={setSort} />{/if}
-        {#if $colVis.ip}<SortHeader label="IP" column="ip" {sortKey} {sortDir} onSort={setSort} />{/if}
-        {#if $colVis.mac}<SortHeader label="MAC" column="mac" {sortKey} {sortDir} onSort={setSort} />{/if}
-        {#if $colVis.gen}<SortHeader label="Type" column="gen" {sortKey} {sortDir} onSort={setSort} />{/if}
-        {#if $colVis.model}<SortHeader label="Model" column="model" {sortKey} {sortDir} onSort={setSort} />{/if}
-        {#if $colVis.fw}<SortHeader label="Firmware" column="fw" {sortKey} {sortDir} onSort={setSort} />{/if}
-        {#if $colVis.online}<SortHeader label="Online" column="online" {sortKey} {sortDir} onSort={setSort} />{/if}
-        {#if $colVis.wifi_ssid}<SortHeader label="WiFi" column="wifi_ssid" {sortKey} {sortDir} onSort={setSort} />{/if}
-        {#if $colVis.mqtt_enabled}<SortHeader label="MQTT" column="mqtt_enabled" {sortKey} {sortDir} onSort={setSort} />{/if}
-        {#if $colVis.mqtt_server}<SortHeader label="MQTT Server" column="mqtt_server" {sortKey} {sortDir} onSort={setSort} />{/if}
-        {#if $colVis.mqtt_client_id}<SortHeader label="MQTT Client ID" column="mqtt_client_id" {sortKey} {sortDir} onSort={setSort} />{/if}
-        {#if $colVis.mqtt_topic_prefix}<SortHeader label="MQTT Topic" column="mqtt_topic_prefix" {sortKey} {sortDir} onSort={setSort} />{/if}
-        {#if $colVis.cloud_connected}<SortHeader label="Cloud" column="cloud_connected" {sortKey} {sortDir} onSort={setSort} />{/if}
-        {#if $colVis.ws_connected}<SortHeader label="WebSocket" column="ws_connected" {sortKey} {sortDir} onSort={setSort} />{/if}
-        {#if $colVis.tz}<SortHeader label="Timezone" column="tz" {sortKey} {sortDir} onSort={setSort} />{/if}
-        {#if $colVis.sntp_server}<SortHeader label="SNTP" column="sntp_server" {sortKey} {sortDir} onSort={setSort} />{/if}
-        {#if $colVis.serial}<SortHeader label="Serial" column="serial" {sortKey} {sortDir} onSort={setSort} />{/if}
-        {#if $colVis.matter_enabled}<SortHeader label="Matter" column="matter_enabled" {sortKey} {sortDir} onSort={setSort} />{/if}
-        {#if $colVis.ble_gw_enabled}<SortHeader label="BLE GW" column="ble_gw_enabled" {sortKey} {sortDir} onSort={setSort} />{/if}
-        {#if $colVis.coords}<SortHeader label="Coords" column="coords" {sortKey} {sortDir} onSort={setSort} />{/if}
-        {#if $colVis.eco_mode}<SortHeader label="Eco" column="eco_mode" {sortKey} {sortDir} onSort={setSort} />{/if}
-        {#if $colVis.discoverable}<SortHeader label="Discoverable" column="discoverable" {sortKey} {sortDir} onSort={setSort} />{/if}
-        {#if $colVis.first_seen}<SortHeader label="First Seen" column="first_seen" {sortKey} {sortDir} onSort={setSort} />{/if}
-        {#if $colVis.last_seen}<SortHeader label="Last Success" column="last_seen" {sortKey} {sortDir} onSort={setSort} />{/if}
-        {#if $colVis.compliance}<SortHeader label="Compliance" column="compliance" {sortKey} {sortDir} onSort={setSort} />{/if}
+        {#if $colVis.device_num}<SortHeader
+            label="#"
+            column="device_num"
+            {sortKey}
+            {sortDir}
+            onSort={setSort}
+          />{/if}
+        {#if $colVis.name}<SortHeader
+            label="Name"
+            column="name"
+            {sortKey}
+            {sortDir}
+            onSort={setSort}
+          />{/if}
+        {#if $colVis.ip}<SortHeader
+            label="IP"
+            column="ip"
+            {sortKey}
+            {sortDir}
+            onSort={setSort}
+          />{/if}
+        {#if $colVis.mac}<SortHeader
+            label="MAC"
+            column="mac"
+            {sortKey}
+            {sortDir}
+            onSort={setSort}
+          />{/if}
+        {#if $colVis.gen}<SortHeader
+            label="Type"
+            column="gen"
+            {sortKey}
+            {sortDir}
+            onSort={setSort}
+          />{/if}
+        {#if $colVis.model}<SortHeader
+            label="Model"
+            column="model"
+            {sortKey}
+            {sortDir}
+            onSort={setSort}
+          />{/if}
+        {#if $colVis.fw}<SortHeader
+            label="Firmware"
+            column="fw"
+            {sortKey}
+            {sortDir}
+            onSort={setSort}
+          />{/if}
+        {#if $colVis.online}<SortHeader
+            label="Online"
+            column="online"
+            {sortKey}
+            {sortDir}
+            onSort={setSort}
+          />{/if}
+        {#if $colVis.wifi_ssid}<SortHeader
+            label="WiFi"
+            column="wifi_ssid"
+            {sortKey}
+            {sortDir}
+            onSort={setSort}
+          />{/if}
+        {#if $colVis.mqtt_enabled}<SortHeader
+            label="MQTT"
+            column="mqtt_enabled"
+            {sortKey}
+            {sortDir}
+            onSort={setSort}
+          />{/if}
+        {#if $colVis.mqtt_server}<SortHeader
+            label="MQTT Server"
+            column="mqtt_server"
+            {sortKey}
+            {sortDir}
+            onSort={setSort}
+          />{/if}
+        {#if $colVis.mqtt_client_id}<SortHeader
+            label="MQTT Client ID"
+            column="mqtt_client_id"
+            {sortKey}
+            {sortDir}
+            onSort={setSort}
+          />{/if}
+        {#if $colVis.mqtt_topic_prefix}<SortHeader
+            label="MQTT Topic"
+            column="mqtt_topic_prefix"
+            {sortKey}
+            {sortDir}
+            onSort={setSort}
+          />{/if}
+        {#if $colVis.cloud_connected}<SortHeader
+            label="Cloud"
+            column="cloud_connected"
+            {sortKey}
+            {sortDir}
+            onSort={setSort}
+          />{/if}
+        {#if $colVis.ws_connected}<SortHeader
+            label="WebSocket"
+            column="ws_connected"
+            {sortKey}
+            {sortDir}
+            onSort={setSort}
+          />{/if}
+        {#if $colVis.tz}<SortHeader
+            label="Timezone"
+            column="tz"
+            {sortKey}
+            {sortDir}
+            onSort={setSort}
+          />{/if}
+        {#if $colVis.sntp_server}<SortHeader
+            label="SNTP"
+            column="sntp_server"
+            {sortKey}
+            {sortDir}
+            onSort={setSort}
+          />{/if}
+        {#if $colVis.serial}<SortHeader
+            label="Serial"
+            column="serial"
+            {sortKey}
+            {sortDir}
+            onSort={setSort}
+          />{/if}
+        {#if $colVis.matter_enabled}<SortHeader
+            label="Matter"
+            column="matter_enabled"
+            {sortKey}
+            {sortDir}
+            onSort={setSort}
+          />{/if}
+        {#if $colVis.ble_gw_enabled}<SortHeader
+            label="BLE GW"
+            column="ble_gw_enabled"
+            {sortKey}
+            {sortDir}
+            onSort={setSort}
+          />{/if}
+        {#if $colVis.coords}<SortHeader
+            label="Coords"
+            column="coords"
+            {sortKey}
+            {sortDir}
+            onSort={setSort}
+          />{/if}
+        {#if $colVis.eco_mode}<SortHeader
+            label="Eco"
+            column="eco_mode"
+            {sortKey}
+            {sortDir}
+            onSort={setSort}
+          />{/if}
+        {#if $colVis.discoverable}<SortHeader
+            label="Discoverable"
+            column="discoverable"
+            {sortKey}
+            {sortDir}
+            onSort={setSort}
+          />{/if}
+        {#if $colVis.first_seen}<SortHeader
+            label="First Seen"
+            column="first_seen"
+            {sortKey}
+            {sortDir}
+            onSort={setSort}
+          />{/if}
+        {#if $colVis.last_seen}<SortHeader
+            label="Last Success"
+            column="last_seen"
+            {sortKey}
+            {sortDir}
+            onSort={setSort}
+          />{/if}
+        {#if $colVis.compliance}<SortHeader
+            label="Compliance"
+            column="compliance"
+            {sortKey}
+            {sortDir}
+            onSort={setSort}
+          />{/if}
         <th class="text-end">Actions</th>
       </tr>
     </thead>
@@ -374,42 +604,121 @@
         <tr class:device-stale={refreshState(device) === 'stale'}>
           {#if $colVis.device_num}<td>{String(device.device_num).padStart(2, '0')}</td>{/if}
           {#if $colVis.name}<td>{device.name || device.serial || device.mac}</td>{/if}
-          {#if $colVis.ip}<td><a href={`http://${device.ip}`} target="_blank" rel="noreferrer" class="ip-link">{device.ip}</a></td>{/if}
+          {#if $colVis.ip}<td
+              ><a href={`http://${device.ip}`} target="_blank" rel="noreferrer" class="ip-link"
+                >{device.ip}</a
+              ></td
+            >{/if}
           {#if $colVis.mac}<td class="font-monospace">{device.mac}</td>{/if}
-          {#if $colVis.gen}<td><span class={`badge ${supportClass(device)}`} title={supportTitle(device)}>{generationLabel(device)}</span></td>{/if}
-          {#if $colVis.model}<td>{#if device.model}{device.model}{:else}<span class="text-secondary">n/a</span>{/if}</td>{/if}
+          {#if $colVis.gen}<td
+              ><span class={`badge ${supportClass(device)}`} title={supportTitle(device)}
+                >{generationLabel(device)}</span
+              ></td
+            >{/if}
+          {#if $colVis.model}<td
+              >{#if device.model}{device.model}{:else}<span class="text-secondary">n/a</span
+                >{/if}</td
+            >{/if}
           {#if $colVis.fw}
             <td>
               {#if device.fw}{device.fw}{:else}<span class="text-secondary">n/a</span>{/if}
-              {#if device.fw_available_ver}<span class="badge bg-info text-dark">↑ {device.fw_available_ver}</span>{/if}
+              {#if device.fw_available_ver}<span class="badge bg-info text-dark"
+                  >↑ {device.fw_available_ver}</span
+                >{/if}
             </td>
           {/if}
           {#if $colVis.online}
             <td>
               <div class="d-flex gap-2 align-items-center flex-wrap">
-                <span class={`badge ${statusBadgeClass(device.online)}`}>{statusText(device.online, 'Online', 'Offline')}</span>
-                <span class={`badge ${refreshStateBadgeClass(device)}`} title={refreshStateTitle(device)}>{refreshStateText(device)}</span>
+                <span class={`badge ${statusBadgeClass(device.online)}`}
+                  >{statusText(device.online, 'Online', 'Offline')}</span
+                >
+                <span
+                  class={`badge ${refreshStateBadgeClass(device)}`}
+                  title={refreshStateTitle(device)}>{refreshStateText(device)}</span
+                >
               </div>
             </td>
           {/if}
-          {#if $colVis.wifi_ssid}<td>{#if device.wifi_ssid}{device.wifi_ssid}{:else}<span class="text-secondary">n/a</span>{/if}</td>{/if}
+          {#if $colVis.wifi_ssid}<td
+              >{#if device.wifi_ssid}{device.wifi_ssid}{:else}<span class="text-secondary">n/a</span
+                >{/if}</td
+            >{/if}
           {#if $colVis.mqtt_enabled}
-            <td><span class={`badge ${mqttManagedByCloud(device) ? 'bg-secondary' : statusBadgeClass(device.mqtt_enabled)}`}>{mqttManagedByCloud(device) ? 'cloud-managed' : statusText(device.mqtt_enabled)}</span></td>
+            <td
+              ><span
+                class={`badge ${mqttManagedByCloud(device) ? 'bg-secondary' : statusBadgeClass(device.mqtt_enabled)}`}
+                >{mqttManagedByCloud(device)
+                  ? 'cloud-managed'
+                  : statusText(device.mqtt_enabled)}</span
+              ></td
+            >
           {/if}
-          {#if $colVis.mqtt_server}<td>{#if mqttManagedByCloud(device)}cloud-managed{:else if device.mqtt_server}{device.mqtt_server}{:else}<span class="text-secondary">n/a</span>{/if}</td>{/if}
-          {#if $colVis.mqtt_client_id}<td>{#if mqttManagedByCloud(device)}cloud-managed{:else if device.mqtt_client_id}{device.mqtt_client_id}{:else}<span class="text-secondary">n/a</span>{/if}</td>{/if}
-          {#if $colVis.mqtt_topic_prefix}<td>{#if mqttManagedByCloud(device)}cloud-managed{:else if device.mqtt_topic_prefix}{device.mqtt_topic_prefix}{:else}<span class="text-secondary">n/a</span>{/if}</td>{/if}
-          {#if $colVis.cloud_connected}<td><span class={`badge ${statusBadgeClass(device.cloud_connected)}`}>{statusText(device.cloud_connected, 'Connected', 'Off')}</span></td>{/if}
-          {#if $colVis.ws_connected}<td><span class={`badge ${statusBadgeClass(device.ws_connected)}`}>{statusText(device.ws_connected, 'Connected', 'Off')}</span></td>{/if}
-          {#if $colVis.tz}<td>{#if device.tz}{device.tz}{:else}<span class="text-secondary">n/a</span>{/if}</td>{/if}
-          {#if $colVis.sntp_server}<td>{#if device.sntp_server}{device.sntp_server}{:else}<span class="text-secondary">n/a</span>{/if}</td>{/if}
-          {#if $colVis.serial}<td class="font-monospace">{#if device.serial}{device.serial}{:else}<span class="text-secondary">n/a</span>{/if}</td>{/if}
-          {#if $colVis.matter_enabled}<td><span class={`badge ${statusBadgeClass(device.matter_enabled)}`}>{statusText(device.matter_enabled)}</span></td>{/if}
-          {#if $colVis.ble_gw_enabled}<td><span class={`badge ${statusBadgeClass(device.ble_gw_enabled)}`}>{statusText(device.ble_gw_enabled)}</span></td>{/if}
-          {#if $colVis.coords}<td>{#if formatCoords(device) !== 'n/a'}{formatCoords(device)}{:else}<span class="text-secondary">n/a</span>{/if}</td>{/if}
-          {#if $colVis.eco_mode}<td><span class={`badge ${statusBadgeClass(device.eco_mode)}`}>{statusText(device.eco_mode)}</span></td>{/if}
-          {#if $colVis.discoverable}<td><span class={`badge ${statusBadgeClass(device.discoverable)}`}>{statusText(device.discoverable)}</span></td>{/if}
-          {#if $colVis.first_seen}<td title={formatDateTime(device.first_seen)}>{formatRelativeDateTime(device.first_seen)}</td>{/if}
+          {#if $colVis.mqtt_server}<td
+              >{#if mqttManagedByCloud(device)}cloud-managed{:else if device.mqtt_server}{device.mqtt_server}{:else}<span
+                  class="text-secondary">n/a</span
+                >{/if}</td
+            >{/if}
+          {#if $colVis.mqtt_client_id}<td
+              >{#if mqttManagedByCloud(device)}cloud-managed{:else if device.mqtt_client_id}{device.mqtt_client_id}{:else}<span
+                  class="text-secondary">n/a</span
+                >{/if}</td
+            >{/if}
+          {#if $colVis.mqtt_topic_prefix}<td
+              >{#if mqttManagedByCloud(device)}cloud-managed{:else if device.mqtt_topic_prefix}{device.mqtt_topic_prefix}{:else}<span
+                  class="text-secondary">n/a</span
+                >{/if}</td
+            >{/if}
+          {#if $colVis.cloud_connected}<td
+              ><span class={`badge ${statusBadgeClass(device.cloud_connected)}`}
+                >{statusText(device.cloud_connected, 'Connected', 'Off')}</span
+              ></td
+            >{/if}
+          {#if $colVis.ws_connected}<td
+              ><span class={`badge ${statusBadgeClass(device.ws_connected)}`}
+                >{statusText(device.ws_connected, 'Connected', 'Off')}</span
+              ></td
+            >{/if}
+          {#if $colVis.tz}<td
+              >{#if device.tz}{device.tz}{:else}<span class="text-secondary">n/a</span>{/if}</td
+            >{/if}
+          {#if $colVis.sntp_server}<td
+              >{#if device.sntp_server}{device.sntp_server}{:else}<span class="text-secondary"
+                  >n/a</span
+                >{/if}</td
+            >{/if}
+          {#if $colVis.serial}<td class="font-monospace"
+              >{#if device.serial}{device.serial}{:else}<span class="text-secondary">n/a</span
+                >{/if}</td
+            >{/if}
+          {#if $colVis.matter_enabled}<td
+              ><span class={`badge ${statusBadgeClass(device.matter_enabled)}`}
+                >{statusText(device.matter_enabled)}</span
+              ></td
+            >{/if}
+          {#if $colVis.ble_gw_enabled}<td
+              ><span class={`badge ${statusBadgeClass(device.ble_gw_enabled)}`}
+                >{statusText(device.ble_gw_enabled)}</span
+              ></td
+            >{/if}
+          {#if $colVis.coords}<td
+              >{#if formatCoords(device) !== 'n/a'}{formatCoords(device)}{:else}<span
+                  class="text-secondary">n/a</span
+                >{/if}</td
+            >{/if}
+          {#if $colVis.eco_mode}<td
+              ><span class={`badge ${statusBadgeClass(device.eco_mode)}`}
+                >{statusText(device.eco_mode)}</span
+              ></td
+            >{/if}
+          {#if $colVis.discoverable}<td
+              ><span class={`badge ${statusBadgeClass(device.discoverable)}`}
+                >{statusText(device.discoverable)}</span
+              ></td
+            >{/if}
+          {#if $colVis.first_seen}<td title={formatDateTime(device.first_seen)}
+              >{formatRelativeDateTime(device.first_seen)}</td
+            >{/if}
           {#if $colVis.last_seen}
             <td title={refreshStateTitle(device)}>
               {#if device.last_seen}
@@ -419,7 +728,12 @@
               {/if}
             </td>
           {/if}
-          {#if $colVis.compliance}<td><ComplianceBadge compliant={device.compliant} issues={device.compliance_issues} /></td>{/if}
+          {#if $colVis.compliance}<td
+              ><ComplianceBadge
+                compliant={device.compliant}
+                issues={device.compliance_issues}
+              /></td
+            >{/if}
           <td class="text-end">
             <div class="d-flex justify-content-end gap-2">
               <button
@@ -428,28 +742,38 @@
                 aria-label={`Open detail for ${device.name || device.mac}`}
                 on:click={() => openDetail(device)}
                 disabled={rowBusy[device.mac]?.refresh || rowBusy[device.mac]?.remove}
-              ><span aria-hidden="true">⋯</span></button>
+                ><span aria-hidden="true">⋯</span></button
+              >
               <button
                 class="btn btn-sm btn-outline-light row-action-btn"
                 title="Refresh this device now"
                 aria-label={`Refresh ${device.name || device.mac}`}
                 on:click={() => refreshOne(device)}
                 disabled={rowBusy[device.mac]?.refresh || rowBusy[device.mac]?.remove}
-              ><span aria-hidden="true">↻</span></button>
+                ><span aria-hidden="true">↻</span></button
+              >
               <button
                 class="btn btn-sm btn-outline-warning row-action-btn"
                 title="Reboot this device"
                 aria-label={`Reboot ${device.name || device.mac}`}
                 on:click={() => rebootOne(device)}
-                disabled={rowBusy[device.mac]?.refresh || rowBusy[device.mac]?.remove || rowBusy[device.mac]?.reboot}
-              >{#if rowBusy[device.mac]?.reboot}<span class="spinner-border spinner-border-sm" aria-hidden="true"></span>{:else}<span aria-hidden="true">⏻</span>{/if}</button>
+                disabled={rowBusy[device.mac]?.refresh ||
+                  rowBusy[device.mac]?.remove ||
+                  rowBusy[device.mac]?.reboot}
+                >{#if rowBusy[device.mac]?.reboot}<span
+                    class="spinner-border spinner-border-sm"
+                    aria-hidden="true"
+                  ></span>{:else}<span aria-hidden="true">⏻</span>{/if}</button
+              >
               <button
                 class="btn btn-sm btn-outline-danger row-action-btn"
                 title="Delete this device"
                 aria-label={`Delete ${device.name || device.mac}`}
                 on:click={() => removeOne(device)}
-                disabled={rowBusy[device.mac]?.refresh || rowBusy[device.mac]?.remove || rowBusy[device.mac]?.reboot}
-              ><span aria-hidden="true">🗑</span></button>
+                disabled={rowBusy[device.mac]?.refresh ||
+                  rowBusy[device.mac]?.remove ||
+                  rowBusy[device.mac]?.reboot}><span aria-hidden="true">🗑</span></button
+              >
             </div>
           </td>
         </tr>
@@ -459,7 +783,9 @@
 </div>
 
 {#if !loading && !error && sorted.length === 0}
-  <div class="alert alert-secondary mt-3 mb-0">No devices loaded yet. Start a scan or refresh this page.</div>
+  <div class="alert alert-secondary mt-3 mb-0">
+    No devices loaded yet. Start a scan or refresh this page.
+  </div>
 {/if}
 
 <style>

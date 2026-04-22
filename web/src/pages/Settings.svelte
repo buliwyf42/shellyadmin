@@ -1,116 +1,124 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
-  import { APIError, api } from '../lib/api'
-  import type { AppSettings, BackupExport, Credential, ImportReport } from '../lib/types'
-  import ErrorNotice from '../components/ErrorNotice.svelte'
+  import { onMount } from 'svelte';
+  import { APIError, api } from '../lib/api';
+  import type { AppSettings, BackupExport, Credential, ImportReport } from '../lib/types';
+  import ErrorNotice from '../components/ErrorNotice.svelte';
 
-  let settings: AppSettings = { subnets: [], scan_timeout: 2, refresh_timeout: 5, scan_concurrency: 64, enable_mdns: false, advanced_mode_enabled: false, compliance: {} }
-  let credentials: Credential[] = []
-  let error = ''
-  let errorDetails = ''
-  let status = ''
-  let includeSecrets = false
-  let importText = ''
-  let importReport: ImportReport | null = null
-  let pendingImport: BackupExport | null = null
+  let settings: AppSettings = {
+    subnets: [],
+    scan_timeout: 2,
+    refresh_timeout: 5,
+    scan_concurrency: 64,
+    enable_mdns: false,
+    advanced_mode_enabled: false,
+    compliance: {},
+  };
+  let credentials: Credential[] = [];
+  let error = '';
+  let errorDetails = '';
+  let status = '';
+  let includeSecrets = false;
+  let importText = '';
+  let importReport: ImportReport | null = null;
+  let pendingImport: BackupExport | null = null;
 
   function captureError(err: unknown) {
     if (err instanceof APIError) {
-      error = err.message
-      errorDetails = `${err.method} ${err.path} -> ${err.status}\n${JSON.stringify(err.detail ?? {}, null, 2)}`
-      return
+      error = err.message;
+      errorDetails = `${err.method} ${err.path} -> ${err.status}\n${JSON.stringify(err.detail ?? {}, null, 2)}`;
+      return;
     }
-    error = (err as Error).message
-    errorDetails = String(err)
+    error = (err as Error).message;
+    errorDetails = String(err);
   }
 
   function setStatus(message: string) {
-    status = message
+    status = message;
     setTimeout(() => {
-      if (status === message) status = ''
-    }, 2000)
+      if (status === message) status = '';
+    }, 2000);
   }
 
   function clearMessages() {
-    error = ''
-    errorDetails = ''
+    error = '';
+    errorDetails = '';
   }
 
   function downloadJSON(filename: string, payload: unknown) {
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = filename
-    link.click()
-    URL.revokeObjectURL(url)
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
   async function load() {
-    clearMessages()
+    clearMessages();
     try {
-      settings = await api.getSettings()
-      credentials = await api.listCredentials()
+      settings = await api.getSettings();
+      credentials = await api.listCredentials();
     } catch (err) {
-      captureError(err)
+      captureError(err);
     }
   }
 
   async function saveSettings() {
-    clearMessages()
+    clearMessages();
     try {
-      await api.saveSettings(settings)
-      setStatus('Settings saved')
+      await api.saveSettings(settings);
+      setStatus('Settings saved');
     } catch (err) {
-      captureError(err)
+      captureError(err);
     }
   }
 
   async function exportBackup() {
-    clearMessages()
+    clearMessages();
     try {
-      const confirm = includeSecrets ? 'export-plaintext-secrets' : ''
-      const payload = await api.exportBackup(includeSecrets, confirm)
-      const suffix = includeSecrets ? 'with-secrets' : 'redacted'
-      downloadJSON(`shellyadmin-backup-${suffix}.json`, payload)
-      setStatus(includeSecrets ? 'Exported with plaintext secrets' : 'Exported redacted backup')
+      const confirm = includeSecrets ? 'export-plaintext-secrets' : '';
+      const payload = await api.exportBackup(includeSecrets, confirm);
+      const suffix = includeSecrets ? 'with-secrets' : 'redacted';
+      downloadJSON(`shellyadmin-backup-${suffix}.json`, payload);
+      setStatus(includeSecrets ? 'Exported with plaintext secrets' : 'Exported redacted backup');
     } catch (err) {
-      captureError(err)
+      captureError(err);
     }
   }
 
   async function dryRunImport() {
-    clearMessages()
-    importReport = null
-    pendingImport = null
+    clearMessages();
+    importReport = null;
+    pendingImport = null;
     try {
-      const parsed = JSON.parse(importText) as BackupExport
-      const report = await api.importBackup(parsed, false)
-      importReport = report
-      pendingImport = parsed
-      setStatus('Dry-run completed')
+      const parsed = JSON.parse(importText) as BackupExport;
+      const report = await api.importBackup(parsed, false);
+      importReport = report;
+      pendingImport = parsed;
+      setStatus('Dry-run completed');
     } catch (err) {
-      captureError(err)
+      captureError(err);
     }
   }
 
   async function applyImport() {
     if (!pendingImport) {
-      error = 'Run dry-run first'
-      errorDetails = ''
-      return
+      error = 'Run dry-run first';
+      errorDetails = '';
+      return;
     }
-    clearMessages()
+    clearMessages();
     try {
-      importReport = await api.importBackup(pendingImport, true)
-      await load()
-      setStatus('Import applied')
+      importReport = await api.importBackup(pendingImport, true);
+      await load();
+      setStatus('Import applied');
     } catch (err) {
-      captureError(err)
+      captureError(err);
     }
   }
 
-  onMount(() => void load())
+  onMount(() => void load());
 </script>
 
 <ErrorNotice summary={error} details={errorDetails} />
@@ -124,18 +132,54 @@
       <div class="card-body">
         <h2 class="h5">Discovery & Refresh</h2>
         <label class="form-label" for="settings-subnets">Subnets (one per line)</label>
-        <textarea id="settings-subnets" class="form-control mb-3" rows="6" value={settings.subnets.join('\n')} on:input={(e) => settings.subnets = (e.currentTarget as HTMLTextAreaElement).value.split('\n').map((v) => v.trim()).filter(Boolean)}></textarea>
+        <textarea
+          id="settings-subnets"
+          class="form-control mb-3"
+          rows="6"
+          value={settings.subnets.join('\n')}
+          on:input={(e) =>
+            (settings.subnets = (e.currentTarget as HTMLTextAreaElement).value
+              .split('\n')
+              .map((v) => v.trim())
+              .filter(Boolean))}
+        ></textarea>
         <div class="row g-3">
-          <div class="col-md-4"><label class="form-label" for="settings-scan-timeout">Scan timeout (s)</label><input id="settings-scan-timeout" class="form-control" type="number" bind:value={settings.scan_timeout} /></div>
-          <div class="col-md-4"><label class="form-label" for="settings-refresh-timeout">Refresh timeout (s)</label><input id="settings-refresh-timeout" class="form-control" type="number" bind:value={settings.refresh_timeout} /></div>
-          <div class="col-md-4"><label class="form-label" for="settings-scan-concurrency">Concurrency</label><input id="settings-scan-concurrency" class="form-control" type="number" bind:value={settings.scan_concurrency} /></div>
+          <div class="col-md-4">
+            <label class="form-label" for="settings-scan-timeout">Scan timeout (s)</label><input
+              id="settings-scan-timeout"
+              class="form-control"
+              type="number"
+              bind:value={settings.scan_timeout}
+            />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="settings-refresh-timeout">Refresh timeout (s)</label
+            ><input
+              id="settings-refresh-timeout"
+              class="form-control"
+              type="number"
+              bind:value={settings.refresh_timeout}
+            />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="settings-scan-concurrency">Concurrency</label><input
+              id="settings-scan-concurrency"
+              class="form-control"
+              type="number"
+              bind:value={settings.scan_concurrency}
+            />
+          </div>
         </div>
         <label class="d-flex gap-2 align-items-center mt-3">
           <input type="checkbox" class="form-check-input" bind:checked={settings.enable_mdns} />
           <span>Enable mDNS-assisted discovery</span>
         </label>
-        <p class="text-secondary mt-2 mb-0">Tune discovery, refresh, and concurrency here. mDNS works best on hosts that can receive local multicast traffic; Docker setups may need host networking for reliable results.</p>
-        <button class="btn btn-warning text-dark mt-3" on:click={saveSettings}>Save Settings</button>
+        <p class="text-secondary mt-2 mb-0">
+          Tune discovery, refresh, and concurrency here. mDNS works best on hosts that can receive
+          local multicast traffic; Docker setups may need host networking for reliable results.
+        </p>
+        <button class="btn btn-warning text-dark mt-3" on:click={saveSettings}>Save Settings</button
+        >
       </div>
     </div>
   </div>
@@ -144,11 +188,19 @@
       <div class="card-body">
         <h2 class="h5">UI Preferences</h2>
         <label class="d-flex gap-2 align-items-center">
-          <input type="checkbox" class="form-check-input" bind:checked={settings.advanced_mode_enabled} />
+          <input
+            type="checkbox"
+            class="form-check-input"
+            bind:checked={settings.advanced_mode_enabled}
+          />
           <span>Enable advanced mode</span>
         </label>
-        <p class="text-secondary mt-2 mb-0">When enabled, power-user surfaces such as the raw JSON template editor on the Provision page are shown. Off by default so the guided form is the only entry point.</p>
-        <button class="btn btn-warning text-dark mt-3" on:click={saveSettings}>Save Settings</button>
+        <p class="text-secondary mt-2 mb-0">
+          When enabled, power-user surfaces such as the raw JSON template editor on the Provision
+          page are shown. Off by default so the guided form is the only entry point.
+        </p>
+        <button class="btn btn-warning text-dark mt-3" on:click={saveSettings}>Save Settings</button
+        >
       </div>
     </div>
   </div>
@@ -166,10 +218,22 @@
         </div>
 
         <label class="form-label" for="backup-import-json">Import JSON</label>
-        <textarea id="backup-import-json" class="form-control font-monospace mb-2" rows="10" bind:value={importText} placeholder="Paste exported backup JSON here"></textarea>
+        <textarea
+          id="backup-import-json"
+          class="form-control font-monospace mb-2"
+          rows="10"
+          bind:value={importText}
+          placeholder="Paste exported backup JSON here"
+        ></textarea>
         <div class="d-flex gap-2 flex-wrap">
-          <button class="btn btn-outline-light" on:click={dryRunImport} disabled={!importText.trim()}>Dry Run</button>
-          <button class="btn btn-warning text-dark" on:click={applyImport} disabled={!pendingImport}>Apply Import</button>
+          <button
+            class="btn btn-outline-light"
+            on:click={dryRunImport}
+            disabled={!importText.trim()}>Dry Run</button
+          >
+          <button class="btn btn-warning text-dark" on:click={applyImport} disabled={!pendingImport}
+            >Apply Import</button
+          >
         </div>
 
         {#if importReport}

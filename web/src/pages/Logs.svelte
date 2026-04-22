@@ -1,49 +1,49 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
-  import { api, triggerDownload } from '../lib/api'
-  import type { LogEntry } from '../lib/types'
+  import { onMount } from 'svelte';
+  import { api, triggerDownload } from '../lib/api';
+  import type { LogEntry } from '../lib/types';
 
-  let level = ''
-  let search = ''
-  let logs: LogEntry[] = []
-  let busy = false
-  let notice = ''
-  let error = ''
+  let level = '';
+  let search = '';
+  let logs: LogEntry[] = [];
+  let busy = false;
+  let notice = '';
+  let error = '';
 
   async function load() {
-    error = ''
-    logs = await api.getLogs(level, search)
+    error = '';
+    logs = await api.getLogs(level, search);
   }
 
   async function exportLogs(format: 'csv' | 'ndjson') {
-    error = ''
+    error = '';
     try {
-      const blob = await api.exportLogs(level, search, format)
-      const stamp = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
-      triggerDownload(`shellyadmin-logs-${stamp}.${format}`, blob)
+      const blob = await api.exportLogs(level, search, format);
+      const stamp = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+      triggerDownload(`shellyadmin-logs-${stamp}.${format}`, blob);
     } catch (err) {
-      error = (err as Error).message
+      error = (err as Error).message;
     }
   }
 
   async function clearAll() {
-    const confirmed = window.confirm('Delete all logs? This cannot be undone.')
-    if (!confirmed) return
-    busy = true
-    error = ''
-    notice = ''
+    const confirmed = window.confirm('Delete all logs? This cannot be undone.');
+    if (!confirmed) return;
+    busy = true;
+    error = '';
+    notice = '';
     try {
-      const result = await api.clearLogs()
-      notice = `Deleted ${result.deleted} log entries.`
-      await load()
+      const result = await api.clearLogs();
+      notice = `Deleted ${result.deleted} log entries.`;
+      await load();
     } catch (err) {
-      error = (err as Error).message
+      error = (err as Error).message;
     } finally {
-      busy = false
+      busy = false;
     }
   }
 
-  onMount(() => void load())
+  onMount(() => void load());
 </script>
 
 <section class="page-hero">
@@ -60,9 +60,15 @@
     </select>
     <input class="form-control toolbar-input-lg" placeholder="Search logs" bind:value={search} />
     <button class="btn btn-warning text-dark" on:click={load}>Load</button>
-    <button class="btn btn-sm btn-outline-light" on:click={() => exportLogs('csv')}>Export CSV</button>
-    <button class="btn btn-sm btn-outline-light" on:click={() => exportLogs('ndjson')}>Export NDJSON</button>
-    <button class="btn btn-outline-danger" on:click={clearAll} disabled={busy}>Delete All Logs</button>
+    <button class="btn btn-sm btn-outline-light" on:click={() => exportLogs('csv')}
+      >Export CSV</button
+    >
+    <button class="btn btn-sm btn-outline-light" on:click={() => exportLogs('ndjson')}
+      >Export NDJSON</button
+    >
+    <button class="btn btn-outline-danger" on:click={clearAll} disabled={busy}
+      >Delete All Logs</button
+    >
   </div>
 </section>
 
@@ -74,14 +80,33 @@
 {/if}
 
 <table class="table table-dark table-striped">
-  <thead><tr><th>Timestamp</th><th>Level</th><th>Message</th></tr></thead>
+  <thead><tr><th>Timestamp</th><th>Level</th><th>Request</th><th>Message</th></tr></thead>
   <tbody>
     {#each logs as log}
       <tr>
         <td>{log.ts}</td>
-        <td><span class={`badge ${log.level === 'ERROR' ? 'bg-danger' : log.level === 'WARN' ? 'bg-warning text-dark' : log.level === 'DEBUG' ? 'bg-info text-dark' : 'bg-secondary'}`}>{log.level}</span></td>
+        <td
+          ><span
+            class={`badge ${log.level === 'ERROR' ? 'bg-danger' : log.level === 'WARN' ? 'bg-warning text-dark' : log.level === 'DEBUG' ? 'bg-info text-dark' : 'bg-secondary'}`}
+            >{log.level}</span
+          ></td
+        >
+        <td class="log-request-id"
+          >{#if log.request_id}<code title={log.request_id}>{log.request_id}</code>{:else}<span
+              class="text-muted">—</span
+            >{/if}</td
+        >
         <td>{log.message}</td>
       </tr>
     {/each}
   </tbody>
 </table>
+
+<style>
+  .log-request-id code {
+    font-size: 0.8rem;
+    color: var(--bs-info, #0dcaf0);
+    background: transparent;
+    padding: 0;
+  }
+</style>

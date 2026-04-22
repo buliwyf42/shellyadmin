@@ -377,7 +377,6 @@ func compareWSTLSSettings(issues *[]string, config map[string]any, rules models.
 	}
 }
 
-
 func compareRPCUDPPort(issues *[]string, config map[string]any, rule *int) {
 	if rule == nil {
 		return

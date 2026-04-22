@@ -1,19 +1,19 @@
 <script lang="ts">
-  import type { WifiStaEntry } from './types'
-  import FieldRow from '../../components/FieldRow.svelte'
-  import Toggle from '../../components/Toggle.svelte'
-  import Select from '../../components/Select.svelte'
+  import type { WifiStaEntry } from './types';
+  import FieldRow from '../../components/FieldRow.svelte';
+  import Toggle from '../../components/Toggle.svelte';
+  import Select from '../../components/Select.svelte';
 
-  export let label: string
-  export let value: WifiStaEntry
-  export let disabled: boolean = false
+  export let label: string;
+  export let value: WifiStaEntry;
+  export let disabled: boolean = false;
 
   const ipv4ModeOptions: Array<{ value: WifiStaEntry['ipv4mode']; label: string }> = [
     { value: 'dhcp', label: 'DHCP' },
     { value: 'static', label: 'Static' },
-  ]
+  ];
 
-  $: staticDisabled = disabled || !value.ipv4ModeEnabled || value.ipv4mode !== 'static'
+  $: staticDisabled = disabled || !value.ipv4ModeEnabled || value.ipv4mode !== 'static';
 </script>
 
 <div class="sa-wifi-sta">
@@ -21,42 +21,76 @@
   <div class="sa-form-grid">
     <div data-span="4">
       <FieldRow label="Enable" bind:enabled={value.enableField} {disabled}>
-        <Toggle bind:checked={value.enable} disabled={disabled || !value.enableField} label={value.enable ? 'On' : 'Off'} />
+        <Toggle
+          bind:checked={value.enable}
+          disabled={disabled || !value.enableField}
+          label={value.enable ? 'On' : 'Off'}
+        />
       </FieldRow>
     </div>
     <div data-span="4">
       <FieldRow label="SSID" bind:enabled={value.ssidEnabled} {disabled}>
-        <input class="form-control" bind:value={value.ssid} disabled={disabled || !value.ssidEnabled} />
+        <input
+          class="form-control"
+          bind:value={value.ssid}
+          disabled={disabled || !value.ssidEnabled}
+        />
       </FieldRow>
     </div>
     <div data-span="4">
       <FieldRow label="Password" bind:enabled={value.passEnabled} {disabled}>
-        <input class="form-control" type="password" bind:value={value.pass} disabled={disabled || !value.passEnabled} />
+        <input
+          class="form-control"
+          type="password"
+          bind:value={value.pass}
+          disabled={disabled || !value.passEnabled}
+        />
       </FieldRow>
     </div>
     <div data-span="4">
       <FieldRow label="IPv4 Mode" bind:enabled={value.ipv4ModeEnabled} {disabled}>
-        <Select bind:value={value.ipv4mode} options={ipv4ModeOptions} disabled={disabled || !value.ipv4ModeEnabled} ariaLabel="IPv4 Mode" />
+        <Select
+          bind:value={value.ipv4mode}
+          options={ipv4ModeOptions}
+          disabled={disabled || !value.ipv4ModeEnabled}
+          ariaLabel="IPv4 Mode"
+        />
       </FieldRow>
     </div>
     <div data-span="4">
       <FieldRow label="IP" bind:enabled={value.ipEnabled} disabled={staticDisabled}>
-        <input class="form-control" bind:value={value.ip} disabled={staticDisabled || !value.ipEnabled} />
+        <input
+          class="form-control"
+          bind:value={value.ip}
+          disabled={staticDisabled || !value.ipEnabled}
+        />
       </FieldRow>
     </div>
     <div data-span="4">
       <FieldRow label="Netmask" bind:enabled={value.netmaskEnabled} disabled={staticDisabled}>
-        <input class="form-control" bind:value={value.netmask} disabled={staticDisabled || !value.netmaskEnabled} />
+        <input
+          class="form-control"
+          bind:value={value.netmask}
+          disabled={staticDisabled || !value.netmaskEnabled}
+        />
       </FieldRow>
     </div>
     <div data-span="4">
       <FieldRow label="Gateway" bind:enabled={value.gwEnabled} disabled={staticDisabled}>
-        <input class="form-control" bind:value={value.gw} disabled={staticDisabled || !value.gwEnabled} />
+        <input
+          class="form-control"
+          bind:value={value.gw}
+          disabled={staticDisabled || !value.gwEnabled}
+        />
       </FieldRow>
     </div>
     <div data-span="4">
       <FieldRow label="Nameserver" bind:enabled={value.nameserverEnabled} disabled={staticDisabled}>
-        <input class="form-control" bind:value={value.nameserver} disabled={staticDisabled || !value.nameserverEnabled} />
+        <input
+          class="form-control"
+          bind:value={value.nameserver}
+          disabled={staticDisabled || !value.nameserverEnabled}
+        />
       </FieldRow>
     </div>
   </div>

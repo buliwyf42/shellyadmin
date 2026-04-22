@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"shellyadmin/internal/db"
+	"shellyadmin/internal/middleware"
 	"shellyadmin/internal/models"
 	"shellyadmin/internal/services"
 )
@@ -24,6 +26,14 @@ type Handler struct {
 	db      *db.DB
 	cfg     Config
 	service *services.AppService
+	// auditSink persists a single audit row. It's pluggable so tests can
+	// capture output without standing up SQLite — the production wiring in
+	// NewHandler sanitizes, mirrors to slog, then writes to the DB.
+	auditSink func(level, msg, requestID string)
+	// logFn is the unscoped audit helper passed to services-layer callbacks
+	// (which have no gin.Context to draw a request ID from). Delegates to
+	// auditSink with an empty request ID.
+	logFn func(level, msg string)
 }
 
 func NewHandler(database *db.DB, cfg Config) *Handler {
@@ -31,8 +41,41 @@ func NewHandler(database *db.DB, cfg Config) *Handler {
 		db:  database,
 		cfg: cfg,
 	}
+	handler.auditSink = func(level, msg, reqID string) {
+		sanitized := services.SanitizeLogMessage(msg)
+		emitSlog(level, sanitized, reqID)
+		_ = handler.db.AddLogWithRequestID(level, sanitized, reqID)
+	}
+	handler.logFn = func(level, msg string) { handler.auditSink(level, msg, "") }
 	handler.service = services.NewAppService(database, cfg.DataDir, handler.logFn)
 	return handler
+}
+
+// logReq persists an audit entry tagged with the current request's
+// correlation ID. Callers that already have a gin.Context should prefer this
+// over h.logFn so the audit row links back to the originating request.
+func (h *Handler) logReq(c *gin.Context, level, msg string) {
+	h.auditSink(level, msg, middleware.FromGinContext(c))
+}
+
+// emitSlog mirrors audit lines to the stdlib slog logger so operators tailing
+// the container log see structured JSON rather than just the DB-persisted
+// audit trail. Unknown levels fall back to info.
+func emitSlog(level, msg, reqID string) {
+	attrs := []any{}
+	if reqID != "" {
+		attrs = append(attrs, slog.String("request_id", reqID))
+	}
+	switch strings.ToUpper(strings.TrimSpace(level)) {
+	case "DEBUG":
+		slog.Debug(msg, attrs...)
+	case "WARN", "WARNING":
+		slog.Warn(msg, attrs...)
+	case "ERROR":
+		slog.Error(msg, attrs...)
+	default:
+		slog.Info(msg, attrs...)
+	}
 }
 
 func (h *Handler) Health(c *gin.Context) {
@@ -49,7 +92,7 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 	if subtle.ConstantTimeCompare([]byte(req.Username), []byte(h.cfg.User)) != 1 ||
-		subtle.ConstantTimeCompare([]byte(req.Password), []byte(h.cfg.Pass)) != 1 {
+		!h.verifyAdminPassword(c, req.Password) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
 		return
 	}
@@ -74,7 +117,7 @@ func (h *Handler) Logout(c *gin.Context) {
 func (h *Handler) GetDevices(c *gin.Context) {
 	devices, err := h.service.GetDevices()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.respondError(c, http.StatusInternalServerError, "internal error", err)
 		return
 	}
 	c.JSON(http.StatusOK, devices)
@@ -83,7 +126,7 @@ func (h *Handler) GetDevices(c *gin.Context) {
 func (h *Handler) GetDeviceDetail(c *gin.Context) {
 	detail, err := h.service.GetDeviceDetail(c.Param("target"))
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		h.respondUserError(c, http.StatusNotFound, err)
 		return
 	}
 	c.JSON(http.StatusOK, detail)
@@ -92,7 +135,7 @@ func (h *Handler) GetDeviceDetail(c *gin.Context) {
 func (h *Handler) ListDeviceActions(c *gin.Context) {
 	actions, err := h.service.ListDeviceActions(c.Param("target"))
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		h.respondUserError(c, http.StatusNotFound, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"actions": actions})
@@ -106,7 +149,7 @@ func (h *Handler) ExecuteDeviceAction(c *gin.Context) {
 	}
 	result, err := h.service.ExecuteDeviceAction(c.Request.Context(), c.Param("target"), c.Param("action"), req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		h.respondUserError(c, http.StatusBadRequest, err)
 		return
 	}
 	c.JSON(http.StatusOK, result)
@@ -133,7 +176,7 @@ func (h *Handler) Version(c *gin.Context) {
 func (h *Handler) RefreshDevices(c *gin.Context) {
 	devices, err := h.service.RefreshDevices(c.Request.Context())
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.respondError(c, http.StatusInternalServerError, "internal error", err)
 		return
 	}
 	c.JSON(http.StatusOK, devices)
@@ -149,7 +192,7 @@ func (h *Handler) RefreshDevice(c *gin.Context) {
 	}
 	devices, err := h.service.RefreshDevice(c.Request.Context(), req.Target)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		h.respondUserError(c, http.StatusBadRequest, err)
 		return
 	}
 	c.JSON(http.StatusOK, devices)
@@ -164,7 +207,7 @@ func (h *Handler) ForgetDevice(c *gin.Context) {
 		return
 	}
 	if err := h.service.ForgetDevice(req.Target); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.respondError(c, http.StatusInternalServerError, "internal error", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})
@@ -179,7 +222,7 @@ func (h *Handler) BulkAction(c *gin.Context) {
 	if req.DryRun {
 		preview, err := h.service.PreviewBulkAction(req)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			h.respondUserError(c, http.StatusBadRequest, err)
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"dry_run": true, "preview": preview})
@@ -187,7 +230,7 @@ func (h *Handler) BulkAction(c *gin.Context) {
 	}
 	results, err := h.service.BulkAction(c.Request.Context(), req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		h.respondUserError(c, http.StatusBadRequest, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"dry_run": false, "results": results})
@@ -199,6 +242,8 @@ func (h *Handler) ScanStart(c *gin.Context) {
 		if err.Error() == "scan already running" {
 			status = http.StatusOK
 		}
+		h.logReq(c, "DEBUG", fmt.Sprintf("[http] %s %s -> %d: %v",
+			c.Request.Method, c.Request.URL.Path, status, err))
 		c.JSON(status, gin.H{"status": "started", "error": err.Error()})
 		return
 	}
@@ -208,7 +253,7 @@ func (h *Handler) ScanStart(c *gin.Context) {
 func (h *Handler) ScanStatus(c *gin.Context) {
 	status, err := h.service.ScanStatus()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.respondError(c, http.StatusInternalServerError, "internal error", err)
 		return
 	}
 	c.JSON(http.StatusOK, status)
@@ -224,7 +269,7 @@ func (h *Handler) ScanConfirm(c *gin.Context) {
 	}
 	count, err := h.service.ConfirmScan(req.MACs)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		h.respondUserError(c, http.StatusBadRequest, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true, "count": count})
@@ -240,7 +285,7 @@ func (h *Handler) FirmwareCheck(c *gin.Context) {
 	}
 	total, err := h.service.StartFirmwareCheck(req.Stage)
 	if err != nil && err.Error() != "firmware check already running" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		h.respondUserError(c, http.StatusBadRequest, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "started", "total": total})
@@ -249,7 +294,7 @@ func (h *Handler) FirmwareCheck(c *gin.Context) {
 func (h *Handler) FirmwareStatus(c *gin.Context) {
 	status, err := h.service.FirmwareStatus()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.respondError(c, http.StatusInternalServerError, "internal error", err)
 		return
 	}
 	c.JSON(http.StatusOK, status)
@@ -266,7 +311,7 @@ func (h *Handler) FirmwareUpdate(c *gin.Context) {
 	}
 	results, err := h.service.FirmwareUpdate(c.Request.Context(), req.MACs, req.Stage)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.respondError(c, http.StatusInternalServerError, "internal error", err)
 		return
 	}
 	c.JSON(http.StatusOK, results)
@@ -284,7 +329,7 @@ func (h *Handler) Provision(c *gin.Context) {
 	}
 	results, err := h.service.Provision(c.Request.Context(), req.IPs, req.Template, req.CredentialRef)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		h.respondUserError(c, http.StatusBadRequest, err)
 		return
 	}
 	c.JSON(http.StatusOK, results)
@@ -303,7 +348,7 @@ func (h *Handler) UploadUserCA(c *gin.Context) {
 	}
 	results, err := h.service.UploadUserCA(c.Request.Context(), req.IPs, req.Kind, req.PEM)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		h.respondUserError(c, http.StatusBadRequest, err)
 		return
 	}
 	c.JSON(http.StatusOK, results)
@@ -312,7 +357,7 @@ func (h *Handler) UploadUserCA(c *gin.Context) {
 func (h *Handler) GetSettings(c *gin.Context) {
 	settings, err := h.service.GetSettings()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.respondError(c, http.StatusInternalServerError, "internal error", err)
 		return
 	}
 	c.JSON(http.StatusOK, settings)
@@ -325,7 +370,7 @@ func (h *Handler) SaveSettings(c *gin.Context) {
 		return
 	}
 	if err := h.service.SaveSettings(settings); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		h.respondUserError(c, http.StatusBadRequest, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})
@@ -334,7 +379,7 @@ func (h *Handler) SaveSettings(c *gin.Context) {
 func (h *Handler) ListTemplates(c *gin.Context) {
 	names, err := h.service.ListTemplates()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.respondError(c, http.StatusInternalServerError, "internal error", err)
 		return
 	}
 	c.JSON(http.StatusOK, names)
@@ -359,7 +404,7 @@ func (h *Handler) SaveTemplate(c *gin.Context) {
 		return
 	}
 	if err := h.service.SaveTemplate(c.Param("name"), req.Content, req.CredentialRef); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		h.respondUserError(c, http.StatusBadRequest, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})
@@ -367,7 +412,7 @@ func (h *Handler) SaveTemplate(c *gin.Context) {
 
 func (h *Handler) DeleteTemplate(c *gin.Context) {
 	if err := h.service.DeleteTemplate(c.Param("name")); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.respondError(c, http.StatusInternalServerError, "internal error", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})
@@ -376,7 +421,7 @@ func (h *Handler) DeleteTemplate(c *gin.Context) {
 func (h *Handler) GetLogs(c *gin.Context) {
 	entries, err := h.service.GetLogs(c.Query("level"), c.Query("search"))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.respondError(c, http.StatusInternalServerError, "internal error", err)
 		return
 	}
 	c.JSON(http.StatusOK, entries)
@@ -385,7 +430,7 @@ func (h *Handler) GetLogs(c *gin.Context) {
 func (h *Handler) DeleteLogs(c *gin.Context) {
 	count, err := h.service.ClearLogs()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.respondError(c, http.StatusInternalServerError, "internal error", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true, "deleted": count})
@@ -394,7 +439,7 @@ func (h *Handler) DeleteLogs(c *gin.Context) {
 func (h *Handler) ListCredentials(c *gin.Context) {
 	credentials, err := h.service.ListCredentials()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.respondError(c, http.StatusInternalServerError, "internal error", err)
 		return
 	}
 	c.JSON(http.StatusOK, credentials)
@@ -407,7 +452,7 @@ func (h *Handler) SaveCredential(c *gin.Context) {
 		return
 	}
 	if err := h.service.SaveCredential(req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		h.respondUserError(c, http.StatusBadRequest, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})
@@ -415,7 +460,7 @@ func (h *Handler) SaveCredential(c *gin.Context) {
 
 func (h *Handler) DeleteCredential(c *gin.Context) {
 	if err := h.service.DeleteCredential(c.Param("name")); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		h.respondUserError(c, http.StatusBadRequest, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})
@@ -424,7 +469,7 @@ func (h *Handler) DeleteCredential(c *gin.Context) {
 func (h *Handler) ListCredentialGroups(c *gin.Context) {
 	groups, err := h.service.ListCredentialGroups()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.respondError(c, http.StatusInternalServerError, "internal error", err)
 		return
 	}
 	c.JSON(http.StatusOK, groups)
@@ -437,7 +482,7 @@ func (h *Handler) SaveCredentialGroup(c *gin.Context) {
 		return
 	}
 	if err := h.service.SaveCredentialGroup(req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		h.respondUserError(c, http.StatusBadRequest, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})
@@ -445,7 +490,7 @@ func (h *Handler) SaveCredentialGroup(c *gin.Context) {
 
 func (h *Handler) DeleteCredentialGroup(c *gin.Context) {
 	if err := h.service.DeleteCredentialGroup(c.Param("name")); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		h.respondUserError(c, http.StatusBadRequest, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})
@@ -454,7 +499,7 @@ func (h *Handler) DeleteCredentialGroup(c *gin.Context) {
 func (h *Handler) GetCredentialGroupAssignments(c *gin.Context) {
 	assignments, err := h.service.ListCredentialGroupAssignments()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.respondError(c, http.StatusInternalServerError, "internal error", err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"assignments": assignments})
@@ -470,7 +515,7 @@ func (h *Handler) SaveCredentialGroupAssignments(c *gin.Context) {
 		return
 	}
 	if err := h.service.SaveCredentialGroupAssignments(req.MACs, req.GroupName); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		h.respondUserError(c, http.StatusBadRequest, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})
@@ -480,7 +525,7 @@ func (h *Handler) ExportDevice(c *gin.Context) {
 	target := c.Param("target")
 	body, err := h.service.ExportDevice(target)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		h.respondUserError(c, http.StatusNotFound, err)
 		return
 	}
 	identifier := body.Device.MAC
@@ -499,7 +544,7 @@ func (h *Handler) ExportDevice(c *gin.Context) {
 func (h *Handler) ExportLogs(c *gin.Context) {
 	body, filename, contentType, err := h.service.ExportLogs(c.Query("level"), c.Query("search"), c.Query("format"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		h.respondUserError(c, http.StatusBadRequest, err)
 		return
 	}
 	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
@@ -514,7 +559,7 @@ func (h *Handler) ExportBackup(c *gin.Context) {
 	}
 	body, err := h.service.ExportBackup(includeSecrets)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		h.respondError(c, http.StatusInternalServerError, "internal error", err)
 		return
 	}
 	c.JSON(http.StatusOK, body)
@@ -531,7 +576,7 @@ func (h *Handler) ImportBackup(c *gin.Context) {
 	}
 	report, err := h.service.ImportBackup(req.Data, req.Apply)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		h.respondUserError(c, http.StatusBadRequest, err)
 		return
 	}
 	c.JSON(http.StatusOK, report)
@@ -541,8 +586,23 @@ func (h *Handler) OpenAPIV1(c *gin.Context) {
 	c.JSON(http.StatusOK, openAPIV1Spec())
 }
 
-func (h *Handler) logFn(level, msg string) {
-	_ = h.db.AddLog(level, services.SanitizeLogMessage(msg))
+// verifyAdminPassword accepts either a PHC-formatted argon2id hash from
+// cfg.PassHash or, as a deprecated fallback, the plaintext cfg.Pass. The
+// comparison is constant-time in both branches. Returns false on empty
+// plaintext regardless of config so blank submissions can't squeak through.
+func (h *Handler) verifyAdminPassword(c *gin.Context, plain string) bool {
+	if plain == "" {
+		return false
+	}
+	if h.cfg.PassHash != "" {
+		ok, err := services.VerifyPassword(plain, h.cfg.PassHash)
+		if err != nil {
+			h.logReq(c, "ERROR", fmt.Sprintf("password hash verify failed: %v", err))
+			return false
+		}
+		return ok
+	}
+	return subtle.ConstantTimeCompare([]byte(plain), []byte(h.cfg.Pass)) == 1
 }
 
 func RandomSecret() string {

@@ -82,6 +82,40 @@ func TestUpsertDevicesMarksMissingDevicesAfterTwoMisses(t *testing.T) {
 	}
 }
 
+func TestAddLogWithRequestIDRoundTrips(t *testing.T) {
+	database := openTestDB(t)
+	if err := database.AddLogWithRequestID("INFO", "scoped entry", "req-deadbeef"); err != nil {
+		t.Fatalf("AddLogWithRequestID: %v", err)
+	}
+	if err := database.AddLog("INFO", "unscoped entry"); err != nil {
+		t.Fatalf("AddLog: %v", err)
+	}
+	entries, err := database.GetLogs("", "")
+	if err != nil {
+		t.Fatalf("GetLogs: %v", err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("entries = %d, want 2", len(entries))
+	}
+	// Newest first; scoped row was written second? Actually scoped row was
+	// written first, so it is last.
+	var scoped, unscoped *LogEntry
+	for i := range entries {
+		switch entries[i].Message {
+		case "scoped entry":
+			scoped = &entries[i]
+		case "unscoped entry":
+			unscoped = &entries[i]
+		}
+	}
+	if scoped == nil || scoped.RequestID != "req-deadbeef" {
+		t.Fatalf("scoped row request id = %+v, want req-deadbeef", scoped)
+	}
+	if unscoped == nil || unscoped.RequestID != "" {
+		t.Fatalf("unscoped row should have empty request id, got %+v", unscoped)
+	}
+}
+
 func TestUpsertDevicesReturnsErrorOnClosedDB(t *testing.T) {
 	database, err := Open(t.TempDir())
 	if err != nil {

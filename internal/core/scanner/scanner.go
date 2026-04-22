@@ -7,12 +7,18 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/netip"
 	"strings"
 	"sync"
 	"time"
 
 	"shellyadmin/internal/models"
 )
+
+// maxScanHosts caps the number of addresses that may be expanded from a single
+// CIDR. A /22 (1024 addresses) is comfortably above any realistic home or small
+// office LAN and bounds the blast radius if an operator mistypes a subnet.
+const maxScanHosts = 1024
 
 func ScanSubnets(ctx context.Context, subnets []string, concurrency int, timeout time.Duration, logFn func(level, msg string), progressFn func()) []models.Device {
 	if concurrency <= 0 {
@@ -124,9 +130,15 @@ func ExpandCIDR(cidr string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	if prefix, err := netip.ParsePrefix(cidr); err == nil {
+		if !IsAllowedScanNetwork(prefix.Masked().Addr()) {
+			return nil, fmt.Errorf("subnet %s is outside the allowed scan range (RFC1918 / link-local only)", cidr)
+		}
+	}
 	ones, bits := network.Mask.Size()
-	if bits-ones > 16 {
-		return nil, fmt.Errorf("subnet too large")
+	hostBits := bits - ones
+	if hostBits > 16 || (1<<hostBits) > maxScanHosts {
+		return nil, fmt.Errorf("subnet %s expands to more than %d hosts; use a /%d or smaller", cidr, maxScanHosts, bits-bitsForMaxHosts(maxScanHosts))
 	}
 	var out []string
 	for cursor := ip.Mask(network.Mask); network.Contains(cursor); incIP(cursor) {
@@ -136,6 +148,30 @@ func ExpandCIDR(cidr string) ([]string, error) {
 		out = append(out, cursor.String())
 	}
 	return out, nil
+}
+
+// IsAllowedScanNetwork mirrors isProvisionTargetAllowed in services: accept
+// only RFC1918 / ULA and link-local addresses; reject loopback, multicast,
+// unspecified, and any public address. Applied to the masked network address
+// of a CIDR so the whole subnet is inside the allowed ranges.
+func IsAllowedScanNetwork(addr netip.Addr) bool {
+	if !addr.IsValid() {
+		return false
+	}
+	if addr.IsLoopback() || addr.IsMulticast() || addr.IsUnspecified() {
+		return false
+	}
+	return addr.IsPrivate() || addr.IsLinkLocalUnicast()
+}
+
+// bitsForMaxHosts returns the host-bit width needed to fit max addresses,
+// used to phrase the rejection message in CIDR terms ("use a /22 or smaller").
+func bitsForMaxHosts(max int) int {
+	bits := 0
+	for (1 << bits) < max {
+		bits++
+	}
+	return bits
 }
 
 func probeGen2(ctx context.Context, client *http.Client, ip string, dev *models.Device, logFn func(level, msg string)) {
@@ -204,7 +240,6 @@ func probeGen2(ctx context.Context, client *http.Client, ip string, dev *models.
 	logFn("DEBUG", fmt.Sprintf("[scan] gen2 probe complete for %s", ip))
 }
 
-
 func rpcCall(ctx context.Context, client *http.Client, ip, method string, body map[string]any) map[string]any {
 	if body == nil {
 		body = map[string]any{}
@@ -226,7 +261,6 @@ func rpcCall(ctx context.Context, client *http.Client, ip, method string, body m
 	}
 	return out
 }
-
 
 func marshalMap(data map[string]any) string {
 	if len(data) == 0 {
@@ -292,7 +326,6 @@ func anyBool(v any) bool {
 		return false
 	}
 }
-
 
 func anyFloatPtr(v any) *float64 {
 	switch x := v.(type) {

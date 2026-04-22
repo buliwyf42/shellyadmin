@@ -1,50 +1,50 @@
 <script lang="ts">
-  import { APIError, api } from '../lib/api'
-  import type { FirmwareStatus } from '../lib/types'
-  import ErrorNotice from '../components/ErrorNotice.svelte'
-  import ProgressBar from '../components/ProgressBar.svelte'
+  import { APIError, api } from '../lib/api';
+  import type { FirmwareStatus } from '../lib/types';
+  import ErrorNotice from '../components/ErrorNotice.svelte';
+  import ProgressBar from '../components/ProgressBar.svelte';
 
-  let stage = 'stable'
-  let status: FirmwareStatus = { running: false, done: 0, total: 0, results: [] }
-  let selected = new Set<string>()
-  let timer: number | undefined
-  let error = ''
-  let errorDetails = ''
+  let stage = 'stable';
+  let status: FirmwareStatus = { running: false, done: 0, total: 0, results: [] };
+  let selected = new Set<string>();
+  let timer: number | undefined;
+  let error = '';
+  let errorDetails = '';
 
   function captureError(err: unknown) {
     if (err instanceof APIError) {
-      error = err.message
-      errorDetails = `${err.method} ${err.path} -> ${err.status}\n${JSON.stringify(err.detail ?? {}, null, 2)}`
-      return
+      error = err.message;
+      errorDetails = `${err.method} ${err.path} -> ${err.status}\n${JSON.stringify(err.detail ?? {}, null, 2)}`;
+      return;
     }
-    error = (err as Error).message
-    errorDetails = String(err)
+    error = (err as Error).message;
+    errorDetails = String(err);
   }
 
   async function start() {
-    error = ''
-    errorDetails = ''
+    error = '';
+    errorDetails = '';
     try {
-      await api.firmwareCheck(stage)
+      await api.firmwareCheck(stage);
       timer = window.setInterval(async () => {
-        status = await api.firmwareStatus()
+        status = await api.firmwareStatus();
         if (!status.running && timer) {
-          clearInterval(timer)
-          timer = undefined
+          clearInterval(timer);
+          timer = undefined;
         }
-      }, 2000)
+      }, 2000);
     } catch (err) {
-      captureError(err)
+      captureError(err);
     }
   }
 
   async function updateSelected() {
-    error = ''
-    errorDetails = ''
+    error = '';
+    errorDetails = '';
     try {
-      await api.firmwareUpdate([...selected], stage)
+      await api.firmwareUpdate([...selected], stage);
     } catch (err) {
-      captureError(err)
+      captureError(err);
     }
   }
 </script>
@@ -59,15 +59,27 @@
       <option value="stable">Stable</option>
       <option value="beta">Beta</option>
     </select>
-    <button class="btn btn-warning text-dark" on:click={start} disabled={status.running}>{status.running ? 'Checking...' : 'Check Firmware'}</button>
-    <button class="btn btn-outline-light" on:click={updateSelected} disabled={selected.size === 0 || status.running}>Update {selected.size}</button>
+    <button class="btn btn-warning text-dark" on:click={start} disabled={status.running}
+      >{status.running ? 'Checking...' : 'Check Firmware'}</button
+    >
+    <button
+      class="btn btn-outline-light"
+      on:click={updateSelected}
+      disabled={selected.size === 0 || status.running}>Update {selected.size}</button
+    >
   </div>
 </section>
 
 <ErrorNotice summary={error} details={errorDetails} />
 
 <div class="mb-3">
-  <ProgressBar done={status.done} total={status.total} running={status.running} label="{status.done}/{status.total}" ariaLabel="Firmware check progress" />
+  <ProgressBar
+    done={status.done}
+    total={status.total}
+    running={status.running}
+    label="{status.done}/{status.total}"
+    ariaLabel="Firmware check progress"
+  />
 </div>
 
 <table class="table table-dark table-striped">
@@ -75,11 +87,26 @@
   <tbody>
     {#each status.results as result}
       <tr>
-        <td><input type="checkbox" class="form-check-input" disabled={!result.update_available} on:change={(e) => (e.currentTarget as HTMLInputElement).checked ? selected.add(result.mac) : selected.delete(result.mac)} /></td>
+        <td
+          ><input
+            type="checkbox"
+            class="form-check-input"
+            disabled={!result.update_available}
+            on:change={(e) =>
+              (e.currentTarget as HTMLInputElement).checked
+                ? selected.add(result.mac)
+                : selected.delete(result.mac)}
+          /></td
+        >
         <td>{result.ip}</td>
         <td>{result.current_ver}</td>
         <td>{result.available_ver || 'n/a'}</td>
-        <td><span class={`badge ${result.status === 'update' ? 'bg-warning text-dark' : result.status === 'current' ? 'bg-success' : 'bg-secondary'}`}>{result.status}</span></td>
+        <td
+          ><span
+            class={`badge ${result.status === 'update' ? 'bg-warning text-dark' : result.status === 'current' ? 'bg-success' : 'bg-secondary'}`}
+            >{result.status}</span
+          ></td
+        >
       </tr>
     {/each}
   </tbody>

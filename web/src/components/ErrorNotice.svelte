@@ -1,6 +1,6 @@
 <script lang="ts">
-  export let summary = ''
-  export let details = ''
+  export let summary = '';
+  export let details = '';
 </script>
 
 {#if summary}

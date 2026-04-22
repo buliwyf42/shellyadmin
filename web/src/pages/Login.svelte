@@ -1,18 +1,18 @@
 <script lang="ts">
-  import { api } from '../lib/api'
-  import { navigate } from '../lib/stores'
+  import { api } from '../lib/api';
+  import { navigate } from '../lib/stores';
 
-  let username = 'admin'
-  let password = ''
-  let error = ''
+  let username = 'admin';
+  let password = '';
+  let error = '';
 
   async function submit() {
-    error = ''
+    error = '';
     try {
-      await api.login(username, password)
-      navigate('/')
+      await api.login(username, password);
+      navigate('/');
     } catch (err) {
-      error = (err as Error).message
+      error = (err as Error).message;
     }
   }
 </script>

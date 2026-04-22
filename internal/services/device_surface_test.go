@@ -1,6 +1,8 @@
 package services
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 
 	"shellyadmin/internal/db"
@@ -100,6 +102,63 @@ func TestValidateSettingsRejectsEmptyScanTargets(t *testing.T) {
 	}
 	if got, want := err.Error(), "no scan targets configured; add at least one subnet in Settings or enable mDNS discovery"; got != want {
 		t.Fatalf("ValidateSettings() error = %q, want %q", got, want)
+	}
+}
+
+func TestSummarizeBulkResults_Empty(t *testing.T) {
+	got := summarizeBulkResults(nil)
+	want := "ok=0 failed=0 skipped=0 missing=0"
+	if got != want {
+		t.Fatalf("summarizeBulkResults(nil) = %q, want %q", got, want)
+	}
+}
+
+func TestSummarizeBulkResults_AllOk(t *testing.T) {
+	results := []BulkActionResult{
+		{MAC: "AA:BB:CC:DD:EE:01", Status: "ok"},
+		{MAC: "AA:BB:CC:DD:EE:02", Status: "ok"},
+	}
+	got := summarizeBulkResults(results)
+	if !strings.Contains(got, "ok=2") {
+		t.Errorf("missing ok count: %q", got)
+	}
+	if !strings.Contains(got, "ok_macs=AA:BB:CC:DD:EE:01,AA:BB:CC:DD:EE:02") {
+		t.Errorf("missing or incorrect ok_macs list: %q", got)
+	}
+	if strings.Contains(got, "failed_macs=") || strings.Contains(got, "skipped_macs=") {
+		t.Errorf("unexpected non-ok macs listed: %q", got)
+	}
+}
+
+func TestSummarizeBulkResults_MixedStatuses(t *testing.T) {
+	results := []BulkActionResult{
+		{MAC: "AA:BB:CC:DD:EE:01", Status: "ok"},
+		{MAC: "AA:BB:CC:DD:EE:02", Status: "failed"},
+		{MAC: "AA:BB:CC:DD:EE:03", Status: "skipped"},
+		{MAC: "AA:BB:CC:DD:EE:04", Status: "missing"},
+	}
+	got := summarizeBulkResults(results)
+	for _, want := range []string{"ok=1", "failed=1", "skipped=1", "missing=1", "ok_macs=AA:BB:CC:DD:EE:01", "failed_macs=AA:BB:CC:DD:EE:02", "skipped_macs=AA:BB:CC:DD:EE:03"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("summary missing %q: %q", want, got)
+		}
+	}
+}
+
+func TestSummarizeBulkResults_OverflowTruncation(t *testing.T) {
+	results := make([]BulkActionResult, 0, 25)
+	for i := 0; i < 25; i++ {
+		results = append(results, BulkActionResult{MAC: fmt.Sprintf("AA:BB:CC:DD:EE:%02d", i), Status: "ok"})
+	}
+	got := summarizeBulkResults(results)
+	if !strings.Contains(got, "ok=25") {
+		t.Errorf("missing ok=25: %q", got)
+	}
+	if !strings.Contains(got, "+5") {
+		t.Errorf("expected '+5' overflow marker: %q", got)
+	}
+	if strings.Count(got, "AA:BB:CC:DD:EE:") != bulkLogMaxMACs {
+		t.Errorf("expected exactly %d MACs listed, got count %d in %q", bulkLogMaxMACs, strings.Count(got, "AA:BB:CC:DD:EE:"), got)
 	}
 }
 

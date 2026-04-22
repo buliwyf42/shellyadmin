@@ -158,13 +158,7 @@ func (s *AppService) BulkAction(ctx context.Context, req BulkActionRequest) ([]B
 		}
 		results = append(results, BulkActionResult{MAC: device.MAC, IP: device.IP, Status: status, Detail: detail})
 	}
-	okCount := 0
-	for _, result := range results {
-		if result.Status == "ok" {
-			okCount++
-		}
-	}
-	s.Log("INFO", fmt.Sprintf("bulk action applied action=%s targets=%d ok=%d", req.Action, len(results), okCount))
+	s.Log("INFO", fmt.Sprintf("bulk action applied action=%s targets=%d %s", req.Action, len(results), summarizeBulkResults(results)))
 	return results, nil
 }
 
@@ -457,4 +451,53 @@ func SortedBulkActions() []string {
 	actions := []string{"set_ble_enabled", "set_cloud_enabled", "set_location", "set_mqtt_enabled", "set_mqtt_server", "set_sntp_server", "set_timezone"}
 	slices.Sort(actions)
 	return actions
+}
+
+// bulkLogMaxMACs caps per-bucket MAC lists in audit log lines so a large bulk
+// action does not produce an unreadable multi-KB log entry. Overflow is
+// reported as "+N" so the reader knows the list was truncated.
+const bulkLogMaxMACs = 20
+
+// summarizeBulkResults renders a compact audit summary for a bulk action:
+// per-status counts plus truncated MAC lists for ok and non-ok outcomes.
+// Keeps detail text out so SanitizeLogMessage has nothing new to redact.
+func summarizeBulkResults(results []BulkActionResult) string {
+	var okCount, failedCount, skippedCount, missingCount int
+	var okMACs, failedMACs, skippedMACs []string
+	for _, result := range results {
+		switch result.Status {
+		case "ok":
+			okCount++
+			okMACs = append(okMACs, result.MAC)
+		case "failed":
+			failedCount++
+			failedMACs = append(failedMACs, result.MAC)
+		case "skipped":
+			skippedCount++
+			skippedMACs = append(skippedMACs, result.MAC)
+		case "missing":
+			missingCount++
+		}
+	}
+	parts := []string{fmt.Sprintf("ok=%d", okCount), fmt.Sprintf("failed=%d", failedCount), fmt.Sprintf("skipped=%d", skippedCount), fmt.Sprintf("missing=%d", missingCount)}
+	if list := truncateMACs(okMACs, bulkLogMaxMACs); list != "" {
+		parts = append(parts, fmt.Sprintf("ok_macs=%s", list))
+	}
+	if list := truncateMACs(failedMACs, bulkLogMaxMACs); list != "" {
+		parts = append(parts, fmt.Sprintf("failed_macs=%s", list))
+	}
+	if list := truncateMACs(skippedMACs, bulkLogMaxMACs); list != "" {
+		parts = append(parts, fmt.Sprintf("skipped_macs=%s", list))
+	}
+	return strings.Join(parts, " ")
+}
+
+func truncateMACs(macs []string, max int) string {
+	if len(macs) == 0 {
+		return ""
+	}
+	if len(macs) <= max {
+		return strings.Join(macs, ",")
+	}
+	return fmt.Sprintf("%s,+%d", strings.Join(macs[:max], ","), len(macs)-max)
 }
