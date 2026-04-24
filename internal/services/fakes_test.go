@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -113,7 +114,7 @@ func TestPreviewBulkAction_UsesFakeStore(t *testing.T) {
 	_ = fake.UpsertDevice(models.Device{MAC: "AA:BB:CC:DD:EE:01", IP: "192.168.1.10", Name: "online", Online: true, Gen: 2})
 	_ = fake.UpsertDevice(models.Device{MAC: "AA:BB:CC:DD:EE:02", IP: "192.168.1.11", Name: "offline", Online: false, Gen: 2})
 
-	service := NewAppService(fake, t.TempDir(), func(string, string) {})
+	service := NewAppService(fake, t.TempDir(), func(context.Context, string, string) {})
 	preview, err := service.PreviewBulkAction(BulkActionRequest{
 		Action: "reboot",
 		MACs:   []string{"AA:BB:CC:DD:EE:01", "AA:BB:CC:DD:EE:02"},

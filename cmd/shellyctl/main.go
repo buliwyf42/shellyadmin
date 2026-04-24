@@ -95,7 +95,7 @@ func main() {
 		StaticFS:       staticFiles,
 		HasStatic:      true,
 	})
-	service := services.NewAppService(database, dataDir, func(level, msg string) {
+	service := services.NewAppService(database, dataDir, func(_ context.Context, level, msg string) {
 		_ = database.AddLog(level, services.SanitizeLogMessage(msg))
 	})
 	_ = service.RecoverInterruptedJobs()

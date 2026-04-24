@@ -1,22 +1,12 @@
 <script lang="ts">
   import type { MqttState } from './types';
+  import { sslCAOptions } from './sslCa';
   import SectionCard from '../../components/SectionCard.svelte';
   import FieldRow from '../../components/FieldRow.svelte';
   import Toggle from '../../components/Toggle.svelte';
   import Select from '../../components/Select.svelte';
 
   export let state: MqttState;
-
-  const sslCAOptions = [
-    { value: '', label: 'None (no TLS)', description: 'MQTT over plain TCP' },
-    {
-      value: '*',
-      label: '* (skip validation)',
-      description: 'TLS but do not validate certificate',
-    },
-    { value: 'ca.pem', label: 'ca.pem', description: 'Built-in CA bundle' },
-    { value: 'user_ca.pem', label: 'user_ca.pem', description: 'User-uploaded CA certificate' },
-  ];
 
   $: expanded =
     state.enabled ||

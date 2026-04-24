@@ -9,35 +9,35 @@ import (
 	"time"
 )
 
-func SetLocation(ctx context.Context, ip string, lat, lon float64, gen int, timeout time.Duration) bool {
+func SetLocation(ctx context.Context, ip string, lat, lon float64, timeout time.Duration) bool {
 	return rpcSet(ctx, ip, "Sys.SetConfig", map[string]any{"location": map[string]any{"lat": lat, "lon": lon}}, timeout)
 }
 
-func SetTimezone(ctx context.Context, ip, tz string, gen int, timeout time.Duration) bool {
+func SetTimezone(ctx context.Context, ip, tz string, timeout time.Duration) bool {
 	return rpcSet(ctx, ip, "Sys.SetConfig", map[string]any{"location": map[string]any{"tz": tz}}, timeout)
 }
 
-func SetMQTTServer(ctx context.Context, ip, server string, gen int, timeout time.Duration) bool {
+func SetMQTTServer(ctx context.Context, ip, server string, timeout time.Duration) bool {
 	return rpcSet(ctx, ip, "MQTT.SetConfig", map[string]any{"server": server}, timeout)
 }
 
-func SetMQTTEnabled(ctx context.Context, ip string, enabled bool, gen int, timeout time.Duration) bool {
+func SetMQTTEnabled(ctx context.Context, ip string, enabled bool, timeout time.Duration) bool {
 	return rpcSet(ctx, ip, "MQTT.SetConfig", map[string]any{"enable": enabled}, timeout)
 }
 
-func SetSNTPServer(ctx context.Context, ip, server string, gen int, timeout time.Duration) bool {
+func SetSNTPServer(ctx context.Context, ip, server string, timeout time.Duration) bool {
 	return rpcSet(ctx, ip, "Sys.SetConfig", map[string]any{"sntp": map[string]any{"server": server}}, timeout)
 }
 
-func SetCloudEnabled(ctx context.Context, ip string, enabled bool, gen int, timeout time.Duration) bool {
+func SetCloudEnabled(ctx context.Context, ip string, enabled bool, timeout time.Duration) bool {
 	return rpcSet(ctx, ip, "Cloud.SetConfig", map[string]any{"enable": enabled}, timeout)
 }
 
-func SetBLEEnabled(ctx context.Context, ip string, enabled bool, gen int, timeout time.Duration) bool {
+func SetBLEEnabled(ctx context.Context, ip string, enabled bool, timeout time.Duration) bool {
 	return rpcSet(ctx, ip, "BLE.SetConfig", map[string]any{"enable": enabled}, timeout)
 }
 
-func Reboot(ctx context.Context, ip string, gen int, timeout time.Duration) bool {
+func Reboot(ctx context.Context, ip string, timeout time.Duration) bool {
 	return rpcSet(ctx, ip, "Shelly.Reboot", map[string]any{}, timeout)
 }
 

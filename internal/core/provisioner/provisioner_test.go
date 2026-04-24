@@ -172,60 +172,6 @@ func TestProvisionDevice_UsesConfiguredNameBeforeIPFallback(t *testing.T) {
 	}
 }
 
-func TestProvisionDevice_OTAStageIsPolicyOnly(t *testing.T) {
-	var call map[string]any
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/shelly":
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"name": "test-switch",
-				"gen":  4,
-				"id":   "abcd1234",
-			})
-		case "/rpc":
-			if err := json.NewDecoder(r.Body).Decode(&call); err != nil {
-				t.Fatalf("decode rpc body: %v", err)
-			}
-			method, _ := call["method"].(string)
-			if method == "Shelly.GetConfig" {
-				_ = json.NewEncoder(w).Encode(map[string]any{"result": map[string]any{}})
-				return
-			}
-			_ = json.NewEncoder(w).Encode(map[string]any{"result": map[string]any{}})
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-	defer server.Close()
-
-	ip := server.Listener.Addr().String()
-	template := map[string]interface{}{
-		"ota": map[string]interface{}{
-			"stage":       "stable",
-			"auto_update": "stable",
-		},
-	}
-
-	_, results := ProvisionDevice(context.Background(), ip, template, time.Second)
-	if len(results) != 1 || results[0].Status != "ok" {
-		t.Fatalf("expected successful result, got %#v", results)
-	}
-	if got := call["method"]; got != "OTA.SetConfig" {
-		t.Fatalf("method = %v, want OTA.SetConfig", got)
-	}
-	params := call["params"].(map[string]any)
-	config := params["config"].(map[string]any)
-	if _, ok := config["stage"]; ok {
-		t.Fatalf("ota config unexpectedly included stage: %#v", config)
-	}
-	if config["auto_update"] != "stable" {
-		t.Fatalf("auto_update = %#v, want stable", config["auto_update"])
-	}
-	if results[0].Detail != "OTA.SetConfig; ota.stage unsupported on this device" {
-		t.Fatalf("detail = %q, want stage unsupported note", results[0].Detail)
-	}
-}
-
 func TestProvisionDevice_MethodNotFoundBecomesSkipped(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -292,6 +238,26 @@ func TestNormalizeSysPayload_FlatLonAccepted(t *testing.T) {
 	}
 }
 
+func TestNormalizeSysPayload_DebugMQTTPassthrough(t *testing.T) {
+	payload := map[string]interface{}{
+		"debug": map[string]interface{}{
+			"mqtt": map[string]interface{}{"enable": true},
+		},
+	}
+	out, _ := normalizeSysPayload(payload)
+	debug, ok := out["debug"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("debug not set: %#v", out)
+	}
+	mqtt, ok := debug["mqtt"].(map[string]interface{})
+	if !ok {
+		t.Fatalf("debug.mqtt not set: %#v", debug)
+	}
+	if mqtt["enable"] != true {
+		t.Fatalf("debug.mqtt.enable = %v, want true", mqtt["enable"])
+	}
+}
+
 func TestNormalizeSysPayload_ProfileAndAddonTypePassthrough(t *testing.T) {
 	payload := map[string]interface{}{
 		"profile":    "cover",
@@ -303,6 +269,46 @@ func TestNormalizeSysPayload_ProfileAndAddonTypePassthrough(t *testing.T) {
 	}
 	if out["addon_type"] != "temperature" {
 		t.Fatalf("addon_type = %v, want temperature", out["addon_type"])
+	}
+}
+
+func TestSubstitute_EnvTokensArePreservedLiterally(t *testing.T) {
+	t.Setenv("SHELLYADMIN_PASS_HASH", "argon2id$should-never-leak")
+	input := map[string]interface{}{
+		"sys": map[string]interface{}{
+			"device": map[string]interface{}{
+				"name": "${ENV:SHELLYADMIN_PASS_HASH}",
+			},
+		},
+		"mqtt": map[string]interface{}{
+			"pass": "prefix-${ENV:SHELLYADMIN_PASS_HASH}-suffix",
+		},
+	}
+	out := substitute(input, "device-01").(map[string]interface{})
+	sys := out["sys"].(map[string]interface{})
+	device := sys["device"].(map[string]interface{})
+	if got := device["name"]; got != "${ENV:SHELLYADMIN_PASS_HASH}" {
+		t.Fatalf("sys.device.name = %q, want literal token", got)
+	}
+	mqtt := out["mqtt"].(map[string]interface{})
+	if got := mqtt["pass"]; got != "prefix-${ENV:SHELLYADMIN_PASS_HASH}-suffix" {
+		t.Fatalf("mqtt.pass = %q, want literal token", got)
+	}
+}
+
+func TestSubstitute_DeviceNameTokenIsReplaced(t *testing.T) {
+	input := map[string]interface{}{
+		"sys": map[string]interface{}{
+			"device": map[string]interface{}{
+				"name": "shelly-{device_name}",
+			},
+		},
+	}
+	out := substitute(input, "kitchen").(map[string]interface{})
+	sys := out["sys"].(map[string]interface{})
+	device := sys["device"].(map[string]interface{})
+	if got := device["name"]; got != "shelly-kitchen" {
+		t.Fatalf("device.name = %q, want shelly-kitchen", got)
 	}
 }
 

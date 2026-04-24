@@ -55,7 +55,7 @@ func hostFromURL(t *testing.T, url string) string {
 
 func TestSetTimezoneSendsSysSetConfigWithLocationTZ(t *testing.T) {
 	srv, cap := newCaptureServer(t, http.StatusOK)
-	if !SetTimezone(context.Background(), hostFromURL(t, srv.URL), "Europe/Berlin", 2, 2*time.Second) {
+	if !SetTimezone(context.Background(), hostFromURL(t, srv.URL), "Europe/Berlin", 2*time.Second) {
 		t.Fatalf("SetTimezone returned false")
 	}
 	if cap.method != "Sys.SetConfig" {
@@ -71,7 +71,7 @@ func TestSetTimezoneSendsSysSetConfigWithLocationTZ(t *testing.T) {
 
 func TestSetMQTTEnabledSendsBoolFlag(t *testing.T) {
 	srv, cap := newCaptureServer(t, http.StatusOK)
-	if !SetMQTTEnabled(context.Background(), hostFromURL(t, srv.URL), true, 2, 2*time.Second) {
+	if !SetMQTTEnabled(context.Background(), hostFromURL(t, srv.URL), true, 2*time.Second) {
 		t.Fatalf("SetMQTTEnabled returned false")
 	}
 	if cap.method != "MQTT.SetConfig" {
@@ -86,7 +86,7 @@ func TestSetMQTTEnabledSendsBoolFlag(t *testing.T) {
 
 func TestSetCloudEnabledSendsCloudSetConfig(t *testing.T) {
 	srv, cap := newCaptureServer(t, http.StatusOK)
-	if !SetCloudEnabled(context.Background(), hostFromURL(t, srv.URL), false, 2, 2*time.Second) {
+	if !SetCloudEnabled(context.Background(), hostFromURL(t, srv.URL), false, 2*time.Second) {
 		t.Fatalf("SetCloudEnabled returned false")
 	}
 	if cap.method != "Cloud.SetConfig" {
@@ -101,7 +101,7 @@ func TestSetCloudEnabledSendsCloudSetConfig(t *testing.T) {
 
 func TestSetBLEEnabledSendsBLESetConfig(t *testing.T) {
 	srv, cap := newCaptureServer(t, http.StatusOK)
-	if !SetBLEEnabled(context.Background(), hostFromURL(t, srv.URL), true, 2, 2*time.Second) {
+	if !SetBLEEnabled(context.Background(), hostFromURL(t, srv.URL), true, 2*time.Second) {
 		t.Fatalf("SetBLEEnabled returned false")
 	}
 	if cap.method != "BLE.SetConfig" {
@@ -111,7 +111,7 @@ func TestSetBLEEnabledSendsBLESetConfig(t *testing.T) {
 
 func TestRebootSendsShellyRebootWithoutConfigWrap(t *testing.T) {
 	srv, cap := newCaptureServer(t, http.StatusOK)
-	if !Reboot(context.Background(), hostFromURL(t, srv.URL), 2, 2*time.Second) {
+	if !Reboot(context.Background(), hostFromURL(t, srv.URL), 2*time.Second) {
 		t.Fatalf("Reboot returned false")
 	}
 	if cap.method != "Shelly.Reboot" {
@@ -125,7 +125,7 @@ func TestRebootSendsShellyRebootWithoutConfigWrap(t *testing.T) {
 
 func TestSettersReturnFalseOn5xx(t *testing.T) {
 	srv, _ := newCaptureServer(t, http.StatusInternalServerError)
-	if SetMQTTEnabled(context.Background(), hostFromURL(t, srv.URL), true, 2, 2*time.Second) {
+	if SetMQTTEnabled(context.Background(), hostFromURL(t, srv.URL), true, 2*time.Second) {
 		t.Fatalf("SetMQTTEnabled returned true on 500")
 	}
 }

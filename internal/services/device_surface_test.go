@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -105,6 +106,67 @@ func TestValidateSettingsRejectsEmptyScanTargets(t *testing.T) {
 	}
 }
 
+func TestValidateSettingsRejectsInvalidCustomRuleRegex(t *testing.T) {
+	err := ValidateSettings(models.AppSettings{
+		EnableMDNS:      true,
+		ScanTimeout:     2,
+		RefreshTimeout:  5,
+		ScanConcurrency: 64,
+		Compliance: models.ComplianceRules{
+			CustomRules: []models.CustomRule{
+				{Label: "bad-re", Op: "regex", Value: "[unclosed"},
+			},
+		},
+	})
+	if err == nil {
+		t.Fatal("ValidateSettings() error = nil, want regex compile error")
+	}
+	if !strings.Contains(err.Error(), `custom rule "bad-re" has invalid regex`) {
+		t.Fatalf("ValidateSettings() error = %q, want substring about invalid regex", err.Error())
+	}
+}
+
+func TestValidateSettingsAcceptsValidCustomRuleRegex(t *testing.T) {
+	err := ValidateSettings(models.AppSettings{
+		EnableMDNS:      true,
+		ScanTimeout:     2,
+		RefreshTimeout:  5,
+		ScanConcurrency: 64,
+		Compliance: models.ComplianceRules{
+			CustomRules: []models.CustomRule{
+				{Label: "ok", Op: "regex", Value: `^shelly-\d+$`},
+				{Label: "non-regex", Op: "eq", Value: "[not-compiled]"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ValidateSettings() error = %v", err)
+	}
+}
+
+func TestValidateSettingsRejectsOutOfRangeLatLon(t *testing.T) {
+	badLat := 91.0
+	if err := ValidateSettings(models.AppSettings{
+		EnableMDNS:      true,
+		ScanTimeout:     2,
+		RefreshTimeout:  5,
+		ScanConcurrency: 64,
+		Compliance:      models.ComplianceRules{Lat: &badLat},
+	}); err == nil {
+		t.Fatal("ValidateSettings() with lat=91 error = nil, want out-of-range error")
+	}
+	badLon := -181.0
+	if err := ValidateSettings(models.AppSettings{
+		EnableMDNS:      true,
+		ScanTimeout:     2,
+		RefreshTimeout:  5,
+		ScanConcurrency: 64,
+		Compliance:      models.ComplianceRules{Lon: &badLon},
+	}); err == nil {
+		t.Fatal("ValidateSettings() with lon=-181 error = nil, want out-of-range error")
+	}
+}
+
 func TestSummarizeBulkResults_Empty(t *testing.T) {
 	got := summarizeBulkResults(nil)
 	want := "ok=0 failed=0 skipped=0 missing=0"
@@ -169,6 +231,6 @@ func testService(t *testing.T) (*db.DB, *AppService) {
 		t.Fatalf("db.Open() error = %v", err)
 	}
 	t.Cleanup(func() { _ = database.Close() })
-	service := NewAppService(database, t.TempDir(), func(level, msg string) {})
+	service := NewAppService(database, t.TempDir(), func(context.Context, string, string) {})
 	return database, service
 }

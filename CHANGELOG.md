@@ -4,6 +4,72 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.0.16] - 2026-04-24
+
+Follow-up release after a combined `/review` and `/security-review` of the
+v0.0.7 → v0.0.15 window. Closes one medium-severity provisioning leak, finishes
+the v0.0.14 OTA removal across the UI, surfaces bulk-refresh auth failures,
+redirects the SPA on expired sessions, plumbs request IDs into service-layer
+logs, tightens settings validation, and dedupes helpers the earlier passes left
+behind. No schema migrations.
+
+### Security
+- Remove undocumented `${ENV:...}` env-var expansion from provisioning template
+  substitution (`internal/core/provisioner/provisioner.go`). The feature allowed
+  an authenticated admin to exfiltrate server env vars (including
+  `SHELLYADMIN_PASS_HASH`, `SHELLYADMIN_SECRET`, `SHELLYADMIN_ENCRYPTION_KEY`)
+  by POSTing a crafted template to an attacker-controlled LAN IP. Only the
+  documented `{device_name}` token remains.
+
+### Fixed
+- **Bulk refresh now surfaces `AuthRequired` / `AuthError`** the same way the
+  single-device path does, so a password-mismatch device no longer shows a
+  generic "refresh timed out" row (`internal/services/app_jobs.go`).
+- **`debug.mqtt` passthrough in provisioning templates** — the toggle existed
+  in `SysForm.svelte` but the backend normaliser dropped it; it is now
+  preserved alongside `debug.websocket` and `debug.udp`
+  (`internal/core/provisioner/provisioner.go`).
+- **SPA redirects to `/login` on 401** for expired sessions instead of showing
+  an opaque error (`web/src/lib/api.ts`).
+- **`session.Save()` errors are no longer swallowed** on login or logout; login
+  now returns 500 on persistence failure instead of handing the user a broken
+  cookie (`internal/api/handler.go`).
+- **Compliance custom-rule regex is validated at save time**; a bad pattern no
+  longer silently classifies every device as non-compliant
+  (`internal/services/app.go`, `internal/core/compliance/compliance.go`).
+- **Lat/Lon bounds (`±90` / `±180`) enforced in `ValidateSettings`** so invalid
+  compliance settings are rejected on save, not only when a bulk action runs
+  against them (`internal/services/app.go`).
+
+### Changed
+- **OTA removal finished across the UI and backend** (started in v0.0.14).
+  Frontend: dropped the Provision → Misc "OTA" section, the `OtaState` type,
+  and `ota_auto_update` from the Compliance page. Backend: dropped
+  `OTAAutoUpdate` from `models.AppSettings` / `ComplianceRules`, the OTA branch
+  in `applySection`, and the `normalizeOTAPayload` helper. The `ota` key is
+  still accepted as a passthrough via the default handler (it 404s on the
+  device and is skipped gracefully) to avoid breaking anyone with existing
+  template JSON.
+- **Request IDs propagate into service-layer logs.** The service log callback
+  now takes `context.Context`; request-scoped sites (Provision, UploadUserCA,
+  BulkAction, ExecuteDeviceAction, RefreshDevices, Stop) log via a new
+  `LogCtx` helper so the ID populates both the `audit_log.request_id` column
+  and the slog JSON attribute. Background jobs (scan, firmware, recovery)
+  intentionally keep the no-ctx path since they outlive the HTTP request
+  (`internal/services/app.go`, `internal/services/app_jobs.go`,
+  `internal/services/device_surface.go`, `internal/api/handler.go`,
+  `cmd/shellyctl/main.go`).
+- **`AppService.Stop` is idempotent** via `sync.Once` so overlapping signal
+  handlers can't re-cancel or re-mark interrupted jobs.
+- **Shared `sslCAOptions` dropdown** for the Provision MQTT and WebSocket
+  forms. `WsForm` previously took a freeform input; both now use the same
+  four-option Select (`""`, `*`, `ca.pem`, `user_ca.pem`) matching the only
+  values the Shelly API accepts (`web/src/pages/provision/sslCa.ts`).
+- **`firstNonEmpty` deduped** into a single exported `util.FirstNonEmpty`
+  (trim-variant) used by the provisioner, service, and user-CA code paths
+  (`internal/util/strings.go`). Removed the dead `boundedConcurrency` alias
+  and the dead `gen int` parameter on every setter in `internal/core/setters`.
+
 ## [0.0.15] - 2026-04-22
 
 Security-hardening round: argon2id admin password hashing, encryption at rest for

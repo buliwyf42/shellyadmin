@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"io/fs"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"testing/fstest"
 
 	"shellyadmin/internal/db"
+	"shellyadmin/internal/middleware"
 )
 
 func newTestRouter(t *testing.T, cfg Config) *http.ServeMux {
@@ -154,5 +156,25 @@ func TestRequestIDHonoursInboundHeader(t *testing.T) {
 
 	if got := rec.Header().Get("X-Request-ID"); got != "op-trace-42" {
 		t.Fatalf("response should echo inbound id, got %q", got)
+	}
+}
+
+// TestHandlerLogFnCarriesRequestID locks in the Phase 4a wiring: when a
+// service-layer log is emitted with a context that carries a request ID
+// (populated by the RequestID middleware), the audit sink sees that ID
+// instead of the empty string. Regression guard against accidentally
+// reverting the ctx-aware callback signature.
+func TestHandlerLogFnCarriesRequestID(t *testing.T) {
+	var captured string
+	h := &Handler{auditSink: func(_, _, reqID string) { captured = reqID }}
+	h.logFn = func(ctx context.Context, level, msg string) {
+		h.auditSink(level, msg, middleware.FromContext(ctx))
+	}
+
+	ctx := middleware.WithRequestID(context.Background(), "trace-abc")
+	h.logFn(ctx, "INFO", "test")
+
+	if captured != "trace-abc" {
+		t.Fatalf("request id = %q, want %q", captured, "trace-abc")
 	}
 }

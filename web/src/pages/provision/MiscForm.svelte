@@ -1,27 +1,20 @@
 <script lang="ts">
-  import type { AuthState, CloudState, MatterState, OtaState, UIState, WifiState } from './types';
+  import type { AuthState, CloudState, MatterState, UIState, WifiState } from './types';
   import SectionCard from '../../components/SectionCard.svelte';
   import FieldRow from '../../components/FieldRow.svelte';
   import Toggle from '../../components/Toggle.svelte';
-  import Select from '../../components/Select.svelte';
   import WifiStaForm from './WifiStaForm.svelte';
   import WifiRoamForm from './WifiRoamForm.svelte';
   import UIConfigForm from './UIConfigForm.svelte';
 
   export let matter: MatterState;
   export let cloud: CloudState;
-  export let ota: OtaState;
   export let auth: AuthState;
   export let wifi: WifiState;
   export let ui: UIState;
 
-  const stageOptions: Array<{ value: OtaState['stage']; label: string }> = [
-    { value: 'stable', label: 'Stable' },
-    { value: 'beta', label: 'Beta' },
-  ];
   $: matterExpanded = matter.enabled || matter.enableField;
   $: cloudExpanded = cloud.enabled || cloud.enableField;
-  $: otaExpanded = ota.enabled || ota.stageEnabled || ota.autoUpdateEnabled;
   $: authExpanded = auth.enabled || auth.passEnabled;
   $: wifiExpanded =
     wifi.enabled ||
@@ -68,68 +61,6 @@
           disabled={!cloud.enabled || !cloud.enableField}
           label={cloud.enable ? 'On' : 'Off'}
         />
-      </FieldRow>
-    </div>
-  </div>
-</SectionCard>
-
-<SectionCard
-  tag="ota"
-  title="Firmware Update"
-  bind:open={ota.open}
-  forceOpen={otaExpanded}
-  bind:enabled={ota.enabled}
->
-  <div class="sa-form-grid">
-    <div data-span="4">
-      <FieldRow label="Stage" bind:enabled={ota.stageEnabled} disabled={!ota.enabled}>
-        <Select
-          bind:value={ota.stage}
-          options={stageOptions}
-          disabled={!ota.enabled || !ota.stageEnabled}
-          ariaLabel="Stage"
-        />
-      </FieldRow>
-    </div>
-    <div data-span="6">
-      <FieldRow
-        label="Update automatically"
-        bind:enabled={ota.autoUpdateEnabled}
-        disabled={!ota.enabled}
-        help="Stored in template as policy intent."
-      >
-        <div class="d-flex flex-column gap-1">
-          <label class="d-flex align-items-center gap-2">
-            <input
-              type="radio"
-              bind:group={ota.autoUpdate}
-              value="off"
-              disabled={!ota.enabled || !ota.autoUpdateEnabled}
-            />
-            Disable auto update
-          </label>
-          <label class="d-flex align-items-center gap-2">
-            <input
-              type="radio"
-              bind:group={ota.autoUpdate}
-              value="stable"
-              disabled={!ota.enabled || !ota.autoUpdateEnabled}
-            />
-            Enable update to stable version
-          </label>
-          <label class="d-flex align-items-center gap-2">
-            <input
-              type="radio"
-              bind:group={ota.autoUpdate}
-              value="beta"
-              disabled={!ota.enabled || !ota.autoUpdateEnabled}
-            />
-            Enable update to beta version
-          </label>
-          {#if ota.autoUpdate === 'beta' && ota.autoUpdateEnabled && ota.enabled}
-            <p class="text-secondary fst-italic small mb-0">Beta firmware may cause instability</p>
-          {/if}
-        </div>
       </FieldRow>
     </div>
   </div>

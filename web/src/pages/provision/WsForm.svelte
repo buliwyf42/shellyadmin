@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { WsState } from './types';
   import { isTLSServerURL } from './state';
+  import { sslCAOptions } from './sslCa';
   import SectionCard from '../../components/SectionCard.svelte';
   import FieldRow from '../../components/FieldRow.svelte';
   import Toggle from '../../components/Toggle.svelte';
@@ -64,11 +65,11 @@
     </div>
     <div data-span="4">
       <FieldRow label="SSL CA" bind:enabled={state.sslCAEnabled} disabled={!state.enabled}>
-        <input
-          class="form-control"
-          placeholder="* or ca.pem"
+        <Select
           bind:value={state.sslCA}
+          options={sslCAOptions}
           disabled={!state.enabled || !state.sslCAEnabled || state.tlsMode !== 'user'}
+          ariaLabel="SSL CA"
         />
       </FieldRow>
     </div>

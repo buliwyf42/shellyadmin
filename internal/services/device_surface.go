@@ -12,6 +12,7 @@ import (
 	"shellyadmin/internal/core/firmware"
 	"shellyadmin/internal/core/setters"
 	"shellyadmin/internal/models"
+	"shellyadmin/internal/util"
 )
 
 type BulkActionRequest struct {
@@ -106,7 +107,7 @@ func (s *AppService) PreviewBulkAction(req BulkActionRequest) (BulkActionPreview
 		target := BulkActionTarget{
 			MAC:      device.MAC,
 			IP:       device.IP,
-			Name:     firstNonEmpty(device.Name, device.Serial, device.MAC),
+			Name:     util.FirstNonEmpty(device.Name, device.Serial, device.MAC),
 			Eligible: true,
 		}
 		if !device.Online {
@@ -115,7 +116,7 @@ func (s *AppService) PreviewBulkAction(req BulkActionRequest) (BulkActionPreview
 		}
 		if device.AuthRequired {
 			target.Eligible = false
-			target.Reason = firstNonEmpty(device.AuthError, "device requires authentication")
+			target.Reason = util.FirstNonEmpty(device.AuthError, "device requires authentication")
 		}
 		preview.Targets = append(preview.Targets, target)
 	}
@@ -148,7 +149,7 @@ func (s *AppService) BulkAction(ctx context.Context, req BulkActionRequest) ([]B
 			continue
 		}
 		if device.AuthRequired {
-			results = append(results, BulkActionResult{MAC: device.MAC, IP: device.IP, Status: "skipped", Detail: firstNonEmpty(device.AuthError, "device requires authentication")})
+			results = append(results, BulkActionResult{MAC: device.MAC, IP: device.IP, Status: "skipped", Detail: util.FirstNonEmpty(device.AuthError, "device requires authentication")})
 			continue
 		}
 		success, detail := applyBulkAction(ctx, req, device, timeout)
@@ -158,7 +159,7 @@ func (s *AppService) BulkAction(ctx context.Context, req BulkActionRequest) ([]B
 		}
 		results = append(results, BulkActionResult{MAC: device.MAC, IP: device.IP, Status: status, Detail: detail})
 	}
-	s.Log("INFO", fmt.Sprintf("bulk action applied action=%s targets=%d %s", req.Action, len(results), summarizeBulkResults(results)))
+	s.LogCtx(ctx, "INFO", fmt.Sprintf("bulk action applied action=%s targets=%d %s", req.Action, len(results), summarizeBulkResults(results)))
 	return results, nil
 }
 
@@ -204,27 +205,27 @@ func (s *AppService) ExecuteDeviceAction(ctx context.Context, target, action str
 		if _, err := s.RefreshDevice(ctx, target); err != nil {
 			return DeviceActionResult{}, err
 		}
-		s.Log("INFO", fmt.Sprintf("device action refresh target=%s", target))
+		s.LogCtx(ctx, "INFO", fmt.Sprintf("device action refresh target=%s", target))
 		return DeviceActionResult{Action: action, Status: "ok", Detail: "device refreshed"}, nil
 	case "firmware_check":
-		stage := firstNonEmpty(req.Stage, "stable")
+		stage := util.FirstNonEmpty(req.Stage, "stable")
 		result := firmware.CheckOne(ctx, detail.Device, stage, 5*time.Second)
-		s.Log("INFO", fmt.Sprintf("device action firmware_check target=%s stage=%s status=%s", target, stage, result.Status))
+		s.LogCtx(ctx, "INFO", fmt.Sprintf("device action firmware_check target=%s stage=%s status=%s", target, stage, result.Status))
 		return DeviceActionResult{Action: action, Status: "ok", Detail: "firmware check completed", Result: result}, nil
 	case "firmware_update":
-		stage := firstNonEmpty(req.Stage, "stable")
+		stage := util.FirstNonEmpty(req.Stage, "stable")
 		results, err := s.FirmwareUpdate(ctx, []string{detail.Device.MAC}, stage)
 		if err != nil {
 			return DeviceActionResult{}, err
 		}
-		s.Log("INFO", fmt.Sprintf("device action firmware_update target=%s stage=%s", target, stage))
+		s.LogCtx(ctx, "INFO", fmt.Sprintf("device action firmware_update target=%s stage=%s", target, stage))
 		return DeviceActionResult{Action: action, Status: "ok", Detail: "firmware update triggered", Result: results}, nil
 	case "reboot":
 		timeout := 5 * time.Second
-		if !setters.Reboot(ctx, detail.Device.IP, detail.Device.Gen, timeout) {
+		if !setters.Reboot(ctx, detail.Device.IP, timeout) {
 			return DeviceActionResult{Action: action, Status: "failed", Detail: "device did not accept reboot request"}, nil
 		}
-		s.Log("INFO", fmt.Sprintf("device action reboot target=%s", target))
+		s.LogCtx(ctx, "INFO", fmt.Sprintf("device action reboot target=%s", target))
 		return DeviceActionResult{Action: action, Status: "ok", Detail: "reboot requested"}, nil
 	default:
 		return DeviceActionResult{}, fmt.Errorf("unsupported action: %s", action)
@@ -243,7 +244,7 @@ func supportedAction(actions []DeviceAction, id string) bool {
 func describeCapabilities(device models.Device) []DeviceCapability {
 	capabilities := []DeviceCapability{
 		{ID: "generation", Label: "Generation", State: fmt.Sprintf("Gen %d", device.Gen)},
-		{ID: "firmware", Label: "Firmware", State: firstNonEmpty(device.FW, "unknown")},
+		{ID: "firmware", Label: "Firmware", State: util.FirstNonEmpty(device.FW, "unknown")},
 		{ID: "compliance", Label: "Compliance", State: ternary(device.Compliant, "compliant", "issues")},
 		{ID: "mqtt", Label: "MQTT", State: boolState(device.MQTTEnabled)},
 		{ID: "cloud", Label: "Cloud", State: ternary(device.CloudConnected, "connected", "off")},
@@ -263,7 +264,7 @@ func describeDeviceActions(device models.Device) []DeviceAction {
 	if !device.Online {
 		unsupportedReason = "device offline"
 	} else if device.AuthRequired {
-		unsupportedReason = firstNonEmpty(device.AuthError, "device requires authentication")
+		unsupportedReason = util.FirstNonEmpty(device.AuthError, "device requires authentication")
 	}
 	return []DeviceAction{
 		{
@@ -332,28 +333,28 @@ func validateBulkAction(req BulkActionRequest) error {
 func applyBulkAction(ctx context.Context, req BulkActionRequest, device models.Device, timeout time.Duration) (bool, string) {
 	switch req.Action {
 	case "set_location":
-		ok := setters.SetLocation(ctx, device.IP, req.Lat, req.Lon, device.Gen, timeout)
+		ok := setters.SetLocation(ctx, device.IP, req.Lat, req.Lon, timeout)
 		return ok, fmt.Sprintf("set location to %.5f, %.5f", req.Lat, req.Lon)
 	case "set_timezone":
-		ok := setters.SetTimezone(ctx, device.IP, req.Value, device.Gen, timeout)
+		ok := setters.SetTimezone(ctx, device.IP, req.Value, timeout)
 		return ok, fmt.Sprintf("set timezone to %s", req.Value)
 	case "set_mqtt_server":
-		ok := setters.SetMQTTServer(ctx, device.IP, req.Value, device.Gen, timeout)
+		ok := setters.SetMQTTServer(ctx, device.IP, req.Value, timeout)
 		return ok, fmt.Sprintf("set MQTT server to %s", req.Value)
 	case "set_mqtt_enabled":
-		ok := setters.SetMQTTEnabled(ctx, device.IP, *req.Enabled, device.Gen, timeout)
+		ok := setters.SetMQTTEnabled(ctx, device.IP, *req.Enabled, timeout)
 		return ok, fmt.Sprintf("set MQTT %s", ternary(*req.Enabled, "enabled", "disabled"))
 	case "set_sntp_server":
-		ok := setters.SetSNTPServer(ctx, device.IP, req.Value, device.Gen, timeout)
+		ok := setters.SetSNTPServer(ctx, device.IP, req.Value, timeout)
 		return ok, fmt.Sprintf("set SNTP server to %s", req.Value)
 	case "set_cloud_enabled":
-		ok := setters.SetCloudEnabled(ctx, device.IP, *req.Enabled, device.Gen, timeout)
+		ok := setters.SetCloudEnabled(ctx, device.IP, *req.Enabled, timeout)
 		return ok, fmt.Sprintf("set Cloud %s", ternary(*req.Enabled, "enabled", "disabled"))
 	case "set_ble_enabled":
-		ok := setters.SetBLEEnabled(ctx, device.IP, *req.Enabled, device.Gen, timeout)
+		ok := setters.SetBLEEnabled(ctx, device.IP, *req.Enabled, timeout)
 		return ok, fmt.Sprintf("set BLE %s", ternary(*req.Enabled, "enabled", "disabled"))
 	case "reboot":
-		ok := setters.Reboot(ctx, device.IP, device.Gen, timeout)
+		ok := setters.Reboot(ctx, device.IP, timeout)
 		return ok, "rebooted"
 	default:
 		return false, "unsupported action"
@@ -429,15 +430,6 @@ func wsState(device models.Device) string {
 		return "unsupported"
 	}
 	return ternary(device.WSConnected, "connected", boolState(device.WSEnabled))
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if strings.TrimSpace(value) != "" {
-			return value
-		}
-	}
-	return ""
 }
 
 func ternary[T any](condition bool, yes, no T) T {

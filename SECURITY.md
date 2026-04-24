@@ -10,8 +10,9 @@ Security fixes are best-effort while the project is in active early development.
 
 | Version | Supported |
 | --- | --- |
-| `v0.0.14` | Yes |
-| `v0.0.13` | Best effort |
+| `v0.0.16` | Yes |
+| `v0.0.15` | Yes |
+| `v0.0.14` | Best effort |
 | Older versions | No |
 
 ## Reporting a Vulnerability
@@ -33,3 +34,12 @@ When reporting, include:
 - Set strong `SHELLYADMIN_PASS` and `SHELLYADMIN_SECRET` values for real deployments.
 - Prefer `SHELLYADMIN_PASS_FILE` and `SHELLYADMIN_SECRET_FILE` for containers.
 - Treat the product as a LAN admin tool, not an internet-facing identity system.
+
+## Hardening notes
+
+- **v0.0.16** — The undocumented `${ENV:...}` env-var expansion in provisioning
+  templates has been removed. It previously let an authenticated admin exfiltrate
+  server environment variables (including `SHELLYADMIN_PASS_HASH`,
+  `SHELLYADMIN_SECRET`, and `SHELLYADMIN_ENCRYPTION_KEY`) by POSTing a crafted
+  template to an attacker-controlled LAN IP. Only the documented `{device_name}`
+  token remains.

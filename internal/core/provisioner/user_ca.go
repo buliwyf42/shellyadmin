@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"shellyadmin/internal/util"
 )
 
 // UserCAChunkSize is the byte size of each chunk sent via the chunked
@@ -189,7 +191,7 @@ func putCertificate(ctx context.Context, client *http.Client, ip, method string,
 		return fmt.Errorf("%s not supported by this device", method)
 	}
 	if resp.StatusCode >= 400 {
-		return errors.New(firstNonEmpty(rpcErrorDetail(body), resp.Status))
+		return errors.New(util.FirstNonEmpty(rpcErrorDetail(body), resp.Status))
 	}
 	if len(body) == 0 {
 		return nil

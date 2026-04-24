@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/hex"
@@ -30,10 +31,10 @@ type Handler struct {
 	// capture output without standing up SQLite — the production wiring in
 	// NewHandler sanitizes, mirrors to slog, then writes to the DB.
 	auditSink func(level, msg, requestID string)
-	// logFn is the unscoped audit helper passed to services-layer callbacks
-	// (which have no gin.Context to draw a request ID from). Delegates to
-	// auditSink with an empty request ID.
-	logFn func(level, msg string)
+	// logFn is the context-aware audit helper passed to services-layer
+	// callbacks. When ctx carries a request ID (set by the RequestID
+	// middleware), that ID flows into the audit row and slog line.
+	logFn func(ctx context.Context, level, msg string)
 }
 
 func NewHandler(database *db.DB, cfg Config) *Handler {
@@ -46,7 +47,9 @@ func NewHandler(database *db.DB, cfg Config) *Handler {
 		emitSlog(level, sanitized, reqID)
 		_ = handler.db.AddLogWithRequestID(level, sanitized, reqID)
 	}
-	handler.logFn = func(level, msg string) { handler.auditSink(level, msg, "") }
+	handler.logFn = func(ctx context.Context, level, msg string) {
+		handler.auditSink(level, msg, middleware.FromContext(ctx))
+	}
 	handler.service = services.NewAppService(database, cfg.DataDir, handler.logFn)
 	return handler
 }
@@ -101,7 +104,11 @@ func (h *Handler) Login(c *gin.Context) {
 	session.Set("user", req.Username)
 	nonce := RandomSecret()
 	session.Set("nonce", nonce)
-	_ = session.Save()
+	if err := session.Save(); err != nil {
+		h.logReq(c, "ERROR", fmt.Sprintf("login: session save failed: %v", err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "session persistence failed"})
+		return
+	}
 	c.Header("X-CSRF-Token", nonce)
 	c.JSON(http.StatusOK, gin.H{"ok": true, "csrf_token": nonce})
 }
@@ -110,7 +117,12 @@ func (h *Handler) Logout(c *gin.Context) {
 	session := sessions.Default(c)
 	session.Clear()
 	session.Options(sessions.Options{Path: "/", MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteLaxMode, Secure: h.cfg.CookieSecure})
-	_ = session.Save()
+	if err := session.Save(); err != nil {
+		// Logout is best-effort: the cookie's MaxAge=-1 already clears the
+		// client side, so surface the persistence error to the audit log but
+		// still return ok so the user sees a successful sign-out.
+		h.logReq(c, "WARN", fmt.Sprintf("logout: session save failed: %v", err))
+	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 

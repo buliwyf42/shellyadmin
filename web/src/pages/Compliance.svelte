@@ -36,7 +36,6 @@
     { value: 'exists', label: 'exists' },
   ];
   type TlsMode = NonNullable<AppSettings['compliance']['ws_tls_mode']>;
-  type AutoUpdate = NonNullable<AppSettings['compliance']['ota_auto_update']>;
   type Ipv4Mode = NonNullable<AppSettings['compliance']['eth_ipv4mode']>;
   const tlsModeOptions: Array<{ value: TlsMode; label: string }> = [
     { value: 'no_validation', label: 'TLS — no validation' },
@@ -168,7 +167,6 @@
       settings.compliance.mqtt_enable_rpc = null;
     if (settings.compliance.mqtt_enable_control === undefined)
       settings.compliance.mqtt_enable_control = null;
-    if (settings.compliance.ota_auto_update === undefined) settings.compliance.ota_auto_update = '';
     if (settings.compliance.sys_debug_websocket === undefined)
       settings.compliance.sys_debug_websocket = null;
     if (settings.compliance.sys_debug_udp_host === undefined)
@@ -332,7 +330,6 @@
 
     settings.compliance.tz = tzEnabled ? settings.compliance.tz || '' : '';
     settings.compliance.sntp_server = sntpEnabled ? settings.compliance.sntp_server || '' : '';
-    settings.compliance.ota_auto_update = '';
     settings.compliance.sys_debug_websocket = sysDebugWSField
       ? Boolean(settings.compliance.sys_debug_websocket)
       : null;

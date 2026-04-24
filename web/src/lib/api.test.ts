@@ -159,6 +159,62 @@ describe('api client', () => {
     expect(attempts).toBe(1);
   });
 
+  it('redirects to /login on 401 for non-login paths', async () => {
+    const assign = vi.fn();
+    const originalLocation = window.location;
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { pathname: '/devices', assign },
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        return new Response(JSON.stringify({ error: 'unauthorized' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }),
+    );
+    try {
+      await expect(api.getDevices()).rejects.toBeInstanceOf(APIError);
+      expect(assign).toHaveBeenCalledWith('/login');
+    } finally {
+      Object.defineProperty(window, 'location', {
+        configurable: true,
+        value: originalLocation,
+      });
+    }
+  });
+
+  it('does NOT redirect on 401 when already on /login', async () => {
+    const assign = vi.fn();
+    const originalLocation = window.location;
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { pathname: '/login', assign },
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = typeof input === 'string' ? input : input.toString();
+        if (path === '/api/csrf-token') return jsonResponse({ csrf_token: 'tok' });
+        return new Response(JSON.stringify({ error: 'bad credentials' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }),
+    );
+    try {
+      await expect(api.login('u', 'p')).rejects.toBeInstanceOf(APIError);
+      expect(assign).not.toHaveBeenCalled();
+    } finally {
+      Object.defineProperty(window, 'location', {
+        configurable: true,
+        value: originalLocation,
+      });
+    }
+  });
+
   it('throws APIError when response is not JSON', async () => {
     vi.stubGlobal(
       'fetch',

@@ -30,7 +30,7 @@ const (
 
 type AppService struct {
 	db      Store
-	logf    func(level, msg string)
+	logf    func(ctx context.Context, level, msg string)
 	dataDir string
 
 	mu              sync.Mutex
@@ -44,6 +44,9 @@ type AppService struct {
 	// bgJobs tracks in-flight background goroutines (scan/refresh/firmware)
 	// so Stop can drain them before returning.
 	bgJobs sync.WaitGroup
+	// stopOnce guards Stop so repeated invocations (e.g. from overlapping
+	// signal handlers) don't double-cancel or re-mark interrupted jobs.
+	stopOnce sync.Once
 }
 
 type TemplateRecord struct {
@@ -52,7 +55,7 @@ type TemplateRecord struct {
 	CredentialRef string `json:"credential_ref"`
 }
 
-func NewAppService(database Store, dataDir string, logf func(level, msg string)) *AppService {
+func NewAppService(database Store, dataDir string, logf func(ctx context.Context, level, msg string)) *AppService {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &AppService{
 		db:              database,
@@ -69,20 +72,22 @@ func NewAppService(database Store, dataDir string, logf func(level, msg string))
 // shutdownCtx), and marks any jobs still "running" as "interrupted". Safe to
 // call once; subsequent calls are no-ops.
 func (s *AppService) Stop(shutdownCtx context.Context) {
-	s.cancel()
-	done := make(chan struct{})
-	go func() {
-		s.bgJobs.Wait()
-		close(done)
-	}()
-	select {
-	case <-done:
-	case <-shutdownCtx.Done():
-		s.Log("warn", "shutdown: background jobs did not drain within timeout")
-	}
-	if err := s.db.MarkRunningJobsInterrupted(); err != nil {
-		s.Log("error", fmt.Sprintf("shutdown: mark running jobs interrupted: %v", err))
-	}
+	s.stopOnce.Do(func() {
+		s.cancel()
+		done := make(chan struct{})
+		go func() {
+			s.bgJobs.Wait()
+			close(done)
+		}()
+		select {
+		case <-done:
+		case <-shutdownCtx.Done():
+			s.LogCtx(shutdownCtx, "warn", "shutdown: background jobs did not drain within timeout")
+		}
+		if err := s.db.MarkRunningJobsInterrupted(); err != nil {
+			s.LogCtx(shutdownCtx, "error", fmt.Sprintf("shutdown: mark running jobs interrupted: %v", err))
+		}
+	})
 }
 
 // linkedContext returns a context that is cancelled when either the parent
@@ -280,7 +285,7 @@ func (s *AppService) Provision(ctx context.Context, ips []string, template map[s
 				device.AuthRequired = true
 				device.AuthError = authReason
 				if uerr := s.db.UpsertDevice(device); uerr != nil {
-					s.Log("error", fmt.Sprintf("provision: persist auth-required state for %s: %v", ip, uerr))
+					s.LogCtx(ctx, "error", fmt.Sprintf("provision: persist auth-required state for %s: %v", ip, uerr))
 				}
 			}
 		}
@@ -293,12 +298,12 @@ func (s *AppService) Provision(ctx context.Context, ips []string, template map[s
 		}
 		body, merr := json.Marshal(map[string]any{"info": info, "results": results, "restart_required": restartRequired})
 		if merr != nil {
-			s.Log("warn", fmt.Sprintf("provision: marshal result for %s: %v", ip, merr))
+			s.LogCtx(ctx, "warn", fmt.Sprintf("provision: marshal result for %s: %v", ip, merr))
 			continue
 		}
 		var raw map[string]any
 		if uerr := json.Unmarshal(body, &raw); uerr != nil {
-			s.Log("warn", fmt.Sprintf("provision: unmarshal result for %s: %v", ip, uerr))
+			s.LogCtx(ctx, "warn", fmt.Sprintf("provision: unmarshal result for %s: %v", ip, uerr))
 			continue
 		}
 		out = append(out, raw)
@@ -420,11 +425,11 @@ func (s *AppService) UploadUserCA(ctx context.Context, ips []string, kind string
 		if err != nil {
 			entry.Status = "failed"
 			entry.Detail = err.Error()
-			s.Log("warn", fmt.Sprintf("%s upload to %s failed: %v", certKind, ip, err))
+			s.LogCtx(ctx, "warn", fmt.Sprintf("%s upload to %s failed: %v", certKind, ip, err))
 		} else {
 			entry.Status = "ok"
 			entry.Detail = res.Detail
-			s.Log("info", fmt.Sprintf("%s uploaded to %s: %d chunks, %d bytes", certKind, ip, res.Chunks, res.BytesSent))
+			s.LogCtx(ctx, "info", fmt.Sprintf("%s uploaded to %s: %d chunks, %d bytes", certKind, ip, res.Chunks, res.BytesSent))
 		}
 		results = append(results, entry)
 	}
@@ -507,8 +512,19 @@ func (s *AppService) ClearLogs() (int64, error) {
 	return s.db.ClearLogs()
 }
 
+// Log emits an audit entry without a request-scoped context. Prefer LogCtx
+// when a context is in scope so the audit row can be correlated back to the
+// originating HTTP request. This form remains for callbacks passed to
+// external packages (scanner, firmware) that use the narrower signature.
 func (s *AppService) Log(level, msg string) {
-	s.logf(level, SanitizeLogMessage(msg))
+	s.logf(context.Background(), level, SanitizeLogMessage(msg))
+}
+
+// LogCtx emits an audit entry carrying the given context. The callback
+// installed in the handler pulls the request ID out of ctx so the audit_log
+// row and slog line link back to the originating HTTP request.
+func (s *AppService) LogCtx(ctx context.Context, level, msg string) {
+	s.logf(ctx, level, SanitizeLogMessage(msg))
 }
 
 func sanitizeTags(tags []string) []string {
@@ -559,11 +575,29 @@ func ValidateSettings(settings models.AppSettings) error {
 	if mode := settings.Compliance.WSTLSMode; mode != "" && mode != "no_validation" && mode != "default" && mode != "user" {
 		return fmt.Errorf("websocket tls mode must be no_validation, default, or user")
 	}
-	if mode := settings.Compliance.OTAAutoUpdate; mode != "" && mode != "off" && mode != "stable" && mode != "beta" {
-		return fmt.Errorf("ota auto update must be off, stable, or beta")
-	}
 	if settings.Compliance.RPCUDPPort != nil && *settings.Compliance.RPCUDPPort < 0 {
 		return fmt.Errorf("rpc udp port must be 0 or greater")
+	}
+	if lat := settings.Compliance.Lat; lat != nil && (*lat < -90 || *lat > 90) {
+		return fmt.Errorf("latitude must be between -90 and 90")
+	}
+	if lon := settings.Compliance.Lon; lon != nil && (*lon < -180 || *lon > 180) {
+		return fmt.Errorf("longitude must be between -180 and 180")
+	}
+	// Fail-fast on bad regex patterns in custom rules. Without this, a typo in
+	// the UI would silently classify every device as "mismatch" because the
+	// compile error is swallowed at evaluation time (compliance.go:checkOp).
+	for i, rule := range settings.Compliance.CustomRules {
+		if rule.Op != "regex" {
+			continue
+		}
+		if _, err := regexp.Compile(rule.Value); err != nil {
+			label := rule.Label
+			if label == "" {
+				label = fmt.Sprintf("#%d", i+1)
+			}
+			return fmt.Errorf("custom rule %q has invalid regex: %v", label, err)
+		}
 	}
 	return nil
 }
@@ -594,10 +628,6 @@ func BoundedConcurrency(value int) int {
 	default:
 		return value
 	}
-}
-
-func boundedConcurrency(value int) int {
-	return BoundedConcurrency(value)
 }
 
 func DecodeSecretValue(envKey string) string {

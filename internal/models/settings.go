@@ -37,7 +37,6 @@ type ComplianceRules struct {
 	SNTPServer      string       `json:"sntp_server"`
 	Lat             *float64     `json:"lat"`
 	Lon             *float64     `json:"lon"`
-	OTAAutoUpdate   string       `json:"ota_auto_update"`
 	DebugWebSocket  *bool        `json:"sys_debug_websocket"`
 	DebugUDPHost    string       `json:"sys_debug_udp_host"`
 	RPCUDPPort      *int         `json:"sys_rpc_udp_port"`
@@ -103,7 +102,6 @@ func (c *ComplianceRules) Normalize() {
 	c.WSServer = strings.TrimSpace(c.WSServer)
 	c.TZ = strings.TrimSpace(c.TZ)
 	c.SNTPServer = strings.TrimSpace(c.SNTPServer)
-	c.OTAAutoUpdate = normalizeOTAAutoUpdate(c.OTAAutoUpdate)
 	c.DebugUDPHost = strings.TrimSpace(c.DebugUDPHost)
 	if c.RPCUDPPort != nil && *c.RPCUDPPort < 0 {
 		zero := 0
@@ -124,15 +122,6 @@ func normalizeEthIPv4Mode(raw string) string {
 func normalizeWSTLSMode(raw string) string {
 	switch strings.ToLower(strings.TrimSpace(raw)) {
 	case "no_validation", "default", "user":
-		return strings.ToLower(strings.TrimSpace(raw))
-	default:
-		return ""
-	}
-}
-
-func normalizeOTAAutoUpdate(raw string) string {
-	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case "off", "stable", "beta":
 		return strings.ToLower(strings.TrimSpace(raw))
 	default:
 		return ""

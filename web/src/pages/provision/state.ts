@@ -7,7 +7,6 @@ import type {
   MatterState,
   ModbusState,
   MqttState,
-  OtaState,
   ScriptEntry,
   ScriptsState,
   SysState,
@@ -644,57 +643,6 @@ export function hydrateCloud(record: Record<string, unknown>): HydrateResult<Clo
   if (enableValue !== undefined) {
     state.enableField = true;
     state.enable = enableValue;
-  }
-  return { ok: true, state };
-}
-
-// --- ota ---
-
-export function createOtaState(): OtaState {
-  return {
-    enabled: false,
-    stageEnabled: false,
-    stage: 'stable',
-    autoUpdateEnabled: false,
-    autoUpdate: 'off',
-    open: false,
-  };
-}
-
-export function buildOta(s: OtaState): Record<string, unknown> | null {
-  if (!s.enabled) return null;
-  const ota: Record<string, unknown> = {};
-  if (s.stageEnabled) ota.stage = s.stage;
-  if (s.autoUpdateEnabled) ota.auto_update = s.autoUpdate;
-  return Object.keys(ota).length > 0 ? ota : null;
-}
-
-export function hydrateOta(record: Record<string, unknown>): HydrateResult<OtaState> {
-  if (!hasOnlyKeys(record, ['stage', 'auto_update'])) {
-    return { ok: false, reason: 'Template ota section contains unsupported fields.' };
-  }
-  const stageValue = stringField(record, 'stage');
-  if (stageValue !== undefined && stageValue !== 'stable' && stageValue !== 'beta') {
-    return { ok: false, reason: 'Template ota stage is not representable in the form.' };
-  }
-  const autoUpdateValue = stringField(record, 'auto_update');
-  if (
-    autoUpdateValue !== undefined &&
-    autoUpdateValue !== 'off' &&
-    autoUpdateValue !== 'stable' &&
-    autoUpdateValue !== 'beta'
-  ) {
-    return { ok: false, reason: 'Template ota auto_update is not representable in the form.' };
-  }
-  const state = createOtaState();
-  state.enabled = true;
-  if (stageValue !== undefined) {
-    state.stageEnabled = true;
-    state.stage = stageValue;
-  }
-  if (autoUpdateValue !== undefined) {
-    state.autoUpdateEnabled = true;
-    state.autoUpdate = autoUpdateValue;
   }
   return { ok: true, state };
 }

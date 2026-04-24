@@ -72,7 +72,7 @@ func (s *AppService) RefreshDevices(ctx context.Context) ([]models.Device, error
 		stale, staleErr := refreshJobStale(latest, time.Now())
 		if staleErr == nil && stale {
 			if ierr := s.db.InterruptJob(latest.ID, "refresh stalled"); ierr != nil {
-				s.Log("error", fmt.Sprintf("refresh job %d: mark stalled failed: %v", latest.ID, ierr))
+				s.LogCtx(ctx, "error", fmt.Sprintf("refresh job %d: mark stalled failed: %v", latest.ID, ierr))
 			}
 		} else {
 			return nil, errors.New("refresh already running")
@@ -100,7 +100,7 @@ func (s *AppService) runRefreshJob(ctx context.Context, jobID int64, done chan<-
 	devices, err := s.db.ListDevices()
 	if err != nil {
 		if cerr := s.db.CompleteJob(jobID, "failed", "", err.Error(), 0, 0); cerr != nil {
-			s.Log("error", fmt.Sprintf("refresh job %d: complete-failed write failed: %v", jobID, cerr))
+			s.LogCtx(ctx, "error", fmt.Sprintf("refresh job %d: complete-failed write failed: %v", jobID, cerr))
 		}
 		done <- err
 		return
@@ -108,13 +108,13 @@ func (s *AppService) runRefreshJob(ctx context.Context, jobID int64, done chan<-
 	settings, err := s.db.GetSettings()
 	if err != nil {
 		if cerr := s.db.CompleteJob(jobID, "failed", "", err.Error(), 0, 0); cerr != nil {
-			s.Log("error", fmt.Sprintf("refresh job %d: complete-failed write failed: %v", jobID, cerr))
+			s.LogCtx(ctx, "error", fmt.Sprintf("refresh job %d: complete-failed write failed: %v", jobID, cerr))
 		}
 		done <- err
 		return
 	}
 	timeout := refreshProbeTimeout(settings)
-	limit := boundedConcurrency(settings.ScanConcurrency)
+	limit := BoundedConcurrency(settings.ScanConcurrency)
 	if limit > len(devices) {
 		limit = len(devices)
 	}
@@ -126,7 +126,7 @@ func (s *AppService) runRefreshJob(ctx context.Context, jobID int64, done chan<-
 	refreshed := make([]models.Device, 0, len(devices))
 	work := make(chan models.Device)
 	if perr := s.db.UpdateJobProgress(jobID, 0, len(devices), ""); perr != nil {
-		s.Log("error", fmt.Sprintf("refresh job %d: initial progress update failed: %v", jobID, perr))
+		s.LogCtx(ctx, "error", fmt.Sprintf("refresh job %d: initial progress update failed: %v", jobID, perr))
 	}
 
 	for i := 0; i < limit; i++ {
@@ -137,16 +137,44 @@ func (s *AppService) runRefreshJob(ctx context.Context, jobID int64, done chan<-
 				select {
 				case <-ctx.Done():
 					if ierr := s.db.IncrementJobDone(jobID); ierr != nil {
-						s.Log("error", fmt.Sprintf("refresh job %d: increment done failed: %v", jobID, ierr))
+						s.LogCtx(ctx, "error", fmt.Sprintf("refresh job %d: increment done failed: %v", jobID, ierr))
 					}
-					continue
+					return
 				default:
 				}
+				attemptedAt := time.Now().UTC().Format(time.RFC3339)
+				updated := device
 				if found := scanner.ProbeDevice(ctx, device.IP, timeout, s.Log); found != nil {
-					mu.Lock()
-					refreshed = append(refreshed, *found)
-					mu.Unlock()
+					found.DeviceNum = device.DeviceNum
+					found.FirstSeen = device.FirstSeen
+					found.LastRefreshAttempt = attemptedAt
+					found.LastRefreshOK = true
+					found.LastRefreshError = ""
+					found.ConsecutiveMisses = 0
+					found.Online = true
+					found.AuthRequired = false
+					found.AuthError = ""
+					updated = *found
+				} else {
+					updated.LastRefreshAttempt = attemptedAt
+					updated.LastRefreshOK = false
+					if required, reason := checkAuthRequired(ctx, device.IP, timeout); required {
+						updated.AuthRequired = true
+						updated.AuthError = reason
+						updated.LastRefreshError = reason
+						updated.Online = true
+						updated.ConsecutiveMisses = 0
+					} else {
+						updated.LastRefreshError = "refresh timed out"
+						updated.ConsecutiveMisses++
+						if updated.ConsecutiveMisses >= 2 {
+							updated.Online = false
+						}
+					}
 				}
+				mu.Lock()
+				refreshed = append(refreshed, updated)
+				mu.Unlock()
 				if ierr := s.db.IncrementJobDone(jobID); ierr != nil {
 					s.Log("error", fmt.Sprintf("refresh job %d: increment done failed: %v", jobID, ierr))
 				}
@@ -160,24 +188,24 @@ func (s *AppService) runRefreshJob(ctx context.Context, jobID int64, done chan<-
 	wg.Wait()
 	if ctx.Err() != nil {
 		if ierr := s.db.InterruptJob(jobID, "service shutdown"); ierr != nil {
-			s.Log("error", fmt.Sprintf("refresh job %d: mark interrupted on shutdown: %v", jobID, ierr))
+			s.LogCtx(ctx, "error", fmt.Sprintf("refresh job %d: mark interrupted on shutdown: %v", jobID, ierr))
 		}
 		done <- ctx.Err()
 		return
 	}
 	if err := s.db.UpsertDevices(refreshed); err != nil {
 		if cerr := s.db.CompleteJob(jobID, "failed", "", err.Error(), len(devices), len(devices)); cerr != nil {
-			s.Log("error", fmt.Sprintf("refresh job %d: complete-failed write failed: %v", jobID, cerr))
+			s.LogCtx(ctx, "error", fmt.Sprintf("refresh job %d: complete-failed write failed: %v", jobID, cerr))
 		}
 		done <- err
 		return
 	}
 	body, err := json.Marshal(map[string]any{"refreshed": len(refreshed)})
 	if err != nil {
-		s.Log("error", fmt.Sprintf("refresh job %d: marshal result body failed: %v", jobID, err))
+		s.LogCtx(ctx, "error", fmt.Sprintf("refresh job %d: marshal result body failed: %v", jobID, err))
 	}
 	if cerr := s.db.CompleteJob(jobID, "completed", string(body), "", len(devices), len(devices)); cerr != nil {
-		s.Log("error", fmt.Sprintf("refresh job %d: complete-success write failed: %v", jobID, cerr))
+		s.LogCtx(ctx, "error", fmt.Sprintf("refresh job %d: complete-success write failed: %v", jobID, cerr))
 	}
 	done <- nil
 }
@@ -240,7 +268,7 @@ func (s *AppService) StartScan() error {
 func (s *AppService) runScanJob(jobID int64, settings models.AppSettings) {
 	settings.Normalize()
 	timeout := time.Duration(settings.ScanTimeout * float64(time.Second))
-	results := scanner.ScanSubnets(s.ctx, settings.Subnets, boundedConcurrency(settings.ScanConcurrency), timeout, s.Log, func() {
+	results := scanner.ScanSubnets(s.ctx, settings.Subnets, BoundedConcurrency(settings.ScanConcurrency), timeout, s.Log, func() {
 		if ierr := s.db.IncrementJobDone(jobID); ierr != nil {
 			s.Log("error", fmt.Sprintf("scan job %d: increment done failed: %v", jobID, ierr))
 		}

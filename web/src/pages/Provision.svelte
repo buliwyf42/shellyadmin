@@ -23,7 +23,6 @@
     MatterState,
     ModbusState,
     MqttState,
-    OtaState,
     ScriptsState,
     SysState,
     UIState,
@@ -40,7 +39,6 @@
     buildMatter,
     buildModbus,
     buildMqtt,
-    buildOta,
     buildScripts,
     buildSys,
     buildUI,
@@ -55,7 +53,6 @@
     createMatterState,
     createModbusState,
     createMqttState,
-    createOtaState,
     createScriptsState,
     createSysState,
     createUIState,
@@ -70,7 +67,6 @@
     hydrateMatter,
     hydrateModbus,
     hydrateMqtt,
-    hydrateOta,
     hydrateScripts,
     hydrateSys,
     hydrateUI,
@@ -109,7 +105,6 @@
   let bleState: BleState = createBleState();
   let matterState: MatterState = createMatterState();
   let cloudState: CloudState = createCloudState();
-  let otaState: OtaState = createOtaState();
   let authState: AuthState = createAuthState();
   let wifiState: WifiState = createWifiState();
   let wifiAPState: WifiAPState = createWifiAPState();
@@ -332,7 +327,6 @@
     bleState = createBleState();
     matterState = createMatterState();
     cloudState = createCloudState();
-    otaState = createOtaState();
     authState = createAuthState();
     wifiState = createWifiState();
     wifiAPState = createWifiAPState();
@@ -358,7 +352,6 @@
     let nextBle: BleState | null = null;
     let nextMatter: MatterState | null = null;
     let nextCloud: CloudState | null = null;
-    let nextOta: OtaState | null = null;
     let nextAuth: AuthState | null = null;
     let nextWifi: WifiState | null = null;
     let nextWifiAP: WifiAPState | null = null;
@@ -408,12 +401,6 @@
           const r = hydrateCloud(record);
           if (!r.ok) return r;
           nextCloud = r.state;
-          break;
-        }
-        case 'ota': {
-          const r = hydrateOta(record);
-          if (!r.ok) return r;
-          nextOta = r.state;
           break;
         }
         case 'auth': {
@@ -475,7 +462,6 @@
     if (nextBle) bleState = nextBle;
     if (nextMatter) matterState = nextMatter;
     if (nextCloud) cloudState = nextCloud;
-    if (nextOta) otaState = nextOta;
     if (nextAuth) authState = nextAuth;
     if (nextWifi) wifiState = nextWifi;
     if (nextWifiAP) wifiAPState = nextWifiAP;
@@ -501,8 +487,6 @@
     if (matter) out.matter = matter;
     const cloud = buildCloud(cloudState);
     if (cloud) out.cloud = cloud;
-    const ota = buildOta(otaState);
-    if (ota) out.ota = ota;
     const auth = buildAuth(authState);
     if (auth) out.auth = auth;
     const wifi = buildWifi(wifiState);
@@ -841,7 +825,6 @@
             <MiscForm
               bind:matter={matterState}
               bind:cloud={cloudState}
-              bind:ota={otaState}
               bind:auth={authState}
               bind:wifi={wifiState}
               bind:ui={uiState}

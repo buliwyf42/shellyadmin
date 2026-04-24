@@ -94,15 +94,6 @@ export type CloudState = {
   open: boolean;
 };
 
-export type OtaState = {
-  enabled: boolean;
-  stageEnabled: boolean;
-  stage: 'stable' | 'beta';
-  autoUpdateEnabled: boolean;
-  autoUpdate: 'off' | 'stable' | 'beta';
-  open: boolean;
-};
-
 export type AuthState = {
   enabled: boolean;
   passEnabled: boolean;

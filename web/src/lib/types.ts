@@ -64,7 +64,6 @@ export interface ComplianceRules {
   sntp_server?: string;
   lat?: number | null;
   lon?: number | null;
-  ota_auto_update?: 'off' | 'stable' | 'beta' | '';
   sys_debug_websocket?: boolean | null;
   sys_debug_udp_host?: string;
   sys_rpc_udp_port?: number | null;

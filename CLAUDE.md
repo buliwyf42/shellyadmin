@@ -42,7 +42,7 @@ The Shelly Gen2 API has **no `OTA.SetConfig` method**. Available OTA methods:
 - `Shelly.Update` — one-shot firmware update (requires `stage` param: `"stable"` or `"beta"`)
 - `Shelly.CheckForUpdate` — check for available updates
 
-The `ota` provisioner section and the `ota_auto_update` compliance rule were **removed in v0.0.14**. The compliance check always fired "unsupported" because `ota.auto_update` is never present in any device config. The `ota` template section still exists in the catch-all handler (calls `OTA.SetConfig` → 404 → gracefully skipped) but is no longer exposed in the Provision form.
+The `ota` provisioner section and the `ota_auto_update` compliance rule were **fully removed in v0.0.16** (the v0.0.14 removal was partial — backend validator, `normalizeOTAPayload`, frontend MiscForm OTA panel, and `ota_auto_update` compliance field all lingered). If an OTA section still appears in a user-supplied JSON template, it falls through to the catch-all handler (calls `Ota.SetConfig` → 404 → gracefully skipped).
 
 ### mqtt.ssl_ca valid values
 The `mqtt.ssl_ca` field only accepts exactly four values:
@@ -92,7 +92,7 @@ Sections in a template JSON map to backend handlers in `applySection()`:
 | `matter` | `Matter.SetConfig` |
 | `wifi` | `Wifi.SetConfig` (full surface: sta, sta1, roam, static IPv4) |
 | `auth` | `Shelly.SetAuth` |
-| `ota` | `OTA.SetConfig` (404 on all devices → skipped; form removed in v0.0.14) |
+| `ota` | catch-all handler; Shelly returns 404 → `skipped` (form + normalizer removed in v0.0.16) |
 | `kvs` | `KVS.Set` per key |
 | `script` | `Script.SetConfig` per id (loop like kvs) |
 | `ui` | `UI.SetConfig` |

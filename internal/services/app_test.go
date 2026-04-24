@@ -37,7 +37,6 @@ func TestValidateSettingsAcceptsExtendedComplianceOptions(t *testing.T) {
 			WSSSLCa:       "ca.pem",
 			BLERPCEnabled: boolPtr(true),
 			BLEObserver:   boolPtr(false),
-			OTAAutoUpdate: "stable",
 			RPCUDPPort:    &port,
 		},
 	})

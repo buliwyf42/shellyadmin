@@ -11,10 +11,11 @@ import (
 	"math"
 	"net/http"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"shellyadmin/internal/util"
 )
 
 type DeviceInfo struct {
@@ -64,7 +65,7 @@ func identify(ctx context.Context, client *http.Client, ip string) (DeviceInfo, 
 		MAC   string `json:"mac"`
 	}
 	_ = json.NewDecoder(resp.Body).Decode(&base)
-	return DeviceInfo{Name: base.Name, Model: base.Model, FW: base.FW, Gen: base.Gen, IP: ip}, firstNonEmpty(base.ID, base.MAC)
+	return DeviceInfo{Name: base.Name, Model: base.Model, FW: base.FW, Gen: base.Gen, IP: ip}, util.FirstNonEmpty(base.ID, base.MAC)
 }
 
 func applySection(ctx context.Context, client *http.Client, ip string, gen int, serial, section string, raw interface{}) SectionResult {
@@ -129,9 +130,6 @@ func applySection(ctx context.Context, client *http.Client, ip string, gen int, 
 			}
 		}
 		return SectionResult{Section: section, Status: "ok", Detail: "scripts configured"}
-	case "ota":
-		config, warning := normalizeOTAPayload(payload)
-		return applyConfigWithWarning(ctx, client, ip, "OTA.SetConfig", config, section, warning)
 	case "auth":
 		pass := fmt.Sprint(payload["pass"])
 		ha1Input := "admin:" + serial + ":" + pass
@@ -152,7 +150,7 @@ func resolvedDeviceName(ctx context.Context, client *http.Client, ip string, inf
 	if name := configuredDeviceName(ctx, client, ip); name != "" {
 		return name
 	}
-	return firstNonEmpty(info.Name, serial, ip)
+	return util.FirstNonEmpty(info.Name, serial, ip)
 }
 
 func configuredDeviceName(ctx context.Context, client *http.Client, ip string) string {
@@ -207,6 +205,7 @@ func normalizeSysPayload(payload map[string]interface{}) (map[string]interface{}
 	debugCfg := map[string]interface{}{}
 	debugWS := map[string]interface{}{}
 	debugUDP := map[string]interface{}{}
+	debugMQTT := map[string]interface{}{}
 	rpcUDP := map[string]interface{}{}
 	var warnings []string
 
@@ -244,6 +243,9 @@ func normalizeSysPayload(payload map[string]interface{}) (map[string]interface{}
 		if udp, ok := debug["udp"].(map[string]interface{}); ok {
 			copyKnownKeys(debugUDP, udp, "addr")
 		}
+		if mqtt, ok := debug["mqtt"].(map[string]interface{}); ok {
+			copyKnownKeys(debugMQTT, mqtt, "enable")
+		}
 	}
 	if legacyDebug, ok := payload["dbg"].(map[string]interface{}); ok {
 		if enabled, ok := legacyDebug["websocket_enable"]; ok && debugWS["enable"] == nil {
@@ -258,6 +260,9 @@ func normalizeSysPayload(payload map[string]interface{}) (map[string]interface{}
 	}
 	if len(debugUDP) > 0 {
 		debugCfg["udp"] = debugUDP
+	}
+	if len(debugMQTT) > 0 {
+		debugCfg["mqtt"] = debugMQTT
 	}
 
 	if nestedRPCUDP, ok := payload["rpc_udp"].(map[string]interface{}); ok {
@@ -331,21 +336,6 @@ func normalizeWSPayload(payload map[string]interface{}) (map[string]interface{},
 	return out, strings.Join(warnings, "; "), nil
 }
 
-func normalizeOTAPayload(payload map[string]interface{}) (map[string]interface{}, string) {
-	if payload == nil {
-		return nil, ""
-	}
-	out := map[string]interface{}{}
-	var warnings []string
-	if auto := strings.TrimSpace(anyString(payload["auto_update"])); auto != "" {
-		out["auto_update"] = auto
-	}
-	if _, ok := payload["stage"]; ok {
-		warnings = append(warnings, "ota.stage unsupported on this device")
-	}
-	return out, strings.Join(warnings, "; ")
-}
-
 func copyKnownKeys(dst, src map[string]interface{}, keys ...string) {
 	for _, key := range keys {
 		if value, ok := src[key]; ok {
@@ -414,7 +404,7 @@ func rpcSection(ctx context.Context, client *http.Client, ip, method string, pay
 		return SectionResult{Section: section, Status: "skipped", Detail: "method not supported by this device"}
 	}
 	if resp.StatusCode >= 400 {
-		return SectionResult{Section: section, Status: "failed", Detail: firstNonEmpty(rpcErrorDetail(body), resp.Status)}
+		return SectionResult{Section: section, Status: "failed", Detail: util.FirstNonEmpty(rpcErrorDetail(body), resp.Status)}
 	}
 
 	var rpcResp struct {
@@ -474,7 +464,7 @@ func rpcErrorValue(raw any) string {
 	case string:
 		return strings.TrimSpace(value)
 	case map[string]any:
-		msg := firstNonEmpty(anyString(value["message"]), anyString(value["msg"]), anyString(value["error"]))
+		msg := util.FirstNonEmpty(anyString(value["message"]), anyString(value["msg"]), anyString(value["error"]))
 		code := anyString(value["code"])
 		if msg != "" && code != "" {
 			return fmt.Sprintf("%s (%s)", msg, code)
@@ -507,12 +497,7 @@ func anyString(raw any) string {
 func substitute(v interface{}, name string) interface{} {
 	switch val := v.(type) {
 	case string:
-		value := strings.ReplaceAll(val, "{device_name}", name)
-		if strings.HasPrefix(value, "${ENV:") && strings.HasSuffix(value, "}") {
-			key := strings.TrimSuffix(strings.TrimPrefix(value, "${ENV:"), "}")
-			return os.Getenv(key)
-		}
-		return value
+		return strings.ReplaceAll(val, "{device_name}", name)
 	case map[string]interface{}:
 		out := map[string]interface{}{}
 		for k, v2 := range val {
@@ -528,13 +513,4 @@ func substitute(v interface{}, name string) interface{} {
 	default:
 		return v
 	}
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if value != "" {
-			return value
-		}
-	}
-	return ""
 }
