@@ -154,7 +154,11 @@ async function fetchBlob(path: string): Promise<Blob> {
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     const message = (err as { error?: string }).error || res.statusText;
-    if (res.status === 401 && typeof window !== 'undefined' && window.location.pathname !== '/login') {
+    if (
+      res.status === 401 &&
+      typeof window !== 'undefined' &&
+      window.location.pathname !== '/login'
+    ) {
       csrfToken = '';
       window.location.assign('/login');
     }
