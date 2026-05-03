@@ -49,14 +49,14 @@ type Device struct {
 	// Live power-monitoring readings, summed across EM/EM1/PM1/Switch
 	// components. Pointer means "device doesn't expose any power telemetry";
 	// zero is a valid reading (e.g. switch off).
-	PowerW   *float64 `json:"power_w"`
-	VoltageV *float64 `json:"voltage_v"`
-	CurrentA *float64 `json:"current_a"`
-	FWStatus           string   `json:"fw_status"`
-	FWAvailableVer     string   `json:"fw_available_ver"`
-	Serial             string   `json:"serial"`
-	Compliant          bool     `json:"compliant"`
-	ComplianceIssues   []string `json:"compliance_issues"`
-	RawConfig          string   `json:"-"`
-	RawStatus          string   `json:"-"`
+	PowerW           *float64 `json:"power_w"`
+	VoltageV         *float64 `json:"voltage_v"`
+	CurrentA         *float64 `json:"current_a"`
+	FWStatus         string   `json:"fw_status"`
+	FWAvailableVer   string   `json:"fw_available_ver"`
+	Serial           string   `json:"serial"`
+	Compliant        bool     `json:"compliant"`
+	ComplianceIssues []string `json:"compliance_issues"`
+	RawConfig        string   `json:"-"`
+	RawStatus        string   `json:"-"`
 }

@@ -17,9 +17,8 @@
   bind:enabled={state.enabled}
 >
   <p class="sa-form-hint">
-    Shelly firmware 2.0.0-beta1 removed the global BLE enable flag — Bluetooth now
-    auto-activates whenever scanning is enabled. Use the toggles below to control
-    the RPC and observer sub-systems.
+    Shelly firmware 2.0.0-beta1 removed the global BLE enable flag — Bluetooth now auto-activates
+    whenever scanning is enabled. Use the toggles below to control the RPC and observer sub-systems.
   </p>
   <div class="sa-form-grid">
     <div data-span="6">

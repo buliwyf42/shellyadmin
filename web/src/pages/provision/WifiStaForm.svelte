@@ -98,7 +98,7 @@
         <input
           class="form-control"
           bind:value={value.hostname}
-          placeholder="{'{device_name}'}"
+          placeholder={'{device_name}'}
           disabled={disabled || !value.hostnameEnabled}
         />
       </FieldRow>

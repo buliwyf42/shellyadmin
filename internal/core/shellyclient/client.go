@@ -41,14 +41,14 @@ const (
 
 // Options configures a Client. Zero values are sensible defaults.
 type Options struct {
-	Timeout       time.Duration
-	Scheme        string    // "http" (default) or "https"
-	TLSPolicy     TLSPolicy // ignored if scheme is http
-	Username      string    // empty disables auth header
-	Password      string    // used to compute HA1 if HA1 is empty
-	HA1           string    // optional precomputed SHA-256 / MD5 HA1
-	AllowUpgrade  bool      // follow http→https 30x redirects and remember the new scheme
-	UserAgent     string    // overrides the default UA
+	Timeout      time.Duration
+	Scheme       string    // "http" (default) or "https"
+	TLSPolicy    TLSPolicy // ignored if scheme is http
+	Username     string    // empty disables auth header
+	Password     string    // used to compute HA1 if HA1 is empty
+	HA1          string    // optional precomputed SHA-256 / MD5 HA1
+	AllowUpgrade bool      // follow http→https 30x redirects and remember the new scheme
+	UserAgent    string    // overrides the default UA
 }
 
 // Client is safe for concurrent use across calls to the same device.
@@ -91,11 +91,10 @@ func New(opts Options) *Client {
 	}
 	transport := &http.Transport{TLSClientConfig: tlsCfg}
 	httpc := &http.Client{Timeout: opts.Timeout, Transport: transport}
-	if !opts.AllowUpgrade {
-		// Without explicit opt-in we leave Go's default redirect behavior alone,
-		// which already follows up to 10 redirects. Devices on 1.x firmware
-		// don't redirect, so this is a no-op there.
-	}
+	// AllowUpgrade is not used here directly: Go's default redirect behavior
+	// already follows up to 10 redirects, which covers the http→https upgrade
+	// case devices emit when enhanced_security is enabled. The flag is kept on
+	// Options for future fine-grained control (e.g. refusing redirects entirely).
 	return &Client{httpc: httpc, opts: opts, scheme: opts.Scheme}
 }
 

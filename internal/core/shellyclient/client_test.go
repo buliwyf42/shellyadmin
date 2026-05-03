@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -199,8 +198,7 @@ func TestRPCContextCancel(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected context error")
 	}
-	var nerr net.Error
-	if !errors.As(err, &nerr) && !errors.Is(err, context.DeadlineExceeded) {
-		// Some test harnesses surface as url.Error wrapping context error; accept either.
-	}
+	// Different transports surface the cancellation differently (net.Error,
+	// url.Error wrapping context.DeadlineExceeded, etc.) — the only thing we
+	// care about is that the call returned promptly with *some* error.
 }

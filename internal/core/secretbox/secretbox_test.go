@@ -87,8 +87,16 @@ func TestOpen_RejectsTamperedCiphertext(t *testing.T) {
 	_ = SetKey(k)
 	blob, _ := SealString("payload")
 
-	// Flip a byte inside the ciphertext portion.
-	idx := len(blob) - 2
+	// Flip a byte deep inside the ciphertext portion, past the last `$`
+	// separator. We avoid the tail of the string because base64 padding bytes
+	// (`=`) and the last "data" char of a padded encoding both have don't-care
+	// bits that decode to identical bytes when the low bit is flipped — that
+	// would be a no-op and the test would flake.
+	sep := strings.LastIndex(blob, "$")
+	if sep < 0 || sep >= len(blob)-2 {
+		t.Fatalf("malformed blob: %q", blob)
+	}
+	idx := sep + 1 + (len(blob)-sep-1)/2
 	tampered := blob[:idx] + string([]byte{blob[idx] ^ 1}) + blob[idx+1:]
 	if _, err := Open(tampered); err == nil {
 		t.Errorf("Open() of tampered blob should fail")
