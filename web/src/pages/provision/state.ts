@@ -559,7 +559,9 @@ export function hydrateBle(record: Record<string, unknown>): HydrateResult<BleSt
     return { ok: false, reason: 'Template ble section contains unsupported fields.' };
   }
   if ('enable' in record) {
-    console.warn('Template contained ble.enable; flag was removed in Shelly firmware 2.0.0-beta1 and is being ignored.');
+    console.warn(
+      'Template contained ble.enable; flag was removed in Shelly firmware 2.0.0-beta1 and is being ignored.',
+    );
   }
   const rpc = record.rpc ? asRecord(record.rpc) : null;
   const observer = record.observer ? asRecord(record.observer) : null;
@@ -813,7 +815,17 @@ export function hydrateWifi(record: Record<string, unknown>): HydrateResult<Wifi
   if (record.roam && !roam)
     return { ok: false, reason: 'Template wifi.roam is not representable in the form.' };
   // 'hostname' is a Shelly firmware 2.0.0-beta1 addition; older firmwares ignore it.
-  const staFields = ['enable', 'ssid', 'pass', 'ipv4mode', 'ip', 'netmask', 'gw', 'nameserver', 'hostname'];
+  const staFields = [
+    'enable',
+    'ssid',
+    'pass',
+    'ipv4mode',
+    'ip',
+    'netmask',
+    'gw',
+    'nameserver',
+    'hostname',
+  ];
   if (sta && !hasOnlyKeys(sta, staFields)) {
     return { ok: false, reason: 'Template wifi.sta section contains unsupported fields.' };
   }

@@ -810,19 +810,19 @@
               ></td
             >{/if}
           {#if $colVis.power_w}<td class="text-end font-monospace"
-              >{#if device.power_w !== null && device.power_w !== undefined}{device.power_w.toFixed(1)}{:else}<span
-                  class="text-secondary">n/a</span
-                >{/if}</td
+              >{#if device.power_w !== null && device.power_w !== undefined}{device.power_w.toFixed(
+                  1,
+                )}{:else}<span class="text-secondary">n/a</span>{/if}</td
             >{/if}
           {#if $colVis.voltage_v}<td class="text-end font-monospace"
-              >{#if device.voltage_v !== null && device.voltage_v !== undefined}{device.voltage_v.toFixed(0)}{:else}<span
-                  class="text-secondary">n/a</span
-                >{/if}</td
+              >{#if device.voltage_v !== null && device.voltage_v !== undefined}{device.voltage_v.toFixed(
+                  0,
+                )}{:else}<span class="text-secondary">n/a</span>{/if}</td
             >{/if}
           {#if $colVis.current_a}<td class="text-end font-monospace"
-              >{#if device.current_a !== null && device.current_a !== undefined}{device.current_a.toFixed(2)}{:else}<span
-                  class="text-secondary">n/a</span
-                >{/if}</td
+              >{#if device.current_a !== null && device.current_a !== undefined}{device.current_a.toFixed(
+                  2,
+                )}{:else}<span class="text-secondary">n/a</span>{/if}</td
             >{/if}
           {#if $colVis.first_seen}<td title={formatDateTime(device.first_seen)}
               >{formatRelativeDateTime(device.first_seen)}</td

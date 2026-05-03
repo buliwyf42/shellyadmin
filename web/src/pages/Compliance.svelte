@@ -944,7 +944,7 @@
                 <FieldRow label="WiFi Hostname" bind:enabled={wifiHostnameEnabled}>
                   <input
                     class="form-control"
-                    placeholder="{'{device_name}'}"
+                    placeholder={'{device_name}'}
                     bind:value={settings.compliance.wifi_hostname}
                     disabled={!wifiHostnameEnabled}
                   />

@@ -37,9 +37,9 @@ func TestExtractPowerReadings_SwitchAndEM(t *testing.T) {
 
 func TestExtractPowerReadings_NoComponents(t *testing.T) {
 	status := map[string]any{
-		"sys":    map[string]any{},
-		"wifi":   map[string]any{"channel": float64(6)},
-		"cloud":  map[string]any{"connected": true},
+		"sys":   map[string]any{},
+		"wifi":  map[string]any{"channel": float64(6)},
+		"cloud": map[string]any{"connected": true},
 	}
 	dev := &models.Device{}
 	extractPowerReadings(status, dev)
