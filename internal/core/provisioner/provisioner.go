@@ -1,22 +1,46 @@
 package provisioner
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
 	"math"
-	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
 
+	"shellyadmin/internal/core/shellyclient"
 	"shellyadmin/internal/util"
 )
+
+// Options carries the per-device configuration used to build a shellyclient.
+// Empty values yield an unauthenticated http client (legacy behaviour).
+type Options struct {
+	Timeout       time.Duration
+	Scheme        string
+	Username      string
+	Password      string
+	HA1           string
+	AllowInsecure bool
+}
+
+func (o Options) toClientOptions() shellyclient.Options {
+	out := shellyclient.Options{
+		Timeout:  o.Timeout,
+		Scheme:   o.Scheme,
+		Username: o.Username,
+		Password: o.Password,
+		HA1:      o.HA1,
+	}
+	if o.AllowInsecure {
+		out.TLSPolicy = shellyclient.TLSSkip
+	}
+	return out
+}
 
 type DeviceInfo struct {
 	Name  string `json:"name"`
@@ -33,8 +57,15 @@ type SectionResult struct {
 	RestartRequired bool   `json:"restart_required,omitempty"`
 }
 
+// ProvisionDevice keeps the original timeout-only signature and is used by
+// callers that don't carry credentials (or run against unauthenticated devices).
 func ProvisionDevice(ctx context.Context, ip string, template map[string]interface{}, timeout time.Duration) (DeviceInfo, []SectionResult) {
-	client := &http.Client{Timeout: timeout}
+	return ProvisionDeviceWithOptions(ctx, ip, template, Options{Timeout: timeout})
+}
+
+// ProvisionDeviceWithOptions threads digest auth + scheme into every RPC.
+func ProvisionDeviceWithOptions(ctx context.Context, ip string, template map[string]interface{}, opts Options) (DeviceInfo, []SectionResult) {
+	client := shellyclient.New(opts.toClientOptions())
 	info, serial := identify(ctx, client, ip)
 	name := resolvedDeviceName(ctx, client, ip, info, serial)
 	if strings.TrimSpace(info.Name) == "" {
@@ -49,26 +80,25 @@ func ProvisionDevice(ctx context.Context, ip string, template map[string]interfa
 	return info, results
 }
 
-func identify(ctx context.Context, client *http.Client, ip string) (DeviceInfo, string) {
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+ip+"/shelly", nil)
-	resp, err := client.Do(req)
+func identify(ctx context.Context, client *shellyclient.Client, ip string) (DeviceInfo, string) {
+	out, err := client.Probe(ctx, ip)
 	if err != nil {
 		return DeviceInfo{IP: ip}, ""
 	}
-	defer resp.Body.Close()
-	var base struct {
-		Name  string `json:"name"`
-		Model string `json:"model"`
-		FW    string `json:"fw"`
-		Gen   int    `json:"gen"`
-		ID    string `json:"id"`
-		MAC   string `json:"mac"`
+	info := DeviceInfo{
+		IP:    ip,
+		Name:  stringField(out, "name"),
+		Model: stringField(out, "model"),
+		FW:    stringField(out, "fw"),
 	}
-	_ = json.NewDecoder(resp.Body).Decode(&base)
-	return DeviceInfo{Name: base.Name, Model: base.Model, FW: base.FW, Gen: base.Gen, IP: ip}, util.FirstNonEmpty(base.ID, base.MAC)
+	if g, ok := out["gen"].(float64); ok {
+		info.Gen = int(g)
+	}
+	serial := util.FirstNonEmpty(stringField(out, "id"), stringField(out, "mac"))
+	return info, serial
 }
 
-func applySection(ctx context.Context, client *http.Client, ip string, gen int, serial, section string, raw interface{}) SectionResult {
+func applySection(ctx context.Context, client *shellyclient.Client, ip string, gen int, serial, section string, raw interface{}) SectionResult {
 	payload, _ := raw.(map[string]interface{})
 	switch strings.ToLower(section) {
 	case "gen2_rpc":
@@ -97,7 +127,10 @@ func applySection(ctx context.Context, client *http.Client, ip string, gen int, 
 		}
 		return applyConfigWithWarning(ctx, client, ip, "WS.SetConfig", config, section, warning)
 	case "ble":
-		return rpcConfigSection(ctx, client, ip, "BLE.SetConfig", payload, section)
+		// FW 2.0.0-beta1 removed the global ble.enable flag; pass-through callers
+		// that still set it would otherwise hit the device's stricter validator.
+		config, warning := normalizeBLEPayload(payload)
+		return applyConfigWithWarning(ctx, client, ip, "BLE.SetConfig", config, section, warning)
 	case "matter":
 		return rpcConfigSection(ctx, client, ip, "Matter.SetConfig", payload, section)
 	case "cloud":
@@ -140,47 +173,129 @@ func applySection(ctx context.Context, client *http.Client, ip string, gen int, 
 			"ha1":   hex.EncodeToString(sum[:]),
 		}
 		return rpcSection(ctx, client, ip, "Shelly.SetAuth", authPayload, section)
+	case "cover":
+		// Explicit cover handler enables compliance/normalization hooks; the
+		// underlying RPC is the same Cover.SetConfig the catch-all would route to.
+		config, warning := normalizeCoverPayload(payload)
+		return applyConfigWithWarning(ctx, client, ip, "Cover.SetConfig", config, section, warning)
+	case "lnm":
+		// FW 2.0.0-beta1 Local Network Messaging. Method name is LNM.SetConfig
+		// (all-caps), which the catch-all's title-case mapping wouldn't produce.
+		return rpcConfigSection(ctx, client, ip, "LNM.SetConfig", payload, section)
+	case "webhooks":
+		// FW 2.0.0-beta1 webhook configuration. Webhooks aren't a typical
+		// SetConfig surface — they're managed via Webhook.Create/Update/Delete
+		// and Webhook.DeleteAll. We accept a small ops-style payload that drives
+		// the underlying RPCs in a deterministic order: delete_all → delete →
+		// update → create.
+		return applyWebhooksSection(ctx, client, ip, payload, section)
 	default:
 		method := strings.ToUpper(section[:1]) + section[1:] + ".SetConfig"
 		return rpcConfigSection(ctx, client, ip, method, payload, section)
 	}
 }
 
-func resolvedDeviceName(ctx context.Context, client *http.Client, ip string, info DeviceInfo, serial string) string {
+// applyWebhooksSection drives Webhook.* RPCs from a single template section.
+// Accepted shape (any subset of these keys):
+//
+//	{
+//	  "delete_all": true,
+//	  "delete":     [<id>, <id>, ...],
+//	  "update":     [{ "id": <id>, ... }, ...],
+//	  "create":     [{ "cid": <comp-id>, "event": "...", "urls": [...] }, ...]
+//	}
+//
+// Ops apply in delete_all → delete → update → create order so a template can
+// declaratively wipe-and-replace the device's webhook set.
+func applyWebhooksSection(ctx context.Context, client *shellyclient.Client, ip string, payload map[string]interface{}, section string) SectionResult {
+	if payload == nil {
+		return SectionResult{Section: section, Status: "skipped", Detail: "empty webhook payload"}
+	}
+	count := 0
+
+	if del, ok := payload["delete_all"].(bool); ok && del {
+		if _, err := client.RPC(ctx, ip, "Webhook.DeleteAll", nil); err != nil {
+			return webhookFailure(section, "delete_all", err)
+		}
+		count++
+	}
+
+	if raw, ok := payload["delete"].([]interface{}); ok {
+		for _, idRaw := range raw {
+			id, ok := numericValue(idRaw)
+			if !ok {
+				return SectionResult{Section: section, Status: "failed", Detail: fmt.Sprintf("delete: id %v is not numeric", idRaw)}
+			}
+			if _, err := client.RPC(ctx, ip, "Webhook.Delete", map[string]any{"id": int(id)}); err != nil {
+				return webhookFailure(section, fmt.Sprintf("delete id=%d", int(id)), err)
+			}
+			count++
+		}
+	}
+
+	if raw, ok := payload["update"].([]interface{}); ok {
+		for _, item := range raw {
+			obj, ok := item.(map[string]interface{})
+			if !ok {
+				return SectionResult{Section: section, Status: "failed", Detail: "update entries must be objects"}
+			}
+			if _, err := client.RPC(ctx, ip, "Webhook.Update", obj); err != nil {
+				return webhookFailure(section, fmt.Sprintf("update %v", obj["id"]), err)
+			}
+			count++
+		}
+	}
+
+	if raw, ok := payload["create"].([]interface{}); ok {
+		for _, item := range raw {
+			obj, ok := item.(map[string]interface{})
+			if !ok {
+				return SectionResult{Section: section, Status: "failed", Detail: "create entries must be objects"}
+			}
+			if _, err := client.RPC(ctx, ip, "Webhook.Create", obj); err != nil {
+				return webhookFailure(section, fmt.Sprintf("create event=%v", obj["event"]), err)
+			}
+			count++
+		}
+	}
+
+	if count == 0 {
+		return SectionResult{Section: section, Status: "skipped", Detail: "no webhook operations specified"}
+	}
+	return SectionResult{Section: section, Status: "ok", Detail: fmt.Sprintf("applied %d webhook operations", count)}
+}
+
+func webhookFailure(section, opLabel string, err error) SectionResult {
+	if shellyclient.IsMethodNotFound(err) {
+		return SectionResult{Section: section, Status: "skipped", Detail: opLabel + ": webhook RPC not supported on this device"}
+	}
+	if errors.Is(err, shellyclient.ErrAuthRequired) {
+		return SectionResult{Section: section, Status: "failed", Detail: opLabel + ": authentication required"}
+	}
+	if errors.Is(err, shellyclient.ErrAuthLockout) {
+		return SectionResult{Section: section, Status: "failed", Detail: opLabel + ": device locked (brute-force protection)"}
+	}
+	return SectionResult{Section: section, Status: "failed", Detail: opLabel + ": " + err.Error()}
+}
+
+func resolvedDeviceName(ctx context.Context, client *shellyclient.Client, ip string, info DeviceInfo, serial string) string {
 	if name := configuredDeviceName(ctx, client, ip); name != "" {
 		return name
 	}
 	return util.FirstNonEmpty(info.Name, serial, ip)
 }
 
-func configuredDeviceName(ctx context.Context, client *http.Client, ip string) string {
-	reqBody := map[string]any{
-		"id":     1,
-		"method": "Shelly.GetConfig",
-	}
-	buf, _ := json.Marshal(reqBody)
-	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, "http://"+ip+"/rpc", bytes.NewReader(buf))
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := client.Do(req)
+func configuredDeviceName(ctx context.Context, client *shellyclient.Client, ip string) string {
+	result, err := client.RPC(ctx, ip, "Shelly.GetConfig", nil)
 	if err != nil {
 		return ""
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 400 {
-		return ""
-	}
-	var payload struct {
-		Result map[string]any `json:"result"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
-		return ""
-	}
-	sys, _ := payload.Result["sys"].(map[string]any)
+	sys, _ := result["sys"].(map[string]any)
 	device, _ := sys["device"].(map[string]any)
 	return strings.TrimSpace(anyString(device["name"]))
 }
 
-func applyConfigWithWarning(ctx context.Context, client *http.Client, ip, method string, payload map[string]interface{}, section, warning string) SectionResult {
+func applyConfigWithWarning(ctx context.Context, client *shellyclient.Client, ip, method string, payload map[string]interface{}, section, warning string) SectionResult {
 	if len(payload) == 0 {
 		if strings.TrimSpace(warning) == "" {
 			return SectionResult{Section: section, Status: "skipped", Detail: "no supported fields to apply"}
@@ -336,6 +451,41 @@ func normalizeWSPayload(payload map[string]interface{}) (map[string]interface{},
 	return out, strings.Join(warnings, "; "), nil
 }
 
+// normalizeBLEPayload strips the global enable flag (removed by FW 2.0.0-beta1
+// — BLE now auto-activates with scanning) while preserving the rest of the
+// payload (rpc, observer, etc.). Saved templates that still set the flag get a
+// warning back so the user can clean them up.
+func normalizeBLEPayload(payload map[string]interface{}) (map[string]interface{}, string) {
+	if payload == nil {
+		return nil, ""
+	}
+	out := map[string]interface{}{}
+	var warning string
+	for key, val := range payload {
+		if strings.EqualFold(key, "enable") {
+			warning = "ble.enable stripped — flag removed in firmware 2.0.0-beta1"
+			continue
+		}
+		out[key] = val
+	}
+	return out, warning
+}
+
+// normalizeCoverPayload validates and forwards Cover.SetConfig fields,
+// including the slat/tilt sub-object introduced by FW 2.0.0-beta1 for
+// venetian-blinds support. Unknown fields pass through so device-specific
+// options stay reachable.
+func normalizeCoverPayload(payload map[string]interface{}) (map[string]interface{}, string) {
+	if payload == nil {
+		return nil, ""
+	}
+	out := map[string]interface{}{}
+	for key, val := range payload {
+		out[key] = val
+	}
+	return out, ""
+}
+
 func copyKnownKeys(dst, src map[string]interface{}, keys ...string) {
 	for _, key := range keys {
 		if value, ok := src[key]; ok {
@@ -379,51 +529,42 @@ func isTLSServerURL(raw string) bool {
 	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(raw)), "wss://")
 }
 
-func rpcConfigSection(ctx context.Context, client *http.Client, ip, method string, payload map[string]interface{}, section string) SectionResult {
+func rpcConfigSection(ctx context.Context, client *shellyclient.Client, ip, method string, payload map[string]interface{}, section string) SectionResult {
 	return rpcSection(ctx, client, ip, method, map[string]interface{}{"config": payload}, section)
 }
 
-func rpcSection(ctx context.Context, client *http.Client, ip, method string, payload map[string]interface{}, section string) SectionResult {
-	reqBody := map[string]any{
-		"id":     1,
-		"method": method,
-		"params": payload,
+func rpcSection(ctx context.Context, client *shellyclient.Client, ip, method string, params map[string]interface{}, section string) SectionResult {
+	result, err := client.RPC(ctx, ip, method, params)
+	if err == nil {
+		restartRequired := false
+		if result != nil {
+			if v, ok := result["restart_required"].(bool); ok {
+				restartRequired = v
+			}
+		}
+		return SectionResult{Section: section, Status: "ok", Detail: method, RestartRequired: restartRequired}
 	}
-	buf, _ := json.Marshal(reqBody)
-	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, "http://"+ip+"/rpc", bytes.NewReader(buf))
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := client.Do(req)
-	if err != nil {
-		return SectionResult{Section: section, Status: "failed", Detail: err.Error()}
-	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode == 404 {
-		// Shelly devices return HTTP 404 when a method/handler is not available on
-		// the specific model. Treat this the same as a JSON-RPC -32601 error.
+	if shellyclient.IsMethodNotFound(err) {
 		return SectionResult{Section: section, Status: "skipped", Detail: "method not supported by this device"}
 	}
-	if resp.StatusCode >= 400 {
-		return SectionResult{Section: section, Status: "failed", Detail: util.FirstNonEmpty(rpcErrorDetail(body), resp.Status)}
+	if errors.Is(err, shellyclient.ErrAuthRequired) {
+		return SectionResult{Section: section, Status: "failed", Detail: "401 Unauthorized"}
 	}
-
-	var rpcResp struct {
-		Error  any `json:"error"`
-		Result struct {
-			RestartRequired bool `json:"restart_required"`
-		} `json:"result"`
+	if errors.Is(err, shellyclient.ErrAuthLockout) {
+		return SectionResult{Section: section, Status: "failed", Detail: "device locked (brute-force protection)"}
 	}
-	if len(body) > 0 {
-		if err := json.Unmarshal(body, &rpcResp); err == nil && rpcResp.Error != nil {
-			if isMethodNotFound(rpcResp.Error) {
-				return SectionResult{Section: section, Status: "skipped", Detail: "method not supported by this device"}
-			}
-			return SectionResult{Section: section, Status: "failed", Detail: rpcErrorValue(rpcResp.Error)}
+	var rpcErr *shellyclient.RPCError
+	if errors.As(err, &rpcErr) {
+		detail := rpcErr.Message()
+		if code := rpcErr.Code(); code != 0 {
+			detail = fmt.Sprintf("%s (%d)", detail, code)
 		}
+		return SectionResult{Section: section, Status: "failed", Detail: detail}
 	}
-	return SectionResult{Section: section, Status: "ok", Detail: method, RestartRequired: rpcResp.Result.RestartRequired}
+	return SectionResult{Section: section, Status: "failed", Detail: err.Error()}
 }
 
+// isMethodNotFound is preserved for back-compat with user_ca.go.
 func isMethodNotFound(raw any) bool {
 	obj, ok := raw.(map[string]any)
 	if !ok {
@@ -492,6 +633,13 @@ func anyString(raw any) string {
 		}
 		return strings.TrimSpace(fmt.Sprint(value))
 	}
+}
+
+func stringField(m map[string]any, key string) string {
+	if s, ok := m[key].(string); ok {
+		return s
+	}
+	return ""
 }
 
 func substitute(v interface{}, name string) interface{} {

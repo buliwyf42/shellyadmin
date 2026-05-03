@@ -146,9 +146,82 @@
                   : 'clear'}</strong
               >
             </div>
+            <div>
+              <span class="text-secondary">Scheme</span><strong class="font-monospace"
+                >{detail.device.scheme || 'http'}</strong
+              >
+            </div>
+            {#if detail.device.enhanced_security !== null && detail.device.enhanced_security !== undefined}
+              <div>
+                <span class="text-secondary">Enhanced Security</span><strong
+                  >{detail.device.enhanced_security ? 'on' : 'off'}</strong
+                >
+              </div>
+            {/if}
+            {#if detail.device.tls_cert_valid !== null && detail.device.tls_cert_valid !== undefined}
+              <div>
+                <span class="text-secondary">TLS Cert</span><strong
+                  >{detail.device.tls_cert_valid ? 'valid' : 'invalid'}</strong
+                >
+              </div>
+            {/if}
+            {#if detail.device.auth_locked_until}
+              <div>
+                <span class="text-secondary">Auth Locked Until</span><strong
+                  title={formatDateTime(detail.device.auth_locked_until)}
+                  >{formatRelativeDateTime(detail.device.auth_locked_until)}</strong
+                >
+              </div>
+            {/if}
+            {#if detail.device.wifi_hostname}
+              <div>
+                <span class="text-secondary">Hostname</span><strong class="font-monospace"
+                  >{detail.device.wifi_hostname}</strong
+                >
+              </div>
+            {/if}
+            {#if detail.device.wifi_channel}
+              <div>
+                <span class="text-secondary">WiFi Channel</span><strong
+                  >{detail.device.wifi_channel}</strong
+                >
+              </div>
+            {/if}
           </div>
         </div>
       </div>
+
+      {#if detail.device.power_w !== null && detail.device.power_w !== undefined}
+        <div class="card bg-dark border-secondary mb-3">
+          <div class="card-body">
+            <h2 class="h5">Live Readings</h2>
+            <div class="detail-grid">
+              <div>
+                <span class="text-secondary">Power</span><strong class="font-monospace"
+                  >{detail.device.power_w?.toFixed(1)} W</strong
+                >
+              </div>
+              {#if detail.device.voltage_v !== null && detail.device.voltage_v !== undefined}
+                <div>
+                  <span class="text-secondary">Voltage</span><strong class="font-monospace"
+                    >{detail.device.voltage_v?.toFixed(1)} V</strong
+                  >
+                </div>
+              {/if}
+              {#if detail.device.current_a !== null && detail.device.current_a !== undefined}
+                <div>
+                  <span class="text-secondary">Current</span><strong class="font-monospace"
+                    >{detail.device.current_a?.toFixed(2)} A</strong
+                  >
+                </div>
+              {/if}
+            </div>
+            <div class="text-secondary mt-2" style="font-size: 0.78rem;">
+              Summed across switch / em / em1 / pm1 components from the most recent snapshot.
+            </div>
+          </div>
+        </div>
+      {/if}
 
       <div class="card bg-dark border-secondary mb-3">
         <div class="card-body">

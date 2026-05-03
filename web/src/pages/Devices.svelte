@@ -306,6 +306,22 @@
         return Number(Boolean(a.eco_mode)) - Number(Boolean(b.eco_mode));
       case 'discoverable':
         return Number(Boolean(a.discoverable)) - Number(Boolean(b.discoverable));
+      case 'scheme':
+        return (a.scheme || '').localeCompare(b.scheme || '');
+      case 'wifi_hostname':
+        return (a.wifi_hostname || '').localeCompare(b.wifi_hostname || '');
+      case 'wifi_channel':
+        return (a.wifi_channel || 0) - (b.wifi_channel || 0);
+      case 'enhanced_security':
+        return Number(Boolean(a.enhanced_security)) - Number(Boolean(b.enhanced_security));
+      case 'tls_cert_valid':
+        return Number(Boolean(a.tls_cert_valid)) - Number(Boolean(b.tls_cert_valid));
+      case 'power_w':
+        return (a.power_w ?? -1) - (b.power_w ?? -1);
+      case 'voltage_v':
+        return (a.voltage_v ?? -1) - (b.voltage_v ?? -1);
+      case 'current_a':
+        return (a.current_a ?? -1) - (b.current_a ?? -1);
       case 'first_seen':
         return (a.first_seen || '').localeCompare(b.first_seen || '');
       case 'last_seen':
@@ -575,6 +591,62 @@
             {sortDir}
             onSort={setSort}
           />{/if}
+        {#if $colVis.scheme}<SortHeader
+            label="Scheme"
+            column="scheme"
+            {sortKey}
+            {sortDir}
+            onSort={setSort}
+          />{/if}
+        {#if $colVis.wifi_hostname}<SortHeader
+            label="Hostname"
+            column="wifi_hostname"
+            {sortKey}
+            {sortDir}
+            onSort={setSort}
+          />{/if}
+        {#if $colVis.wifi_channel}<SortHeader
+            label="WiFi Ch"
+            column="wifi_channel"
+            {sortKey}
+            {sortDir}
+            onSort={setSort}
+          />{/if}
+        {#if $colVis.enhanced_security}<SortHeader
+            label="Enhanced Sec"
+            column="enhanced_security"
+            {sortKey}
+            {sortDir}
+            onSort={setSort}
+          />{/if}
+        {#if $colVis.tls_cert_valid}<SortHeader
+            label="TLS OK"
+            column="tls_cert_valid"
+            {sortKey}
+            {sortDir}
+            onSort={setSort}
+          />{/if}
+        {#if $colVis.power_w}<SortHeader
+            label="Power (W)"
+            column="power_w"
+            {sortKey}
+            {sortDir}
+            onSort={setSort}
+          />{/if}
+        {#if $colVis.voltage_v}<SortHeader
+            label="Voltage (V)"
+            column="voltage_v"
+            {sortKey}
+            {sortDir}
+            onSort={setSort}
+          />{/if}
+        {#if $colVis.current_a}<SortHeader
+            label="Current (A)"
+            column="current_a"
+            {sortKey}
+            {sortDir}
+            onSort={setSort}
+          />{/if}
         {#if $colVis.first_seen}<SortHeader
             label="First Seen"
             column="first_seen"
@@ -715,6 +787,42 @@
               ><span class={`badge ${statusBadgeClass(device.discoverable)}`}
                 >{statusText(device.discoverable)}</span
               ></td
+            >{/if}
+          {#if $colVis.scheme}<td class="font-monospace">{device.scheme || 'http'}</td>{/if}
+          {#if $colVis.wifi_hostname}<td
+              >{#if device.wifi_hostname}{device.wifi_hostname}{:else}<span class="text-secondary"
+                  >n/a</span
+                >{/if}</td
+            >{/if}
+          {#if $colVis.wifi_channel}<td class="text-end"
+              >{#if device.wifi_channel}{device.wifi_channel}{:else}<span class="text-secondary"
+                  >n/a</span
+                >{/if}</td
+            >{/if}
+          {#if $colVis.enhanced_security}<td
+              ><span class={`badge ${statusBadgeClass(device.enhanced_security ?? null)}`}
+                >{statusText(device.enhanced_security ?? null)}</span
+              ></td
+            >{/if}
+          {#if $colVis.tls_cert_valid}<td
+              ><span class={`badge ${statusBadgeClass(device.tls_cert_valid ?? null)}`}
+                >{statusText(device.tls_cert_valid ?? null)}</span
+              ></td
+            >{/if}
+          {#if $colVis.power_w}<td class="text-end font-monospace"
+              >{#if device.power_w !== null && device.power_w !== undefined}{device.power_w.toFixed(1)}{:else}<span
+                  class="text-secondary">n/a</span
+                >{/if}</td
+            >{/if}
+          {#if $colVis.voltage_v}<td class="text-end font-monospace"
+              >{#if device.voltage_v !== null && device.voltage_v !== undefined}{device.voltage_v.toFixed(0)}{:else}<span
+                  class="text-secondary">n/a</span
+                >{/if}</td
+            >{/if}
+          {#if $colVis.current_a}<td class="text-end font-monospace"
+              >{#if device.current_a !== null && device.current_a !== undefined}{device.current_a.toFixed(2)}{:else}<span
+                  class="text-secondary">n/a</span
+                >{/if}</td
             >{/if}
           {#if $colVis.first_seen}<td title={formatDateTime(device.first_seen)}
               >{formatRelativeDateTime(device.first_seen)}</td

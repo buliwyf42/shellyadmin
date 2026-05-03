@@ -69,10 +69,11 @@ export type WsState = {
   open: boolean;
 };
 
+// BleState no longer carries the global enable flag — Shelly firmware 2.0.0-beta1
+// removed `ble.enable` and BLE auto-activates with scanning. We still hydrate
+// older templates by silently dropping the field; see hydrateBle in state.ts.
 export type BleState = {
   enabled: boolean;
-  enableField: boolean;
-  enable: boolean;
   rpcEnabledField: boolean;
   rpcEnabled: boolean;
   observerEnabledField: boolean;
@@ -118,6 +119,9 @@ export type WifiStaEntry = {
   gw: string;
   nameserverEnabled: boolean;
   nameserver: string;
+  // Firmware 2.0.0-beta1: per-device hostname configuration.
+  hostnameEnabled: boolean;
+  hostname: string;
 };
 
 export type WifiRoamState = {

@@ -99,6 +99,12 @@ func Evaluate(dev models.Device, rules models.ComplianceRules) (bool, []string) 
 	compareConfigBool(rules.MatterEnabled, "matter.enable", "matter_enabled")
 	compareConfigBool(rules.ModbusEnabled, "modbus.enable", "modbus_enabled")
 	compareConfigBool(rules.ZigbeeEnabled, "zigbee.enable", "zigbee_enabled")
+	// Firmware 2.0.0-beta1 compliance fields. EnhancedSecurity / TLSCertValid
+	// are skipped when the device hasn't reported the underlying state, so
+	// mixed fleets (1.x + 2.0) don't get false-positive failures.
+	compareBoolPtr(rules.EnhancedSecurity, dev.EnhancedSecurity, "enhanced_security")
+	compareBoolPtr(rules.TLSCertValid, dev.TLSCertValid, "tls_cert_valid")
+	compareString(rules.WiFiHostname, dev.WiFiHostname, "wifi_hostname")
 	evaluateCustomRules(&issues, dev, rules.CustomRules, deviceName)
 
 	return len(issues) == 0, issues
@@ -216,6 +222,16 @@ func resolveDevicePath(dev models.Device, path string) (string, bool) {
 		return anyToString(dev.Lat), dev.Lat != nil
 	case "lon":
 		return anyToString(dev.Lon), dev.Lon != nil
+	case "scheme":
+		return dev.Scheme, dev.Scheme != ""
+	case "enhanced_security":
+		return anyToString(dev.EnhancedSecurity), dev.EnhancedSecurity != nil
+	case "tls_cert_valid":
+		return anyToString(dev.TLSCertValid), dev.TLSCertValid != nil
+	case "wifi_hostname":
+		return dev.WiFiHostname, dev.WiFiHostname != ""
+	case "wifi_channel":
+		return strconv.Itoa(dev.WiFiChannel), dev.WiFiChannel > 0
 	default:
 		return "", false
 	}

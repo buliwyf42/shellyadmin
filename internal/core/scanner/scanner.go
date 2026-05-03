@@ -1,17 +1,16 @@
 package scanner
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
-	"net/http"
 	"net/netip"
 	"strings"
 	"sync"
 	"time"
 
+	"shellyadmin/internal/core/shellyclient"
 	"shellyadmin/internal/models"
 )
 
@@ -19,6 +18,30 @@ import (
 // CIDR. A /22 (1024 addresses) is comfortably above any realistic home or small
 // office LAN and bounds the blast radius if an operator mistypes a subnet.
 const maxScanHosts = 1024
+
+// ProbeOptions configures a single probe. Empty values are sensible defaults.
+type ProbeOptions struct {
+	Timeout       time.Duration
+	Scheme        string // "http" (default) or "https"
+	Username      string
+	Password      string
+	HA1           string
+	AllowInsecure bool // skip TLS cert verification
+}
+
+func (o ProbeOptions) toClientOptions() shellyclient.Options {
+	out := shellyclient.Options{
+		Timeout:  o.Timeout,
+		Scheme:   o.Scheme,
+		Username: o.Username,
+		Password: o.Password,
+		HA1:      o.HA1,
+	}
+	if o.AllowInsecure {
+		out.TLSPolicy = shellyclient.TLSSkip
+	}
+	return out
+}
 
 func ScanSubnets(ctx context.Context, subnets []string, concurrency int, timeout time.Duration, logFn func(level, msg string), progressFn func()) []models.Device {
 	if concurrency <= 0 {
@@ -76,46 +99,38 @@ func ScanSubnets(ctx context.Context, subnets []string, concurrency int, timeout
 	return results
 }
 
+// ProbeDevice retains the original unauthenticated, http-only signature so the
+// scan path (which doesn't yet know which credential matches the device) keeps
+// its behaviour. Refresh paths that have a credential should use
+// ProbeDeviceWithOptions instead.
 func ProbeDevice(ctx context.Context, ip string, timeout time.Duration, logFn func(level, msg string)) *models.Device {
-	client := &http.Client{Timeout: timeout}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+ip+"/shelly", nil)
-	if err != nil {
-		return nil
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		logFn("DEBUG", fmt.Sprintf("[scan] %s unreachable: %v", ip, err))
-		return nil
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 400 {
-		return nil
-	}
+	return ProbeDeviceWithOptions(ctx, ip, ProbeOptions{Timeout: timeout}, logFn)
+}
 
-	var base struct {
-		Gen   int    `json:"gen"`
-		Model string `json:"model"`
-		Type  string `json:"type"`
-		FW    string `json:"fw"`
-		Ver   string `json:"ver"`
-		MAC   string `json:"mac"`
-		Name  string `json:"name"`
-		ID    string `json:"id"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&base); err != nil {
-		return nil
+// ProbeDeviceWithOptions probes via shellyclient.Client so digest auth, TLS,
+// and 429 lockout signalling are handled in one place. The caller is
+// responsible for persisting any scheme upgrade or auth-state change back to
+// the device record using the returned device's Scheme/AuthRequired/AuthLockedUntil
+// fields.
+func ProbeDeviceWithOptions(ctx context.Context, ip string, opts ProbeOptions, logFn func(level, msg string)) *models.Device {
+	client := shellyclient.New(opts.toClientOptions())
+	base, err := client.Probe(ctx, ip)
+	if err != nil {
+		logFn("DEBUG", fmt.Sprintf("[scan] %s probe failed: %v", ip, err))
+		return reportProbeFailure(ip, err)
 	}
 	dev := &models.Device{
 		IP:       ip,
-		MAC:      normalizeMAC(base.MAC),
-		Model:    firstString(base.Model, base.Type),
-		FW:       firstString(base.Ver, base.FW),
-		Gen:      base.Gen,
-		Name:     base.Name,
-		Serial:   base.ID,
+		MAC:      normalizeMAC(stringField(base, "mac")),
+		Model:    firstString(base["model"], base["type"]),
+		FW:       firstString(base["ver"], base["fw"]),
+		Gen:      intField(base, "gen"),
+		Name:     stringField(base, "name"),
+		Serial:   stringField(base, "id"),
 		Online:   true,
 		LastSeen: time.Now().UTC().Format(time.RFC3339),
 		FWStatus: "unknown",
+		Scheme:   client.Scheme(),
 	}
 	if dev.Gen == 0 {
 		dev.Gen = 2
@@ -123,6 +138,38 @@ func ProbeDevice(ctx context.Context, ip string, timeout time.Duration, logFn fu
 	probeGen2(ctx, client, ip, dev, logFn)
 	logFn("DEBUG", fmt.Sprintf("[scan] found %s %s @ %s", dev.Model, dev.MAC, ip))
 	return dev
+}
+
+// reportProbeFailure converts a shellyclient error into a partial device record
+// so the caller can persist auth-required / locked-out state without losing the
+// existing IP. Returns nil when the failure is transient/unknown — callers
+// treat nil as "device unreachable".
+func reportProbeFailure(ip string, err error) *models.Device {
+	switch {
+	case errors.Is(err, shellyclient.ErrAuthRequired):
+		return &models.Device{
+			IP:           ip,
+			Online:       true,
+			AuthRequired: true,
+			AuthError:    "authentication required",
+		}
+	case errors.Is(err, shellyclient.ErrAuthLockout):
+		return &models.Device{
+			IP:              ip,
+			Online:          true,
+			AuthRequired:    true,
+			AuthError:       "device temporarily locked (brute-force protection)",
+			AuthLockedUntil: time.Now().UTC().Add(60 * time.Second).Format(time.RFC3339),
+		}
+	case errors.Is(err, shellyclient.ErrTLSCertInvalid):
+		return &models.Device{
+			IP:           ip,
+			Online:       true,
+			AuthError:    "TLS certificate validation failed",
+			TLSCertValid: boolPtr(false),
+		}
+	}
+	return nil
 }
 
 func ExpandCIDR(cidr string) ([]string, error) {
@@ -174,9 +221,9 @@ func bitsForMaxHosts(max int) int {
 	return bits
 }
 
-func probeGen2(ctx context.Context, client *http.Client, ip string, dev *models.Device, logFn func(level, msg string)) {
-	config := rpcCall(ctx, client, ip, "Shelly.GetConfig", nil)
-	status := rpcCall(ctx, client, ip, "Shelly.GetStatus", nil)
+func probeGen2(ctx context.Context, client *shellyclient.Client, ip string, dev *models.Device, logFn func(level, msg string)) {
+	config, _ := client.RPC(ctx, ip, "Shelly.GetConfig", nil)
+	status, _ := client.RPC(ctx, ip, "Shelly.GetStatus", nil)
 	dev.RawConfig = marshalMap(config)
 	dev.RawStatus = marshalMap(status)
 
@@ -193,6 +240,10 @@ func probeGen2(ctx context.Context, client *http.Client, ip string, dev *models.
 		}
 		if sntp, ok := sys["sntp"].(map[string]any); ok {
 			dev.SNTPServer = firstString(sntp["server"], "")
+		}
+		// FW 2.0.0-beta1: enhanced_security flag flips client-side TLS expectations.
+		if v, ok := sys["enhanced_security"]; ok {
+			dev.EnhancedSecurity = anyBoolPtr(v)
 		}
 	}
 	if mqtt, ok := config["mqtt"].(map[string]any); ok {
@@ -221,6 +272,20 @@ func probeGen2(ctx context.Context, client *http.Client, ip string, dev *models.
 		if sta, ok := wifi["sta"].(map[string]any); ok {
 			dev.WiFiSSID = firstString(sta["ssid"], "")
 		}
+		// FW 2.0.0-beta1 added wifi.ap.hostname and a per-device hostname slot;
+		// take whichever is populated (sta-side wins to match user expectation).
+		if sta, ok := wifi["sta"].(map[string]any); ok {
+			if host := strings.TrimSpace(firstString(sta["hostname"], "")); host != "" {
+				dev.WiFiHostname = host
+			}
+		}
+		if dev.WiFiHostname == "" {
+			if ap, ok := wifi["ap"].(map[string]any); ok {
+				if host := strings.TrimSpace(firstString(ap["hostname"], "")); host != "" {
+					dev.WiFiHostname = host
+				}
+			}
+		}
 	}
 	if cloud, ok := config["cloud"].(map[string]any); ok {
 		dev.CloudEnabled = anyBoolPtr(cloud["enable"])
@@ -237,36 +302,109 @@ func probeGen2(ctx context.Context, client *http.Client, ip string, dev *models.
 	if ws, ok := status["ws"].(map[string]any); ok {
 		dev.WSConnected = anyBool(ws["connected"])
 	}
+	// FW 2.0.0-beta1 surfaces wifi channel in wifi.sta_status (renamed from wifi.sta in some firmwares).
+	if wifi, ok := status["wifi"].(map[string]any); ok {
+		if sta, ok := wifi["sta_status"].(map[string]any); ok {
+			dev.WiFiChannel = intField(sta, "channel")
+		} else if sta, ok := wifi["sta"].(map[string]any); ok {
+			dev.WiFiChannel = intField(sta, "channel")
+		}
+	}
+	extractPowerReadings(status, dev)
 	logFn("DEBUG", fmt.Sprintf("[scan] gen2 probe complete for %s", ip))
 }
 
-func rpcCall(ctx context.Context, client *http.Client, ip, method string, body map[string]any) map[string]any {
-	if body == nil {
-		body = map[string]any{}
+// extractPowerReadings sums power telemetry across every component that
+// reports it: switch:N, em:N (3-phase), em1:N (single-phase), pm1:N. Voltage
+// is reported as the most recent non-zero reading rather than summed (summing
+// volts is meaningless across devices). Components are keyed in the status
+// blob like "switch:0", so we iterate the top-level map.
+func extractPowerReadings(status map[string]any, dev *models.Device) {
+	if len(status) == 0 {
+		return
 	}
-	buf, _ := json.Marshal(body)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://"+ip+"/rpc/"+method, bytes.NewReader(buf))
-	if err != nil {
-		return map[string]any{}
+	var totalW, totalA float64
+	var lastV float64
+	var sawAny bool
+	for key, val := range status {
+		if !isPowerComponent(key) {
+			continue
+		}
+		obj, ok := val.(map[string]any)
+		if !ok {
+			continue
+		}
+		// switch:N / pm1:N / em1:N → apower (W), voltage (V), current (A)
+		if w, ok := numberField(obj, "apower"); ok {
+			totalW += w
+			sawAny = true
+		}
+		if a, ok := numberField(obj, "current"); ok {
+			totalA += a
+			sawAny = true
+		}
+		if v, ok := numberField(obj, "voltage"); ok && v > 0 {
+			lastV = v
+			sawAny = true
+		}
+		// em:N (3-phase) → total_act_power, sum aprt of phases
+		if w, ok := numberField(obj, "total_act_power"); ok {
+			totalW += w
+			sawAny = true
+		}
+		if a, ok := numberField(obj, "total_current"); ok {
+			totalA += a
+			sawAny = true
+		}
+		// em:N also exposes a_voltage / b_voltage / c_voltage; pick the largest non-zero.
+		for _, phaseKey := range []string{"a_voltage", "b_voltage", "c_voltage"} {
+			if v, ok := numberField(obj, phaseKey); ok && v > lastV {
+				lastV = v
+				sawAny = true
+			}
+		}
 	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := client.Do(req)
-	if err != nil {
-		return map[string]any{}
+	if !sawAny {
+		return
 	}
-	defer resp.Body.Close()
-	var out map[string]any
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return map[string]any{}
+	dev.PowerW = floatPtr(totalW)
+	dev.CurrentA = floatPtr(totalA)
+	if lastV > 0 {
+		dev.VoltageV = floatPtr(lastV)
 	}
-	return out
 }
+
+func isPowerComponent(key string) bool {
+	switch {
+	case strings.HasPrefix(key, "switch:"):
+		return true
+	case strings.HasPrefix(key, "em:"):
+		return true
+	case strings.HasPrefix(key, "em1:"):
+		return true
+	case strings.HasPrefix(key, "pm1:"):
+		return true
+	}
+	return false
+}
+
+func numberField(m map[string]any, key string) (float64, bool) {
+	switch v := m[key].(type) {
+	case float64:
+		return v, true
+	case int:
+		return float64(v), true
+	}
+	return 0, false
+}
+
+func floatPtr(v float64) *float64 { return &v }
 
 func marshalMap(data map[string]any) string {
 	if len(data) == 0 {
 		return ""
 	}
-	encoded, err := json.Marshal(data)
+	encoded, err := jsonMarshal(data)
 	if err != nil {
 		return ""
 	}
@@ -339,11 +477,37 @@ func anyFloatPtr(v any) *float64 {
 	}
 }
 
-func firstString(v any, fallback string) string {
+func firstString(v any, fallbackRaw any) string {
 	if s, ok := v.(string); ok && s != "" {
 		return s
 	}
-	return fallback
+	switch fb := fallbackRaw.(type) {
+	case string:
+		return fb
+	case nil:
+		return ""
+	}
+	if s, ok := fallbackRaw.(string); ok {
+		return s
+	}
+	return ""
+}
+
+func stringField(m map[string]any, key string) string {
+	if s, ok := m[key].(string); ok {
+		return s
+	}
+	return ""
+}
+
+func intField(m map[string]any, key string) int {
+	switch v := m[key].(type) {
+	case float64:
+		return int(v)
+	case int:
+		return v
+	}
+	return 0
 }
 
 func flagsCSV(m map[string]any, names ...string) string {
@@ -355,3 +519,5 @@ func flagsCSV(m map[string]any, names ...string) string {
 	}
 	return strings.Join(flags, ",")
 }
+
+func boolPtr(b bool) *bool { return &b }

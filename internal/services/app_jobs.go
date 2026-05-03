@@ -144,7 +144,8 @@ func (s *AppService) runRefreshJob(ctx context.Context, jobID int64, done chan<-
 				}
 				attemptedAt := time.Now().UTC().Format(time.RFC3339)
 				updated := device
-				if found := scanner.ProbeDevice(ctx, device.IP, timeout, s.Log); found != nil {
+				probeOpts := s.scannerProbeOptions(device, timeout)
+				if found := scanner.ProbeDeviceWithOptions(ctx, device.IP, probeOpts, s.Log); found != nil && !found.AuthRequired {
 					found.DeviceNum = device.DeviceNum
 					found.FirstSeen = device.FirstSeen
 					found.LastRefreshAttempt = attemptedAt
@@ -154,7 +155,20 @@ func (s *AppService) runRefreshJob(ctx context.Context, jobID int64, done chan<-
 					found.Online = true
 					found.AuthRequired = false
 					found.AuthError = ""
+					found.AuthLockedUntil = ""
+					found.TLSAllowInsecure = device.TLSAllowInsecure
 					updated = *found
+				} else if found != nil && found.AuthRequired {
+					updated.LastRefreshAttempt = attemptedAt
+					updated.LastRefreshOK = false
+					updated.AuthRequired = true
+					updated.AuthError = found.AuthError
+					if found.AuthLockedUntil != "" {
+						updated.AuthLockedUntil = found.AuthLockedUntil
+					}
+					updated.LastRefreshError = found.AuthError
+					updated.Online = true
+					updated.ConsecutiveMisses = 0
 				} else {
 					updated.LastRefreshAttempt = attemptedAt
 					updated.LastRefreshOK = false
@@ -424,7 +438,7 @@ func (s *AppService) runFirmwareJob(jobID int64, devices []models.Device, stage 
 			}
 			return
 		}
-		result := firmware.CheckOne(s.ctx, device, stage, 5*time.Second)
+		result := firmware.CheckOneWithOptions(s.ctx, device, stage, s.firmwareOptions(device, 5*time.Second))
 		results = append(results, result)
 		body, merr := json.Marshal(FirmwareJobResult{Results: results})
 		if merr != nil {
@@ -500,7 +514,7 @@ func (s *AppService) FirmwareUpdate(ctx context.Context, macs []string, stage st
 			if !allowedSet["mac:"+mac] {
 				continue
 			}
-			results = append(results, firmware.TriggerUpdate(ctx, device.IP, device.Gen, stage, 10*time.Second))
+			results = append(results, firmware.TriggerUpdateWithOptions(ctx, device.IP, device.Gen, stage, s.firmwareOptions(device, 10*time.Second)))
 		}
 	}
 	return results, nil

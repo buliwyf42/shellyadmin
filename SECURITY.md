@@ -10,9 +10,9 @@ Security fixes are best-effort while the project is in active early development.
 
 | Version | Supported |
 | --- | --- |
+| `v0.1.0` | Yes |
 | `v0.0.16` | Yes |
-| `v0.0.15` | Yes |
-| `v0.0.14` | Best effort |
+| `v0.0.15` | Best effort |
 | Older versions | No |
 
 ## Reporting a Vulnerability
@@ -37,6 +37,15 @@ When reporting, include:
 
 ## Hardening notes
 
+- **v0.1.0** — Adapts to Shelly firmware **2.0.0-beta1**. Adds an RFC 7616
+  Digest auth client (replacing bare unauthenticated probes), per-device HTTPS
+  scheme detection with strict TLS-cert-date validation by default (per-device
+  opt-out flag for self-signed certs), and 429 brute-force-lockout signalling
+  so a wrong-credential refresh stops retrying instead of locking the device
+  out for the operator. Strips the removed `ble.enable` flag at provision time
+  to avoid the device's stricter validator. New compliance fields
+  `enhanced_security`, `tls_cert_valid`, `wifi_hostname` are evaluated only on
+  devices that report the underlying state, so 1.x fleets stay green.
 - **v0.0.16** — The undocumented `${ENV:...}` env-var expansion in provisioning
   templates has been removed. It previously let an authenticated admin exfiltrate
   server environment variables (including `SHELLYADMIN_PASS_HASH`,
