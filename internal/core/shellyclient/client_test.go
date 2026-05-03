@@ -163,6 +163,22 @@ func TestRPCMethodNotFound(t *testing.T) {
 	}
 }
 
+// TestProbeRejectsEmptyBody covers the UniFi-class regression where a non-Shelly
+// endpoint answers 200 with no body. Old behaviour created a junk Device; new
+// behaviour returns an error so the scanner can skip the IP cleanly.
+func TestProbeRejectsEmptyBody(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		// No body.
+	}))
+	defer srv.Close()
+	c := New(Options{Timeout: 2 * time.Second})
+	host := extractHostFromTestURL(t, srv.URL)
+	if _, err := c.Probe(context.Background(), host); err == nil {
+		t.Fatal("expected probe to fail on empty body")
+	}
+}
+
 func TestProbeOK(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/shelly" {

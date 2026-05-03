@@ -129,11 +129,17 @@ func (c *Client) Probe(ctx context.Context, ip string) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
+	// An empty 200 body is treated as "this isn't a Shelly device" — many
+	// non-Shelly endpoints (UniFi gear, generic web servers, captive portals)
+	// answer 200 to arbitrary paths with an empty or HTML response. Returning
+	// an error here causes the scanner to skip the IP cleanly. Caller logic
+	// must NOT treat this as a partial-record / auth-required case.
+	if len(body) == 0 {
+		return nil, fmt.Errorf("shellyclient: probe %s returned empty body", ip)
+	}
 	out := map[string]any{}
-	if len(body) > 0 {
-		if err := json.Unmarshal(body, &out); err != nil {
-			return nil, fmt.Errorf("shellyclient: probe %s: invalid json: %w", ip, err)
-		}
+	if err := json.Unmarshal(body, &out); err != nil {
+		return nil, fmt.Errorf("shellyclient: probe %s: invalid json: %w", ip, err)
 	}
 	return out, nil
 }
