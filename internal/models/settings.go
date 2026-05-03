@@ -50,7 +50,13 @@ type ComplianceRules struct {
 	MatterEnabled   *bool        `json:"matter_enabled"`
 	ModbusEnabled   *bool        `json:"modbus_enabled"`
 	ZigbeeEnabled   *bool        `json:"zigbee_enabled"`
-	CustomRules     []CustomRule `json:"custom_rules"`
+	// Firmware 2.0.0-beta1 additions:
+	EnhancedSecurity *bool  `json:"enhanced_security"`
+	TLSCertValid     *bool  `json:"tls_cert_valid"`
+	WiFiHostname     string `json:"wifi_hostname"`
+	BLEPaired        *bool  `json:"ble_paired"`
+	WebhooksConfig   *bool  `json:"webhooks_configured"`
+	CustomRules      []CustomRule `json:"custom_rules"`
 }
 
 type CustomRule struct {
@@ -108,6 +114,7 @@ func (c *ComplianceRules) Normalize() {
 		c.RPCUDPPort = &zero
 	}
 	c.EthIPv4Mode = normalizeEthIPv4Mode(c.EthIPv4Mode)
+	c.WiFiHostname = strings.TrimSpace(c.WiFiHostname)
 }
 
 func normalizeEthIPv4Mode(raw string) string {

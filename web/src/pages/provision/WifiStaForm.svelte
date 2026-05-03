@@ -93,6 +93,16 @@
         />
       </FieldRow>
     </div>
+    <div data-span="4">
+      <FieldRow label="Hostname" bind:enabled={value.hostnameEnabled} {disabled}>
+        <input
+          class="form-control"
+          bind:value={value.hostname}
+          placeholder="{'{device_name}'}"
+          disabled={disabled || !value.hostnameEnabled}
+        />
+      </FieldRow>
+    </div>
   </div>
 </div>
 

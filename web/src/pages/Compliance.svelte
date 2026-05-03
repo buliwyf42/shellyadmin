@@ -91,6 +91,13 @@
   let modbusEnabledField = false;
   let zigbeeEnabledField = false;
 
+  // Firmware 2.0.0-beta1 compliance fields:
+  let enhancedSecurityField = false;
+  let tlsCertValidField = false;
+  let wifiHostnameEnabled = false;
+  let blePairedField = false;
+  let webhooksConfiguredField = false;
+
   let wifiOpen = false;
   let wifiAPOpen = false;
   let ethOpen = false;
@@ -102,6 +109,7 @@
   let matterOpen = false;
   let modbusOpen = false;
   let zigbeeOpen = false;
+  let fw2Open = false;
   let customOpen = false;
 
   $: wifiExpanded = wifiSSIDEnabled;
@@ -134,6 +142,12 @@
   $: zigbeeExpanded = zigbeeEnabledField;
   $: wifiAPExpanded = wifiAPEnabledField || wifiAPIsOpenField;
   $: ethExpanded = ethEnabledField || ethIPv4ModeField;
+  $: fw2Expanded =
+    enhancedSecurityField ||
+    tlsCertValidField ||
+    wifiHostnameEnabled ||
+    blePairedField ||
+    webhooksConfiguredField;
   $: customExpanded = (settings.compliance.custom_rules || []).length > 0;
 
   function captureError(err: unknown) {
@@ -185,6 +199,14 @@
     if (settings.compliance.matter_enabled === undefined) settings.compliance.matter_enabled = null;
     if (settings.compliance.modbus_enabled === undefined) settings.compliance.modbus_enabled = null;
     if (settings.compliance.zigbee_enabled === undefined) settings.compliance.zigbee_enabled = null;
+    // Firmware 2.0.0-beta1 fields:
+    if (settings.compliance.enhanced_security === undefined)
+      settings.compliance.enhanced_security = null;
+    if (settings.compliance.tls_cert_valid === undefined) settings.compliance.tls_cert_valid = null;
+    if (settings.compliance.wifi_hostname === undefined) settings.compliance.wifi_hostname = '';
+    if (settings.compliance.ble_paired === undefined) settings.compliance.ble_paired = null;
+    if (settings.compliance.webhooks_configured === undefined)
+      settings.compliance.webhooks_configured = null;
   }
 
   function initToggles() {
@@ -268,6 +290,20 @@
     zigbeeEnabledField =
       settings.compliance.zigbee_enabled !== null &&
       settings.compliance.zigbee_enabled !== undefined;
+
+    // Firmware 2.0.0-beta1 fields:
+    enhancedSecurityField =
+      settings.compliance.enhanced_security !== null &&
+      settings.compliance.enhanced_security !== undefined;
+    tlsCertValidField =
+      settings.compliance.tls_cert_valid !== null &&
+      settings.compliance.tls_cert_valid !== undefined;
+    wifiHostnameEnabled = Boolean(settings.compliance.wifi_hostname);
+    blePairedField =
+      settings.compliance.ble_paired !== null && settings.compliance.ble_paired !== undefined;
+    webhooksConfiguredField =
+      settings.compliance.webhooks_configured !== null &&
+      settings.compliance.webhooks_configured !== undefined;
   }
 
   function applyTogglesToSettings() {
@@ -370,6 +406,22 @@
       : null;
     settings.compliance.zigbee_enabled = zigbeeEnabledField
       ? Boolean(settings.compliance.zigbee_enabled)
+      : null;
+
+    settings.compliance.enhanced_security = enhancedSecurityField
+      ? Boolean(settings.compliance.enhanced_security)
+      : null;
+    settings.compliance.tls_cert_valid = tlsCertValidField
+      ? Boolean(settings.compliance.tls_cert_valid)
+      : null;
+    settings.compliance.wifi_hostname = wifiHostnameEnabled
+      ? settings.compliance.wifi_hostname || ''
+      : '';
+    settings.compliance.ble_paired = blePairedField
+      ? Boolean(settings.compliance.ble_paired)
+      : null;
+    settings.compliance.webhooks_configured = webhooksConfiguredField
+      ? Boolean(settings.compliance.webhooks_configured)
       : null;
   }
 
@@ -853,6 +905,66 @@
                     bind:checked={settings.compliance.zigbee_enabled}
                     disabled={!zigbeeEnabledField}
                     label={settings.compliance.zigbee_enabled ? 'On' : 'Off'}
+                  />
+                </FieldRow>
+              </div>
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            tag="fw 2.0+"
+            title="Firmware 2.0+ checks"
+            bind:open={fw2Open}
+            forceOpen={fw2Expanded}
+          >
+            <p class="text-secondary mb-2" style="font-size: 0.82rem;">
+              These rules are skipped on devices that don't report the underlying state, so
+              mixed-fleet (1.x + 2.0) compliance won't false-positive.
+            </p>
+            <div class="sa-form-grid">
+              <div data-span="4">
+                <FieldRow label="Enhanced Security" bind:enabled={enhancedSecurityField}>
+                  <Toggle
+                    bind:checked={settings.compliance.enhanced_security}
+                    disabled={!enhancedSecurityField}
+                    label={settings.compliance.enhanced_security ? 'On' : 'Off'}
+                  />
+                </FieldRow>
+              </div>
+              <div data-span="4">
+                <FieldRow label="TLS Certificate Valid" bind:enabled={tlsCertValidField}>
+                  <Toggle
+                    bind:checked={settings.compliance.tls_cert_valid}
+                    disabled={!tlsCertValidField}
+                    label={settings.compliance.tls_cert_valid ? 'Valid' : 'Invalid'}
+                  />
+                </FieldRow>
+              </div>
+              <div data-span="4">
+                <FieldRow label="WiFi Hostname" bind:enabled={wifiHostnameEnabled}>
+                  <input
+                    class="form-control"
+                    placeholder="{'{device_name}'}"
+                    bind:value={settings.compliance.wifi_hostname}
+                    disabled={!wifiHostnameEnabled}
+                  />
+                </FieldRow>
+              </div>
+              <div data-span="4">
+                <FieldRow label="BLE Paired (RPC)" bind:enabled={blePairedField}>
+                  <Toggle
+                    bind:checked={settings.compliance.ble_paired}
+                    disabled={!blePairedField}
+                    label={settings.compliance.ble_paired ? 'Required' : 'Forbidden'}
+                  />
+                </FieldRow>
+              </div>
+              <div data-span="4">
+                <FieldRow label="Webhooks Configured" bind:enabled={webhooksConfiguredField}>
+                  <Toggle
+                    bind:checked={settings.compliance.webhooks_configured}
+                    disabled={!webhooksConfiguredField}
+                    label={settings.compliance.webhooks_configured ? 'Required' : 'Forbidden'}
                   />
                 </FieldRow>
               </div>

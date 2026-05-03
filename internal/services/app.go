@@ -146,7 +146,8 @@ func (s *AppService) RefreshDevice(ctx context.Context, target string) ([]models
 	}
 	timeout := refreshProbeTimeout(settings)
 	attemptedAt := time.Now().UTC().Format(time.RFC3339)
-	probed := scanner.ProbeDevice(ctx, current.IP, timeout, s.Log)
+	opts := s.scannerProbeOptions(*current, timeout)
+	probed := scanner.ProbeDeviceWithOptions(ctx, current.IP, opts, s.Log)
 	if probed == nil {
 		current.LastRefreshAttempt = attemptedAt
 		current.LastRefreshOK = false
@@ -170,6 +171,30 @@ func (s *AppService) RefreshDevice(ctx context.Context, target string) ([]models
 		return s.GetDevices()
 	}
 
+	// Probe may return a partial device (auth-required / locked / TLS-bad)
+	// when the underlying error is recoverable but the full snapshot is not
+	// available. In that case, persist the failure state and keep the
+	// existing rich fields from `current`.
+	if probed.AuthRequired || probed.AuthLockedUntil != "" || (probed.TLSCertValid != nil && !*probed.TLSCertValid) {
+		current.LastRefreshAttempt = attemptedAt
+		current.LastRefreshOK = false
+		current.AuthRequired = probed.AuthRequired
+		current.AuthError = probed.AuthError
+		if probed.AuthLockedUntil != "" {
+			current.AuthLockedUntil = probed.AuthLockedUntil
+		}
+		if probed.TLSCertValid != nil {
+			current.TLSCertValid = probed.TLSCertValid
+		}
+		current.LastRefreshError = probed.AuthError
+		current.Online = true
+		current.ConsecutiveMisses = 0
+		if err := s.db.UpsertDevice(*current); err != nil {
+			return nil, err
+		}
+		return s.GetDevices()
+	}
+
 	probed.DeviceNum = current.DeviceNum
 	probed.FirstSeen = current.FirstSeen
 	probed.LastRefreshAttempt = attemptedAt
@@ -179,6 +204,9 @@ func (s *AppService) RefreshDevice(ctx context.Context, target string) ([]models
 	probed.Online = true
 	probed.AuthRequired = false
 	probed.AuthError = ""
+	probed.AuthLockedUntil = ""
+	// Carry forward operator-set TLS opt-out — it isn't reported by the device.
+	probed.TLSAllowInsecure = current.TLSAllowInsecure
 	if err := s.db.UpsertDevice(*probed); err != nil {
 		return nil, err
 	}
@@ -270,7 +298,10 @@ func (s *AppService) Provision(ctx context.Context, ips []string, template map[s
 		})
 	}
 	for _, ip := range allowed {
-		info, results := provisioner.ProvisionDevice(ctx, ip, template, 10*time.Second)
+		device := ipToDevice[ip]
+		device.IP = ip // ensure populated for fresh devices
+		opts := s.provisionOptions(device, credentialRef, 10*time.Second)
+		info, results := provisioner.ProvisionDeviceWithOptions(ctx, ip, template, opts)
 		authRequired := false
 		authReason := ""
 		for _, section := range results {

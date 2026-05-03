@@ -33,6 +33,19 @@ export interface Device {
   discoverable: boolean | null;
   auth_required: boolean;
   auth_error: string;
+  // Firmware 2.0.0-beta1 additions; older firmware leaves these unset.
+  auth_locked_until?: string;
+  scheme?: string;
+  enhanced_security?: boolean | null;
+  tls_cert_valid?: boolean | null;
+  tls_allow_insecure?: boolean | null;
+  wifi_hostname?: string;
+  wifi_channel?: number;
+  // Live power telemetry (summed across switch/em/em1/pm1 components).
+  // null means the device exposes no power readings; 0 is a real value.
+  power_w?: number | null;
+  voltage_v?: number | null;
+  current_a?: number | null;
   fw_status: string;
   fw_available_ver: string;
   serial: string;
@@ -77,6 +90,12 @@ export interface ComplianceRules {
   matter_enabled?: boolean | null;
   modbus_enabled?: boolean | null;
   zigbee_enabled?: boolean | null;
+  // Firmware 2.0.0-beta1 compliance fields:
+  enhanced_security?: boolean | null;
+  tls_cert_valid?: boolean | null;
+  wifi_hostname?: string;
+  ble_paired?: boolean | null;
+  webhooks_configured?: boolean | null;
   custom_rules?: CustomRule[];
 }
 

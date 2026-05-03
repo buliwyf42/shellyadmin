@@ -6,8 +6,7 @@
 
   export let state: BleState;
 
-  $: expanded =
-    state.enabled || state.enableField || state.rpcEnabledField || state.observerEnabledField;
+  $: expanded = state.enabled || state.rpcEnabledField || state.observerEnabledField;
 </script>
 
 <SectionCard
@@ -17,17 +16,13 @@
   forceOpen={expanded}
   bind:enabled={state.enabled}
 >
+  <p class="sa-form-hint">
+    Shelly firmware 2.0.0-beta1 removed the global BLE enable flag — Bluetooth now
+    auto-activates whenever scanning is enabled. Use the toggles below to control
+    the RPC and observer sub-systems.
+  </p>
   <div class="sa-form-grid">
-    <div data-span="4">
-      <FieldRow label="Enable BLE" bind:enabled={state.enableField} disabled={!state.enabled}>
-        <Toggle
-          bind:checked={state.enable}
-          disabled={!state.enabled || !state.enableField}
-          label={state.enable ? 'On' : 'Off'}
-        />
-      </FieldRow>
-    </div>
-    <div data-span="4">
+    <div data-span="6">
       <FieldRow
         label="Enable RPC over BLE"
         bind:enabled={state.rpcEnabledField}
@@ -40,7 +35,7 @@
         />
       </FieldRow>
     </div>
-    <div data-span="4">
+    <div data-span="6">
       <FieldRow
         label="Observer Mode"
         bind:enabled={state.observerEnabledField}

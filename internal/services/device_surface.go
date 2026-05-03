@@ -152,7 +152,7 @@ func (s *AppService) BulkAction(ctx context.Context, req BulkActionRequest) ([]B
 			results = append(results, BulkActionResult{MAC: device.MAC, IP: device.IP, Status: "skipped", Detail: util.FirstNonEmpty(device.AuthError, "device requires authentication")})
 			continue
 		}
-		success, detail := applyBulkAction(ctx, req, device, timeout)
+		success, detail := applyBulkAction(ctx, req, device, s.setterOptions(device, timeout))
 		status := "failed"
 		if success {
 			status = "ok"
@@ -209,7 +209,7 @@ func (s *AppService) ExecuteDeviceAction(ctx context.Context, target, action str
 		return DeviceActionResult{Action: action, Status: "ok", Detail: "device refreshed"}, nil
 	case "firmware_check":
 		stage := util.FirstNonEmpty(req.Stage, "stable")
-		result := firmware.CheckOne(ctx, detail.Device, stage, 5*time.Second)
+		result := firmware.CheckOneWithOptions(ctx, detail.Device, stage, s.firmwareOptions(detail.Device, 5*time.Second))
 		s.LogCtx(ctx, "INFO", fmt.Sprintf("device action firmware_check target=%s stage=%s status=%s", target, stage, result.Status))
 		return DeviceActionResult{Action: action, Status: "ok", Detail: "firmware check completed", Result: result}, nil
 	case "firmware_update":
@@ -222,11 +222,23 @@ func (s *AppService) ExecuteDeviceAction(ctx context.Context, target, action str
 		return DeviceActionResult{Action: action, Status: "ok", Detail: "firmware update triggered", Result: results}, nil
 	case "reboot":
 		timeout := 5 * time.Second
-		if !setters.Reboot(ctx, detail.Device.IP, timeout) {
+		if !setters.New(s.setterOptions(detail.Device, timeout)).Reboot(ctx, detail.Device.IP) {
 			return DeviceActionResult{Action: action, Status: "failed", Detail: "device did not accept reboot request"}, nil
 		}
 		s.LogCtx(ctx, "INFO", fmt.Sprintf("device action reboot target=%s", target))
 		return DeviceActionResult{Action: action, Status: "ok", Detail: "reboot requested"}, nil
+	case "ble_pair":
+		timeout := 5 * time.Second
+		ok, supported, message := setters.New(s.setterOptions(detail.Device, timeout)).BLEPair(ctx, detail.Device.IP)
+		if !supported {
+			s.LogCtx(ctx, "INFO", fmt.Sprintf("device action ble_pair target=%s status=skipped (unsupported firmware)", target))
+			return DeviceActionResult{Action: action, Status: "skipped", Detail: message}, nil
+		}
+		if !ok {
+			return DeviceActionResult{Action: action, Status: "failed", Detail: message}, nil
+		}
+		s.LogCtx(ctx, "INFO", fmt.Sprintf("device action ble_pair target=%s", target))
+		return DeviceActionResult{Action: action, Status: "ok", Detail: message}, nil
 	default:
 		return DeviceActionResult{}, fmt.Errorf("unsupported action: %s", action)
 	}
@@ -302,6 +314,16 @@ func describeDeviceActions(device models.Device) []DeviceAction {
 			RequiresOnline: true,
 			Reason:         unsupportedReason,
 		},
+		{
+			ID:    "ble_pair",
+			Label: "BLE Pair",
+			Description: "Trigger BLE pairing mode. " +
+				"Requires Shelly firmware 2.0.0-beta1 or newer; older devices report this as unsupported.",
+			Risk:           "low",
+			Supported:      device.Online && !device.AuthRequired,
+			RequiresOnline: true,
+			Reason:         unsupportedReason,
+		},
 	}
 }
 
@@ -330,31 +352,32 @@ func validateBulkAction(req BulkActionRequest) error {
 	return nil
 }
 
-func applyBulkAction(ctx context.Context, req BulkActionRequest, device models.Device, timeout time.Duration) (bool, string) {
+func applyBulkAction(ctx context.Context, req BulkActionRequest, device models.Device, opts setters.Options) (bool, string) {
+	st := setters.New(opts)
 	switch req.Action {
 	case "set_location":
-		ok := setters.SetLocation(ctx, device.IP, req.Lat, req.Lon, timeout)
+		ok := st.SetLocation(ctx, device.IP, req.Lat, req.Lon)
 		return ok, fmt.Sprintf("set location to %.5f, %.5f", req.Lat, req.Lon)
 	case "set_timezone":
-		ok := setters.SetTimezone(ctx, device.IP, req.Value, timeout)
+		ok := st.SetTimezone(ctx, device.IP, req.Value)
 		return ok, fmt.Sprintf("set timezone to %s", req.Value)
 	case "set_mqtt_server":
-		ok := setters.SetMQTTServer(ctx, device.IP, req.Value, timeout)
+		ok := st.SetMQTTServer(ctx, device.IP, req.Value)
 		return ok, fmt.Sprintf("set MQTT server to %s", req.Value)
 	case "set_mqtt_enabled":
-		ok := setters.SetMQTTEnabled(ctx, device.IP, *req.Enabled, timeout)
+		ok := st.SetMQTTEnabled(ctx, device.IP, *req.Enabled)
 		return ok, fmt.Sprintf("set MQTT %s", ternary(*req.Enabled, "enabled", "disabled"))
 	case "set_sntp_server":
-		ok := setters.SetSNTPServer(ctx, device.IP, req.Value, timeout)
+		ok := st.SetSNTPServer(ctx, device.IP, req.Value)
 		return ok, fmt.Sprintf("set SNTP server to %s", req.Value)
 	case "set_cloud_enabled":
-		ok := setters.SetCloudEnabled(ctx, device.IP, *req.Enabled, timeout)
+		ok := st.SetCloudEnabled(ctx, device.IP, *req.Enabled)
 		return ok, fmt.Sprintf("set Cloud %s", ternary(*req.Enabled, "enabled", "disabled"))
 	case "set_ble_enabled":
-		ok := setters.SetBLEEnabled(ctx, device.IP, *req.Enabled, timeout)
+		ok := st.SetBLEEnabled(ctx, device.IP, *req.Enabled)
 		return ok, fmt.Sprintf("set BLE %s", ternary(*req.Enabled, "enabled", "disabled"))
 	case "reboot":
-		ok := setters.Reboot(ctx, device.IP, timeout)
+		ok := st.Reboot(ctx, device.IP)
 		return ok, "rebooted"
 	default:
 		return false, "unsupported action"

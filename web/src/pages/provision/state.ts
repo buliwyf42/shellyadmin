@@ -536,8 +536,6 @@ export function hydrateWs(record: Record<string, unknown>): HydrateResult<WsStat
 export function createBleState(): BleState {
   return {
     enabled: false,
-    enableField: false,
-    enable: true,
     rpcEnabledField: false,
     rpcEnabled: false,
     observerEnabledField: false,
@@ -549,15 +547,19 @@ export function createBleState(): BleState {
 export function buildBle(s: BleState): Record<string, unknown> | null {
   if (!s.enabled) return null;
   const ble: Record<string, unknown> = {};
-  if (s.enableField) ble.enable = s.enable;
   if (s.rpcEnabledField) ble.rpc = { enable: s.rpcEnabled };
   if (s.observerEnabledField) ble.observer = { enable: s.observerEnabled };
   return Object.keys(ble).length > 0 ? ble : null;
 }
 
 export function hydrateBle(record: Record<string, unknown>): HydrateResult<BleState> {
+  // Tolerate `enable` for back-compat with templates saved on older firmware:
+  // the field is silently dropped (firmware 2.0.0-beta1 removed it).
   if (!hasOnlyKeys(record, ['enable', 'rpc', 'observer'])) {
     return { ok: false, reason: 'Template ble section contains unsupported fields.' };
+  }
+  if ('enable' in record) {
+    console.warn('Template contained ble.enable; flag was removed in Shelly firmware 2.0.0-beta1 and is being ignored.');
   }
   const rpc = record.rpc ? asRecord(record.rpc) : null;
   const observer = record.observer ? asRecord(record.observer) : null;
@@ -575,11 +577,6 @@ export function hydrateBle(record: Record<string, unknown>): HydrateResult<BleSt
   }
   const state = createBleState();
   state.enabled = true;
-  const enableValue = boolField(record, 'enable');
-  if (enableValue !== undefined) {
-    state.enableField = true;
-    state.enable = enableValue;
-  }
   const rpcValue = rpc ? boolField(rpc, 'enable') : undefined;
   if (rpcValue !== undefined) {
     state.rpcEnabledField = true;
@@ -694,6 +691,8 @@ function createStaEntry(): WifiStaEntry {
     gw: '',
     nameserverEnabled: false,
     nameserver: '',
+    hostnameEnabled: false,
+    hostname: '',
   };
 }
 
@@ -726,6 +725,7 @@ function buildStaEntry(s: WifiStaEntry): Record<string, unknown> {
     if (s.gwEnabled && s.gw.trim()) sta.gw = s.gw.trim();
     if (s.nameserverEnabled && s.nameserver.trim()) sta.nameserver = s.nameserver.trim();
   }
+  if (s.hostnameEnabled && s.hostname.trim()) sta.hostname = s.hostname.trim();
   return sta;
 }
 
@@ -771,6 +771,11 @@ function hydrateStaEntry(record: Record<string, unknown>): WifiStaEntry {
     entry.nameserverEnabled = true;
     entry.nameserver = nameserver;
   }
+  const hostname = stringField(record, 'hostname');
+  if (hostname !== undefined) {
+    entry.hostnameEnabled = true;
+    entry.hostname = hostname;
+  }
   return entry;
 }
 
@@ -807,7 +812,8 @@ export function hydrateWifi(record: Record<string, unknown>): HydrateResult<Wifi
     return { ok: false, reason: 'Template wifi.sta1 is not representable in the form.' };
   if (record.roam && !roam)
     return { ok: false, reason: 'Template wifi.roam is not representable in the form.' };
-  const staFields = ['enable', 'ssid', 'pass', 'ipv4mode', 'ip', 'netmask', 'gw', 'nameserver'];
+  // 'hostname' is a Shelly firmware 2.0.0-beta1 addition; older firmwares ignore it.
+  const staFields = ['enable', 'ssid', 'pass', 'ipv4mode', 'ip', 'netmask', 'gw', 'nameserver', 'hostname'];
   if (sta && !hasOnlyKeys(sta, staFields)) {
     return { ok: false, reason: 'Template wifi.sta section contains unsupported fields.' };
   }

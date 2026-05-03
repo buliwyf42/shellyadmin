@@ -4,6 +4,79 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-05-03
+
+Adapt ShellyAdmin to Shelly Gen2+ firmware **2.0.0-beta1**. The release adds an
+RFC 7616 Digest auth client, HTTPS scheme handling with per-device TLS policy,
+strips the removed BLE `enable` flag, surfaces new compliance fields
+(enhanced_security, tls_cert_valid, wifi_hostname), and exposes the per-device
+WiFi hostname in the provisioner UI. Includes one schema migration
+(`015_device_fw2_fields.sql`).
+
+### Added
+- **`internal/core/shellyclient`** — unified HTTP/JSON-RPC client used by every
+  device-talking code path (scanner, provisioner, setters, firmware). Implements
+  RFC 7616 Digest auth (SHA-256 with MD5 fallback, qop=auth, nonce-counter
+  reuse), 429 brute-force-lockout signalling via `ErrAuthLockout`, and
+  configurable TLS policy. Old call sites kept their timeout-only signatures via
+  back-compat wrappers; new `*WithOptions` variants thread credentials and
+  scheme through per device.
+- **Device fields** for FW 2.0 state: `Scheme`, `EnhancedSecurity`,
+  `TLSCertValid`, `TLSAllowInsecure`, `AuthLockedUntil`, `WiFiHostname`,
+  `WiFiChannel`. Migration `015_device_fw2_fields.sql` adds the columns;
+  existing rows get `scheme="http"` and null TLS/EnhancedSecurity.
+- **Compliance rules**: `enhanced_security`, `tls_cert_valid`, `wifi_hostname`,
+  `ble_paired`, `webhooks_configured`. Mixed-fleet safe — rules are skipped
+  when the device hasn't reported the underlying state.
+- **Per-device credential lookup** for refresh/firmware/setter paths via the
+  existing credential-group → credential pipeline. Bulk actions now run with
+  the device's assigned credential automatically.
+- **WiFi hostname** field in the provisioner STA form, hydrated from saved
+  templates. Routes through `Wifi.SetConfig`'s native `sta.hostname`.
+- **Cover provisioner section** (`case "cover"`) with normalizer hook for the
+  slat/tilt config introduced for venetian-blinds support.
+- **Cover.GoToTilt setter** for slatted-cover bulk control.
+- **Webhooks provisioner section** (`case "webhooks"`) — declarative
+  delete_all → delete → update → create pipeline driving Webhook.* RPCs.
+  Method-not-found errors on older firmware surface as "skipped" so mixed-fleet
+  templates don't blow up.
+- **LNM provisioner section** (`case "lnm"`) — explicit handler so the
+  all-caps `LNM.SetConfig` method routes correctly (the catch-all would
+  produce `Lnm.SetConfig`).
+- **BLE pair device action** — new per-device action `ble_pair` that calls
+  `BLE.Pair`. Surfaces "skipped" on firmware that doesn't expose the RPC.
+- **Live power telemetry** (Phase C1+C4): scanner extracts `apower`,
+  `voltage`, `current` from switch/em/em1/pm1 status components and sums them
+  into device fields `PowerW`, `VoltageV`, `CurrentA`. Surfaced on the
+  Devices list (sortable columns) and a "Live Readings" card on DeviceDetail.
+- **Compliance UI** for the firmware 2.0 fields — new SectionCard with toggles
+  for `enhanced_security`, `tls_cert_valid`, `wifi_hostname`, `ble_paired`,
+  `webhooks_configured`. Mixed-fleet safe; rules are skipped when the
+  underlying state isn't reported.
+- **Migration `016_device_power_readings.sql`** adds `power_w`, `voltage_v`,
+  `current_a` columns.
+
+### Changed
+- **BLE `enable` flag stripped at provisioning time** with a per-device warning,
+  matching FW 2.0.0-beta1 which removed the flag (BLE auto-activates with
+  scanning). The toggle is removed from the provisioner BLE form; older
+  templates that still set `ble.enable` continue to load with a console warning.
+- **Provisioner / setters / firmware / scanner** route every RPC through
+  `shellyclient.Client` instead of bare `http.Client`. Method-not-found is now
+  detected via the typed `RPCError` rather than ad-hoc body parsing.
+- **Refresh path** distinguishes recoverable failures: `AuthRequired`,
+  `AuthLockedUntil`, and `TLSCertValid=false` partial probes update the
+  device row without flipping it offline.
+
+### Security
+- Authenticated probing means devices behind admin auth (FW 1.x and 2.0+)
+  no longer silently appear offline; we now actually authenticate when a
+  credential is mapped to the device.
+- HTTPS scheme awareness: when a 2.0 device redirects HTTP→HTTPS (with
+  `enhanced_security` enabled), the scheme is remembered and reused on
+  subsequent calls. Per-device `tls_allow_insecure` opt-out for self-signed
+  certs.
+
 ## [0.0.16] - 2026-04-24
 
 Follow-up release after a combined `/review` and `/security-review` of the

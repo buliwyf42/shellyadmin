@@ -39,6 +39,19 @@ type Device struct {
 	Discoverable       *bool    `json:"discoverable"`
 	AuthRequired       bool     `json:"auth_required"`
 	AuthError          string   `json:"auth_error"`
+	AuthLockedUntil    string   `json:"auth_locked_until"`
+	Scheme             string   `json:"scheme"`
+	EnhancedSecurity   *bool    `json:"enhanced_security"`
+	TLSCertValid       *bool    `json:"tls_cert_valid"`
+	TLSAllowInsecure   *bool    `json:"tls_allow_insecure"`
+	WiFiHostname       string   `json:"wifi_hostname"`
+	WiFiChannel        int      `json:"wifi_channel"`
+	// Live power-monitoring readings, summed across EM/EM1/PM1/Switch
+	// components. Pointer means "device doesn't expose any power telemetry";
+	// zero is a valid reading (e.g. switch off).
+	PowerW   *float64 `json:"power_w"`
+	VoltageV *float64 `json:"voltage_v"`
+	CurrentA *float64 `json:"current_a"`
 	FWStatus           string   `json:"fw_status"`
 	FWAvailableVer     string   `json:"fw_available_ver"`
 	Serial             string   `json:"serial"`
