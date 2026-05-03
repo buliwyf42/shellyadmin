@@ -163,6 +163,47 @@ func TestRPCMethodNotFound(t *testing.T) {
 	}
 }
 
+// TestProbeRejectsBasicAuth401 covers the UniFi case directly: UDM Pro and
+// Protect cameras commonly return 401 with WWW-Authenticate: Basic on
+// arbitrary paths. A real Shelly always uses RFC 7616 Digest, so a non-Digest
+// 401 must NOT surface as ErrAuthRequired — that would cause the scanner to
+// persist a partial Device record and the user to see UniFi gear in the
+// scan results.
+func TestProbeRejectsBasicAuth401(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("WWW-Authenticate", `Basic realm="UniFi"`)
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+	c := New(Options{Timeout: 2 * time.Second, Username: "admin", Password: "x"})
+	host := extractHostFromTestURL(t, srv.URL)
+	_, err := c.Probe(context.Background(), host)
+	if err == nil {
+		t.Fatal("expected error on Basic auth 401")
+	}
+	if errors.Is(err, ErrAuthRequired) {
+		t.Errorf("Basic 401 must NOT surface as ErrAuthRequired — was %v", err)
+	}
+}
+
+// TestProbeRejects401WithoutChallenge: 401 with no WWW-Authenticate header
+// at all. Same expectation — not a Shelly, no partial record.
+func TestProbeRejects401WithoutChallenge(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+	c := New(Options{Timeout: 2 * time.Second, Username: "admin", Password: "x"})
+	host := extractHostFromTestURL(t, srv.URL)
+	_, err := c.Probe(context.Background(), host)
+	if err == nil {
+		t.Fatal("expected error on 401 without WWW-Authenticate")
+	}
+	if errors.Is(err, ErrAuthRequired) {
+		t.Errorf("bare 401 must NOT surface as ErrAuthRequired — was %v", err)
+	}
+}
+
 // TestProbeRejectsEmptyBody covers the UniFi-class regression where a non-Shelly
 // endpoint answers 200 with no body. Old behaviour created a junk Device; new
 // behaviour returns an error so the scanner can skip the IP cleanly.

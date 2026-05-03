@@ -276,9 +276,18 @@ func (c *Client) do(ctx context.Context, req *http.Request, ip string) (*http.Re
 	}
 	if resp.StatusCode == http.StatusUnauthorized {
 		// Parse challenge, retry once.
-		challenge := resp.Header.Get("WWW-Authenticate")
+		challenge := strings.TrimSpace(resp.Header.Get("WWW-Authenticate"))
 		resp.Body.Close()
-		if challenge == "" || c.opts.Username == "" {
+		// A 401 without a Digest challenge means the endpoint isn't speaking
+		// Shelly's auth protocol. UniFi gear (UDM, Protect cameras) and other
+		// non-Shelly devices commonly return Basic auth challenges on
+		// arbitrary paths. A real Shelly always uses RFC 7616 Digest, so we
+		// short-circuit with a generic error here — callers that map
+		// ErrAuthRequired to "Shelly needing creds" will not be misled.
+		if !strings.HasPrefix(strings.ToLower(challenge), "digest ") {
+			return nil, fmt.Errorf("shellyclient: %s returned 401 with non-Digest challenge %q (likely not a Shelly device)", ip, challenge)
+		}
+		if c.opts.Username == "" {
 			return c.replay(req, ip, http.StatusUnauthorized)
 		}
 		state, perr := parseDigestChallenge(challenge)
