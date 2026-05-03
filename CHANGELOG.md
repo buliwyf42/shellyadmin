@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-05-03
+
+Second patch fix for the v0.1.0 scanner false-positive issue: v0.1.1
+caught the empty-body and non-Shelly-JSON cases but missed the most
+common UniFi case — UDM Pro / Protect cameras return `401 Unauthorized`
+with `WWW-Authenticate: Basic realm="..."` on `/shelly`. v0.1.1's auth
+handler treated *any* 401 as "Shelly with creds needed" and returned
+`ErrAuthRequired`, which the scanner converted into a partial Device
+record with empty MAC. Even though the MAC primary key dedupes them at
+write time, they still flashed in the live scan-progress UI.
+
+### Fixed
+- **Non-Digest 401 responses no longer surface as `ErrAuthRequired`.**
+  A real Shelly always uses RFC 7616 Digest auth; a 401 with `Basic`,
+  `Bearer`, or no `WWW-Authenticate` challenge means the endpoint isn't
+  Shelly. `shellyclient.do` now returns a generic descriptive error in
+  that case, which `reportProbeFailure` ignores — no partial record
+  created, IP skipped cleanly (`internal/core/shellyclient/client.go`).
+
+### Other fixes
+- **Power-readings voltage was order-dependent (flake).** The
+  `extractPowerReadings` function clobbered `lastV` for switch / pm1 /
+  em1 components but took max for em (3-phase). Go map iteration order
+  is randomized, so `TestExtractPowerReadings_SwitchAndEM` would fail
+  ~50 % of the time. Logic now consistently takes the maximum non-zero
+  voltage across all components (`internal/core/scanner/scanner.go`).
+- Test failure messages now dereference `*float64` pointers so the
+  output reads "VoltageV = 230, want 232" instead of a hex address.
+
 ## [0.1.1] - 2026-05-03
 
 Patch fix for a v0.1.0 scanner regression: non-Shelly endpoints (UniFi

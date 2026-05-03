@@ -326,16 +326,22 @@ func probeGen2(ctx context.Context, client *shellyclient.Client, ip string, dev 
 
 // extractPowerReadings sums power telemetry across every component that
 // reports it: switch:N, em:N (3-phase), em1:N (single-phase), pm1:N. Voltage
-// is reported as the most recent non-zero reading rather than summed (summing
-// volts is meaningless across devices). Components are keyed in the status
-// blob like "switch:0", so we iterate the top-level map.
+// is reported as the maximum non-zero reading across all components and
+// phases — summing volts is meaningless, and "most recent" is non-deterministic
+// because Go map iteration order is randomized. Max is stable and matches
+// what a user would intuitively expect to see in a "live readings" badge.
 func extractPowerReadings(status map[string]any, dev *models.Device) {
 	if len(status) == 0 {
 		return
 	}
 	var totalW, totalA float64
-	var lastV float64
+	var maxV float64
 	var sawAny bool
+	consider := func(v float64) {
+		if v > maxV {
+			maxV = v
+		}
+	}
 	for key, val := range status {
 		if !isPowerComponent(key) {
 			continue
@@ -354,10 +360,10 @@ func extractPowerReadings(status map[string]any, dev *models.Device) {
 			sawAny = true
 		}
 		if v, ok := numberField(obj, "voltage"); ok && v > 0 {
-			lastV = v
+			consider(v)
 			sawAny = true
 		}
-		// em:N (3-phase) → total_act_power, sum aprt of phases
+		// em:N (3-phase) → total_act_power and aggregate current
 		if w, ok := numberField(obj, "total_act_power"); ok {
 			totalW += w
 			sawAny = true
@@ -366,10 +372,10 @@ func extractPowerReadings(status map[string]any, dev *models.Device) {
 			totalA += a
 			sawAny = true
 		}
-		// em:N also exposes a_voltage / b_voltage / c_voltage; pick the largest non-zero.
+		// em:N also exposes a_voltage / b_voltage / c_voltage.
 		for _, phaseKey := range []string{"a_voltage", "b_voltage", "c_voltage"} {
-			if v, ok := numberField(obj, phaseKey); ok && v > lastV {
-				lastV = v
+			if v, ok := numberField(obj, phaseKey); ok && v > 0 {
+				consider(v)
 				sawAny = true
 			}
 		}
@@ -379,8 +385,8 @@ func extractPowerReadings(status map[string]any, dev *models.Device) {
 	}
 	dev.PowerW = floatPtr(totalW)
 	dev.CurrentA = floatPtr(totalA)
-	if lastV > 0 {
-		dev.VoltageV = floatPtr(lastV)
+	if maxV > 0 {
+		dev.VoltageV = floatPtr(maxV)
 	}
 }
 
