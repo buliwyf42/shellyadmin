@@ -119,12 +119,22 @@ func ProbeDeviceWithOptions(ctx context.Context, ip string, opts ProbeOptions, l
 		logFn("DEBUG", fmt.Sprintf("[scan] %s probe failed: %v", ip, err))
 		return reportProbeFailure(ip, err)
 	}
+	// Reject anything that doesn't look like a Shelly /shelly response. Some
+	// non-Shelly endpoints (UniFi UDM, Protect cameras, generic web servers)
+	// answer 200 with a JSON body that doesn't match the Shelly shape — a real
+	// Shelly always reports either a non-empty MAC or a non-zero `gen` field.
+	mac := normalizeMAC(stringField(base, "mac"))
+	gen := intField(base, "gen")
+	if mac == "" && gen == 0 {
+		logFn("DEBUG", fmt.Sprintf("[scan] %s answered /shelly but lacks Shelly markers (no mac, no gen) — skipping", ip))
+		return nil
+	}
 	dev := &models.Device{
 		IP:       ip,
-		MAC:      normalizeMAC(stringField(base, "mac")),
+		MAC:      mac,
 		Model:    firstString(base["model"], base["type"]),
 		FW:       firstString(base["ver"], base["fw"]),
-		Gen:      intField(base, "gen"),
+		Gen:      gen,
 		Name:     stringField(base, "name"),
 		Serial:   stringField(base, "id"),
 		Online:   true,

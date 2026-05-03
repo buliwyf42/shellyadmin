@@ -10,9 +10,9 @@ Security fixes are best-effort while the project is in active early development.
 
 | Version | Supported |
 | --- | --- |
-| `v0.1.0` | Yes |
-| `v0.0.16` | Yes |
-| `v0.0.15` | Best effort |
+| `v0.1.1` | Yes |
+| `v0.1.0` | Best effort (superseded — has scanner false-positive bug) |
+| `v0.0.16` | Best effort |
 | Older versions | No |
 
 ## Reporting a Vulnerability

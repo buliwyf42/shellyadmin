@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-05-03
+
+Patch fix for a v0.1.0 scanner regression: non-Shelly endpoints (UniFi
+UDM Pro / Protect cameras, generic web servers, captive portals) that
+answered `GET /shelly` with `200 OK` and an empty / non-Shelly JSON body
+were being persisted as junk Device records with empty MAC and an
+arbitrary Gen=2 default.
+
+### Fixed
+- **Scanner now rejects non-Shelly responses on `/shelly`.** A real
+  Shelly always reports either a non-empty `mac` or a non-zero `gen`
+  field; without one of those the IP is logged at DEBUG and skipped
+  (`internal/core/scanner/scanner.go`, `internal/core/shellyclient/client.go`).
+- `shellyclient.Probe` now treats an empty 200 body as an error rather
+  than returning an empty map. The pre-v0.1.0 code did this implicitly
+  via `json.Decoder.Decode` returning `io.EOF`; the v0.1.0 rewrite to
+  `io.ReadAll` + `json.Unmarshal` lost that guard.
+
+### Operational note
+Existing junk Device rows (created by v0.1.0 scans before this fix) need
+to be cleaned up manually via the Devices page row-level remove button —
+the migration does not retroactively delete them. A subsequent scan on
+v0.1.1 will not re-create them.
+
 ## [0.1.0] - 2026-05-03
 
 Adapt ShellyAdmin to Shelly Gen2+ firmware **2.0.0-beta1**. The release adds an
