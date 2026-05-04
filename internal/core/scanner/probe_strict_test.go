@@ -107,6 +107,62 @@ func TestProbe_RejectsEmpty200(t *testing.T) {
 	}
 }
 
+// TestProbe_RejectsHTTPSRedirectWithSelfSignedCert covers the UDM Pro Max
+// case: HTTP /shelly returns 301 to https://, and the HTTPS endpoint uses a
+// self-signed cert. Go's default http.Client follows the redirect, the TLS
+// handshake fails, the probe surfaces ErrTLSCertInvalid. In the scan path
+// (KnownMAC empty), this must return nil — we have no Shelly evidence. In
+// the refresh path (KnownMAC set), the partial record is preserved.
+func TestProbe_RejectsHTTPSRedirectWithSelfSignedCert(t *testing.T) {
+	// Set up an HTTPS server with a self-signed cert.
+	httpsSrv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("<html>UDM Pro Max</html>"))
+	}))
+	defer httpsSrv.Close()
+
+	// HTTP server that 301-redirects to the HTTPS server (UDM behaviour).
+	httpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, httpsSrv.URL+r.URL.Path, http.StatusMovedPermanently)
+	}))
+	defer httpSrv.Close()
+
+	ip := httpSrv.Listener.Addr().String()
+
+	// Scan path: KnownMAC empty → must return nil.
+	dev := ProbeDeviceWithOptions(context.Background(), ip, ProbeOptions{Timeout: time.Second}, nopLog)
+	if dev != nil {
+		t.Errorf("scan path: expected nil for self-signed-HTTPS UDM-style target, got %#v", dev)
+	}
+
+	// Refresh path: KnownMAC set → partial record with TLSCertValid=false.
+	dev = ProbeDeviceWithOptions(context.Background(), ip, ProbeOptions{Timeout: time.Second, KnownMAC: "AA:BB:CC:DD:EE:FF"}, nopLog)
+	if dev == nil {
+		t.Fatal("refresh path: expected partial record carrying KnownMAC, got nil")
+	}
+	if dev.MAC != "AA:BB:CC:DD:EE:FF" {
+		t.Errorf("refresh path: MAC = %q, want known mac", dev.MAC)
+	}
+	if dev.TLSCertValid == nil || *dev.TLSCertValid {
+		t.Errorf("refresh path: TLSCertValid should be false")
+	}
+}
+
+// TestProbe_RejectsBasicAuth401 (scanner-side end-to-end) covers UDM Protect:
+// 401 with WWW-Authenticate: Basic. Same scan/refresh contract as the TLS test.
+func TestProbe_RejectsBasicAuth401(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("WWW-Authenticate", `Basic realm="UniFi"`)
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+
+	ip := srv.Listener.Addr().String()
+	if dev := ProbeDeviceWithOptions(context.Background(), ip, ProbeOptions{Timeout: time.Second}, nopLog); dev != nil {
+		t.Errorf("scan path: expected nil for Basic 401 target, got %#v", dev)
+	}
+}
+
 // TestProbe_AcceptsMACOnly confirms that a Gen1 (or Gen0/legacy probe) device
 // that returns mac without gen still creates a Device — gen will default to 2
 // downstream. We explicitly support this path because some early Gen2

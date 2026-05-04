@@ -61,12 +61,15 @@ func allowInsecureForDevice(d models.Device) bool {
 }
 
 // scannerProbeOptions composes a scanner.ProbeOptions for the given device,
-// pulling credentials and TLS policy from persistent state.
+// pulling credentials and TLS policy from persistent state. KnownMAC is
+// populated so recoverable probe failures (auth-required, lockout, TLS-cert
+// invalid) get persisted on the existing device row rather than dropped.
 func (s *AppService) scannerProbeOptions(d models.Device, timeout time.Duration) scanner.ProbeOptions {
 	opts := scanner.ProbeOptions{
 		Timeout:       timeout,
 		Scheme:        schemeForDevice(d),
 		AllowInsecure: allowInsecureForDevice(d),
+		KnownMAC:      d.MAC,
 	}
 	if cred, ok := s.resolveDeviceCredential(d.MAC); ok {
 		opts.Username = cred.Username
