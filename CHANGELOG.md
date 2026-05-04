@@ -4,6 +4,33 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-05-04
+
+Third patch fix for the v0.1.0 scanner false-positive issue. v0.1.1
+caught empty bodies, v0.1.2 caught Basic-auth 401s, and v0.1.3 catches
+the **HTTP→HTTPS redirect to a self-signed cert** path used by UniFi
+UDM Pro Max — the device redirects HTTP `/shelly` to HTTPS, the TLS
+handshake fails on the self-signed cert, and ShellyAdmin was converting
+the resulting `ErrTLSCertInvalid` into a partial Device record. This
+patch generalises the fix so any recoverable probe failure on an
+unknown IP is dropped, not persisted.
+
+### Fixed
+- **Probe failures during scan no longer create partial Device records.**
+  `scanner.ProbeOptions` gained a `KnownMAC` field. When set (refresh
+  path), recoverable failures (auth-required, lockout, TLS-cert-invalid)
+  produce a partial record carrying that MAC so the existing device row
+  stays accurate. When empty (scan-of-unknown-IP path), recoverable
+  failures yield `nil` — without positive Shelly evidence we have
+  nothing to persist (`internal/core/scanner/scanner.go`,
+  `internal/services/app_clients.go`).
+
+### Tests
+Regression coverage for: HTTP→HTTPS redirect to a self-signed cert
+(UDM Pro Max shape), Basic-auth 401 at the scanner layer (both with
+empty `KnownMAC` should yield nil; with non-empty `KnownMAC` should
+yield a partial record).
+
 ## [0.1.2] - 2026-05-03
 
 Second patch fix for the v0.1.0 scanner false-positive issue: v0.1.1

@@ -26,7 +26,8 @@ type ProbeOptions struct {
 	Username      string
 	Password      string
 	HA1           string
-	AllowInsecure bool // skip TLS cert verification
+	AllowInsecure bool   // skip TLS cert verification
+	KnownMAC      string // when set, recoverable failures (auth-required, lockout, TLS-cert-invalid) produce a partial Device record using this MAC so the refresh path can persist the state. When empty (scan path), recoverable failures yield nil — we have no positive Shelly identification, and persisting a partial record would surface non-Shelly LAN gear (UniFi UDM, etc.) in the device list.
 }
 
 func (o ProbeOptions) toClientOptions() shellyclient.Options {
@@ -117,7 +118,7 @@ func ProbeDeviceWithOptions(ctx context.Context, ip string, opts ProbeOptions, l
 	base, err := client.Probe(ctx, ip)
 	if err != nil {
 		logFn("DEBUG", fmt.Sprintf("[scan] %s probe failed: %v", ip, err))
-		return reportProbeFailure(ip, err)
+		return reportProbeFailure(ip, err, opts.KnownMAC)
 	}
 	// Reject anything that doesn't look like a Shelly /shelly response. Some
 	// non-Shelly endpoints (UniFi UDM, Protect cameras, generic web servers)
@@ -151,14 +152,24 @@ func ProbeDeviceWithOptions(ctx context.Context, ip string, opts ProbeOptions, l
 }
 
 // reportProbeFailure converts a shellyclient error into a partial device record
-// so the caller can persist auth-required / locked-out state without losing the
-// existing IP. Returns nil when the failure is transient/unknown — callers
-// treat nil as "device unreachable".
-func reportProbeFailure(ip string, err error) *models.Device {
+// for the refresh-of-known-Shelly path. The caller passes the device's existing
+// MAC so the partial record can carry it forward — this lets the UI surface
+// auth-required / locked-out / TLS-cert-invalid state on the right row.
+//
+// When knownMAC is empty (scan path: probing an unknown IP), we have no
+// positive Shelly identification — the response was an error, not a Shelly
+// /shelly payload — so we return nil. Persisting a partial record without a
+// MAC would surface non-Shelly LAN gear (UniFi UDM with self-signed HTTPS,
+// nginx servers with HTTP Basic auth, etc.) in the device list.
+func reportProbeFailure(ip string, err error, knownMAC string) *models.Device {
+	if knownMAC == "" {
+		return nil
+	}
 	switch {
 	case errors.Is(err, shellyclient.ErrAuthRequired):
 		return &models.Device{
 			IP:           ip,
+			MAC:          knownMAC,
 			Online:       true,
 			AuthRequired: true,
 			AuthError:    "authentication required",
@@ -166,6 +177,7 @@ func reportProbeFailure(ip string, err error) *models.Device {
 	case errors.Is(err, shellyclient.ErrAuthLockout):
 		return &models.Device{
 			IP:              ip,
+			MAC:             knownMAC,
 			Online:          true,
 			AuthRequired:    true,
 			AuthError:       "device temporarily locked (brute-force protection)",
@@ -174,6 +186,7 @@ func reportProbeFailure(ip string, err error) *models.Device {
 	case errors.Is(err, shellyclient.ErrTLSCertInvalid):
 		return &models.Device{
 			IP:           ip,
+			MAC:          knownMAC,
 			Online:       true,
 			AuthError:    "TLS certificate validation failed",
 			TLSCertValid: boolPtr(false),
