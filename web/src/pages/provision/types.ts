@@ -1,7 +1,6 @@
 export type HydrateResult<T> = { ok: true; state: T } | { ok: false; reason: string };
 
 export type SysState = {
-  enabled: boolean;
   nameEnabled: boolean;
   name: string;
   tzEnabled: boolean;
@@ -28,7 +27,6 @@ export type SysState = {
 };
 
 export type MqttState = {
-  enabled: boolean;
   enableField: boolean;
   enable: boolean;
   serverEnabled: boolean;
@@ -57,7 +55,6 @@ export type MqttState = {
 };
 
 export type WsState = {
-  enabled: boolean;
   enableField: boolean;
   enable: boolean;
   serverEnabled: boolean;
@@ -73,7 +70,6 @@ export type WsState = {
 // removed `ble.enable` and BLE auto-activates with scanning. We still hydrate
 // older templates by silently dropping the field; see hydrateBle in state.ts.
 export type BleState = {
-  enabled: boolean;
   rpcEnabledField: boolean;
   rpcEnabled: boolean;
   observerEnabledField: boolean;
@@ -82,21 +78,18 @@ export type BleState = {
 };
 
 export type MatterState = {
-  enabled: boolean;
   enableField: boolean;
   enable: boolean;
   open: boolean;
 };
 
 export type CloudState = {
-  enabled: boolean;
   enableField: boolean;
   enable: boolean;
   open: boolean;
 };
 
 export type AuthState = {
-  enabled: boolean;
   passEnabled: boolean;
   pass: string;
   open: boolean;
@@ -132,7 +125,6 @@ export type WifiRoamState = {
 };
 
 export type WifiState = {
-  enabled: boolean;
   staEnabled: boolean;
   sta: WifiStaEntry;
   sta1Enabled: boolean;
@@ -143,7 +135,6 @@ export type WifiState = {
 };
 
 export type WifiAPState = {
-  enabled: boolean;
   enableField: boolean;
   enable: boolean;
   ssidEnabled: boolean;
@@ -156,21 +147,18 @@ export type WifiAPState = {
 };
 
 export type ModbusState = {
-  enabled: boolean;
   enableField: boolean;
   enable: boolean;
   open: boolean;
 };
 
 export type ZigbeeState = {
-  enabled: boolean;
   enableField: boolean;
   enable: boolean;
   open: boolean;
 };
 
 export type EthState = {
-  enabled: boolean;
   enableField: boolean;
   enable: boolean;
   ipv4ModeEnabled: boolean;
@@ -197,7 +185,6 @@ export type EthState = {
 };
 
 export type UIState = {
-  enabled: boolean;
   idleBrightnessEnabled: boolean;
   idleBrightness: number;
   open: boolean;
@@ -210,7 +197,6 @@ export type ScriptEntry = {
 };
 
 export type ScriptsState = {
-  enabled: boolean;
   scripts: ScriptEntry[];
   open: boolean;
 };

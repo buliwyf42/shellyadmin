@@ -10,8 +10,9 @@ Security fixes are best-effort while the project is in active early development.
 
 | Version | Supported |
 | --- | --- |
-| `v0.1.3` | Yes |
-| `v0.1.2` | Best effort (superseded — partial false-positive fix only) |
+| `v0.1.4` | Yes |
+| `v0.1.3` | Best effort |
+| `v0.1.2` | No (scanner false-positive bug — upgrade) |
 | `v0.1.1` | No (scanner false-positive bug — upgrade) |
 | `v0.1.0` | No (scanner false-positive bug — upgrade) |
 | `v0.0.16` | Best effort |

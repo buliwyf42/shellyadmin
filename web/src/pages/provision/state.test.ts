@@ -25,13 +25,11 @@ describe('buildSys', () => {
 
   it('returns null when enabled but no fields toggled', () => {
     const state = createSysState();
-    state.enabled = true;
     expect(buildSys(state)).toBeNull();
   });
 
   it('builds device.name when nameEnabled', () => {
     const state = createSysState();
-    state.enabled = true;
     state.nameEnabled = true;
     state.name = 'shelly-{device_name}';
     const built = buildSys(state);
@@ -40,7 +38,6 @@ describe('buildSys', () => {
 
   it('builds sntp.server when sntpEnabled', () => {
     const state = createSysState();
-    state.enabled = true;
     state.sntpEnabled = true;
     state.sntp = 'time.cloudflare.com';
     expect(buildSys(state)).toEqual({ sntp: { server: 'time.cloudflare.com' } });
@@ -48,7 +45,6 @@ describe('buildSys', () => {
 
   it('builds nested debug.websocket.enable when debugWSEnabled', () => {
     const state = createSysState();
-    state.enabled = true;
     state.debugWSEnabled = true;
     state.debugWS = true;
     expect(buildSys(state)).toEqual({ debug: { websocket: { enable: true } } });

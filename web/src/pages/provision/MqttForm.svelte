@@ -9,7 +9,6 @@
   export let state: MqttState;
 
   $: expanded =
-    state.enabled ||
     state.enableField ||
     state.serverEnabled ||
     state.clientIDEnabled ||
@@ -24,140 +23,102 @@
     state.useClientCertEnabled;
 </script>
 
-<SectionCard
-  tag="mqtt"
-  title="MQTT Broker"
-  bind:open={state.open}
-  forceOpen={expanded}
-  bind:enabled={state.enabled}
->
+<SectionCard tag="mqtt" title="MQTT Broker" bind:open={state.open} forceOpen={expanded}>
   <div class="sa-form-grid">
     <div data-span="6">
-      <FieldRow label="Enable MQTT" bind:enabled={state.enableField} disabled={!state.enabled}>
+      <FieldRow label="Enable MQTT" bind:enabled={state.enableField}>
         <Toggle
           bind:checked={state.enable}
-          disabled={!state.enabled || !state.enableField}
+          disabled={!state.enableField}
           label={state.enable ? 'On' : 'Off'}
         />
       </FieldRow>
     </div>
     <div data-span="6">
-      <FieldRow label="Broker" bind:enabled={state.serverEnabled} disabled={!state.enabled}>
-        <input
-          class="form-control"
-          bind:value={state.server}
-          disabled={!state.enabled || !state.serverEnabled}
-        />
+      <FieldRow label="Broker" bind:enabled={state.serverEnabled}>
+        <input class="form-control" bind:value={state.server} disabled={!state.serverEnabled} />
       </FieldRow>
     </div>
     <div data-span="6">
-      <FieldRow label="Client ID" bind:enabled={state.clientIDEnabled} disabled={!state.enabled}>
-        <input
-          class="form-control"
-          bind:value={state.clientID}
-          disabled={!state.enabled || !state.clientIDEnabled}
-        />
+      <FieldRow label="Client ID" bind:enabled={state.clientIDEnabled}>
+        <input class="form-control" bind:value={state.clientID} disabled={!state.clientIDEnabled} />
       </FieldRow>
     </div>
     <div data-span="6">
-      <FieldRow
-        label="Topic Prefix"
-        bind:enabled={state.topicPrefixEnabled}
-        disabled={!state.enabled}
-      >
+      <FieldRow label="Topic Prefix" bind:enabled={state.topicPrefixEnabled}>
         <input
           class="form-control"
           bind:value={state.topicPrefix}
-          disabled={!state.enabled || !state.topicPrefixEnabled}
+          disabled={!state.topicPrefixEnabled}
         />
       </FieldRow>
     </div>
     <div data-span="4">
-      <FieldRow label="Username" bind:enabled={state.userEnabled} disabled={!state.enabled}>
-        <input
-          class="form-control"
-          bind:value={state.user}
-          disabled={!state.enabled || !state.userEnabled}
-        />
+      <FieldRow label="Username" bind:enabled={state.userEnabled}>
+        <input class="form-control" bind:value={state.user} disabled={!state.userEnabled} />
       </FieldRow>
     </div>
     <div data-span="4">
-      <FieldRow label="Password" bind:enabled={state.passEnabled} disabled={!state.enabled}>
+      <FieldRow label="Password" bind:enabled={state.passEnabled}>
         <input
           class="form-control"
           type="password"
           bind:value={state.pass}
-          disabled={!state.enabled || !state.passEnabled}
+          disabled={!state.passEnabled}
         />
       </FieldRow>
     </div>
     <div data-span="4">
-      <FieldRow label="SSL CA" bind:enabled={state.sslCAEnabled} disabled={!state.enabled}>
+      <FieldRow label="SSL CA" bind:enabled={state.sslCAEnabled}>
         <Select
           bind:value={state.sslCA}
           options={sslCAOptions}
-          disabled={!state.enabled || !state.sslCAEnabled}
+          disabled={!state.sslCAEnabled}
           ariaLabel="SSL CA"
         />
       </FieldRow>
     </div>
     <div data-span="3">
-      <FieldRow
-        label="RPC notifications"
-        bind:enabled={state.rpcNtfEnabled}
-        disabled={!state.enabled}
-      >
+      <FieldRow label="RPC notifications" bind:enabled={state.rpcNtfEnabled}>
         <Toggle
           bind:checked={state.rpcNtf}
-          disabled={!state.enabled || !state.rpcNtfEnabled}
+          disabled={!state.rpcNtfEnabled}
           label={state.rpcNtf ? 'On' : 'Off'}
         />
       </FieldRow>
     </div>
     <div data-span="3">
-      <FieldRow
-        label="Status updates"
-        bind:enabled={state.statusNtfEnabled}
-        disabled={!state.enabled}
-      >
+      <FieldRow label="Status updates" bind:enabled={state.statusNtfEnabled}>
         <Toggle
           bind:checked={state.statusNtf}
-          disabled={!state.enabled || !state.statusNtfEnabled}
+          disabled={!state.statusNtfEnabled}
           label={state.statusNtf ? 'On' : 'Off'}
         />
       </FieldRow>
     </div>
     <div data-span="3">
-      <FieldRow label="Enable RPC" bind:enabled={state.enableRPCEnabled} disabled={!state.enabled}>
+      <FieldRow label="Enable RPC" bind:enabled={state.enableRPCEnabled}>
         <Toggle
           bind:checked={state.enableRPC}
-          disabled={!state.enabled || !state.enableRPCEnabled}
+          disabled={!state.enableRPCEnabled}
           label={state.enableRPC ? 'On' : 'Off'}
         />
       </FieldRow>
     </div>
     <div data-span="3">
-      <FieldRow
-        label="Enable control"
-        bind:enabled={state.enableControlEnabled}
-        disabled={!state.enabled}
-      >
+      <FieldRow label="Enable control" bind:enabled={state.enableControlEnabled}>
         <Toggle
           bind:checked={state.enableControl}
-          disabled={!state.enabled || !state.enableControlEnabled}
+          disabled={!state.enableControlEnabled}
           label={state.enableControl ? 'On' : 'Off'}
         />
       </FieldRow>
     </div>
     <div data-span="4">
-      <FieldRow
-        label="Use Client Certificate"
-        bind:enabled={state.useClientCertEnabled}
-        disabled={!state.enabled}
-      >
+      <FieldRow label="Use Client Certificate" bind:enabled={state.useClientCertEnabled}>
         <Toggle
           bind:checked={state.useClientCert}
-          disabled={!state.enabled || !state.useClientCertEnabled}
+          disabled={!state.useClientCertEnabled}
           label={state.useClientCert ? 'On' : 'Off'}
         />
       </FieldRow>

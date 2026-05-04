@@ -6,22 +6,16 @@
 
   export let state: ModbusState;
 
-  $: expanded = state.enabled || state.enableField;
+  $: expanded = state.enableField;
 </script>
 
-<SectionCard
-  tag="modbus"
-  title="Modbus-TCP (Pro only)"
-  bind:open={state.open}
-  forceOpen={expanded}
-  bind:enabled={state.enabled}
->
+<SectionCard tag="modbus" title="Modbus-TCP (Pro only)" bind:open={state.open} forceOpen={expanded}>
   <div class="sa-form-grid">
     <div data-span="4">
-      <FieldRow label="Enable Modbus" bind:enabled={state.enableField} disabled={!state.enabled}>
+      <FieldRow label="Enable Modbus" bind:enabled={state.enableField}>
         <Toggle
           bind:checked={state.enable}
-          disabled={!state.enabled || !state.enableField}
+          disabled={!state.enableField}
           label={state.enable ? 'On' : 'Off'}
         />
       </FieldRow>

@@ -18,7 +18,6 @@
   ];
 
   $: expanded =
-    state.enabled ||
     state.enableField ||
     state.ipv4ModeEnabled ||
     state.ipEnabled ||
@@ -26,33 +25,27 @@
     state.gwEnabled ||
     state.nameserverEnabled ||
     state.ipv6Enabled;
-  $: staticDisabled = !state.enabled || state.ipv4Mode !== 'static';
-  $: ipv6FieldsDisabled = !state.enabled || !state.ipv6Enabled;
+  $: staticDisabled = state.ipv4Mode !== 'static';
+  $: ipv6FieldsDisabled = !state.ipv6Enabled;
 </script>
 
-<SectionCard
-  tag="eth"
-  title="Ethernet (Pro/Plus only)"
-  bind:open={state.open}
-  forceOpen={expanded}
-  bind:enabled={state.enabled}
->
+<SectionCard tag="eth" title="Ethernet (Pro/Plus only)" bind:open={state.open} forceOpen={expanded}>
   <div class="sa-form-grid">
     <div data-span="4">
-      <FieldRow label="Enable Eth" bind:enabled={state.enableField} disabled={!state.enabled}>
+      <FieldRow label="Enable Eth" bind:enabled={state.enableField}>
         <Toggle
           bind:checked={state.enable}
-          disabled={!state.enabled || !state.enableField}
+          disabled={!state.enableField}
           label={state.enable ? 'On' : 'Off'}
         />
       </FieldRow>
     </div>
     <div data-span="4">
-      <FieldRow label="IPv4 Mode" bind:enabled={state.ipv4ModeEnabled} disabled={!state.enabled}>
+      <FieldRow label="IPv4 Mode" bind:enabled={state.ipv4ModeEnabled}>
         <Select
           bind:value={state.ipv4Mode}
           options={ipv4ModeOptions}
-          disabled={!state.enabled || !state.ipv4ModeEnabled}
+          disabled={!state.ipv4ModeEnabled}
           ariaLabel="IPv4 Mode"
         />
       </FieldRow>
@@ -98,14 +91,14 @@
   <div class="sa-eth-ipv6">
     <div class="sa-eth-ipv6-heading">
       <label class="sa-eth-ipv6-toggle">
-        <input type="checkbox" bind:checked={state.ipv6Enabled} disabled={!state.enabled} />
+        <input type="checkbox" bind:checked={state.ipv6Enabled} />
         Configure IPv6
       </label>
     </div>
     {#if state.ipv6Enabled}
       <div class="sa-form-grid">
         <div data-span="4">
-          <FieldRow label="IPv6 Mode" disabled={ipv6FieldsDisabled}>
+          <FieldRow label="IPv6 Mode" enabled={state.ipv6Enabled} disabled={ipv6FieldsDisabled}>
             <Select
               bind:value={state.ipv6Mode}
               options={ipv6ModeOptions}
