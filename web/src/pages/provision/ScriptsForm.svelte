@@ -5,7 +5,7 @@
 
   export let state: ScriptsState;
 
-  $: expanded = state.enabled || state.scripts.length > 0;
+  $: expanded = state.scripts.length > 0;
 
   function addScript() {
     const nextId =
@@ -13,22 +13,14 @@
         ? String(Math.max(...state.scripts.map((s) => parseInt(s.id) || 0)) + 1)
         : '1';
     state.scripts = [...state.scripts, { id: nextId, name: '', enable: true }];
-    state.enabled = true;
   }
 
   function removeScript(index: number) {
     state.scripts = state.scripts.filter((_, i) => i !== index);
-    if (state.scripts.length === 0) state.enabled = false;
   }
 </script>
 
-<SectionCard
-  tag="script"
-  title="Scripts"
-  bind:open={state.open}
-  forceOpen={expanded}
-  bind:enabled={state.enabled}
->
+<SectionCard tag="script" title="Scripts" bind:open={state.open} forceOpen={expanded}>
   <div class="sa-scripts-notice">
     Script source code (Script.PutCode) is not yet supported — configure name and enable state only.
   </div>
@@ -51,7 +43,6 @@
                 <input
                   class="form-control form-control-sm sa-scripts-id"
                   bind:value={entry.id}
-                  disabled={!state.enabled}
                   aria-label="Script ID"
                 />
               </td>
@@ -59,23 +50,17 @@
                 <input
                   class="form-control form-control-sm"
                   bind:value={entry.name}
-                  disabled={!state.enabled}
                   placeholder="script name"
                   aria-label="Script name"
                 />
               </td>
               <td class="sa-scripts-toggle-cell">
-                <Toggle
-                  bind:checked={entry.enable}
-                  disabled={!state.enabled}
-                  label={entry.enable ? 'On' : 'Off'}
-                />
+                <Toggle bind:checked={entry.enable} label={entry.enable ? 'On' : 'Off'} />
               </td>
               <td>
                 <button
                   class="btn btn-sm btn-outline-danger"
                   on:click={() => removeScript(i)}
-                  disabled={!state.enabled}
                   aria-label="Remove script">×</button
                 >
               </td>

@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-05-04
+
+UX: remove the section-level "enable section" checkbox from every form on
+the Provision page. Now matches the Compliance page behaviour — sections
+auto-expand whenever any inner field toggle is on. Fixes the long-standing
+confusion where ticking the section header then ticking inner toggles made
+the section feel impossible to collapse.
+
+### Changed
+- **`SectionCard` `enabled` prop is no longer passed by Provision forms**
+  (Sys, Mqtt, Ws, Ble, Matter, Cloud, Auth, Wifi (and sta/sta1/roam),
+  WifiAP, Modbus, Zigbee, Eth, UI, Scripts). The `enabled: boolean` field
+  was removed from each State type, and the `if (!s.enabled) return null`
+  early-return in every `build*` function was dropped — sections are
+  emitted whenever they have at least one inner field set, exactly the
+  same logic that already gated each individual field.
+- **Inner-field `disabled={!state.enabled || ...}` guards removed.** Each
+  inner FieldRow / Toggle / input now disables purely on its own
+  `*Enabled` flag.
+- **Hydration no longer sets `state.enabled = true`** when a saved
+  template loads — the inner fields determine visibility.
+
+### Operational note
+Saved templates continue to load correctly. The on-wire JSON shape is
+identical to v0.1.3 for sections that have ≥ 1 field set; sections that
+were "enabled but empty" in v0.1.3 (which sent `{}` to the device, a no-op
+in practice) are now omitted entirely.
+
 ## [0.1.3] - 2026-05-04
 
 Third patch fix for the v0.1.0 scanner false-positive issue. v0.1.1

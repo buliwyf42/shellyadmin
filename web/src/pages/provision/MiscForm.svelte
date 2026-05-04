@@ -13,17 +13,16 @@
   export let wifi: WifiState;
   export let ui: UIState;
 
-  $: matterExpanded = matter.enabled || matter.enableField;
-  $: cloudExpanded = cloud.enabled || cloud.enableField;
-  $: authExpanded = auth.enabled || auth.passEnabled;
+  $: matterExpanded = matter.enableField;
+  $: cloudExpanded = cloud.enableField;
+  $: authExpanded = auth.passEnabled;
   $: wifiExpanded =
-    wifi.enabled ||
     wifi.staEnabled ||
     wifi.sta.ssidEnabled ||
     wifi.sta.passEnabled ||
     wifi.sta1Enabled ||
     wifi.roamEnabled;
-  $: uiExpanded = ui.enabled || ui.idleBrightnessEnabled;
+  $: uiExpanded = ui.idleBrightnessEnabled;
 </script>
 
 <SectionCard
@@ -31,14 +30,13 @@
   title="Matter (Gen 2+)"
   bind:open={matter.open}
   forceOpen={matterExpanded}
-  bind:enabled={matter.enabled}
 >
   <div class="sa-form-grid">
     <div data-span="4">
-      <FieldRow label="Enable Matter" bind:enabled={matter.enableField} disabled={!matter.enabled}>
+      <FieldRow label="Enable Matter" bind:enabled={matter.enableField}>
         <Toggle
           bind:checked={matter.enable}
-          disabled={!matter.enabled || !matter.enableField}
+          disabled={!matter.enableField}
           label={matter.enable ? 'On' : 'Off'}
         />
       </FieldRow>
@@ -46,19 +44,13 @@
   </div>
 </SectionCard>
 
-<SectionCard
-  tag="cloud"
-  title="Shelly Cloud"
-  bind:open={cloud.open}
-  forceOpen={cloudExpanded}
-  bind:enabled={cloud.enabled}
->
+<SectionCard tag="cloud" title="Shelly Cloud" bind:open={cloud.open} forceOpen={cloudExpanded}>
   <div class="sa-form-grid">
     <div data-span="4">
-      <FieldRow label="Enable Cloud" bind:enabled={cloud.enableField} disabled={!cloud.enabled}>
+      <FieldRow label="Enable Cloud" bind:enabled={cloud.enableField}>
         <Toggle
           bind:checked={cloud.enable}
-          disabled={!cloud.enabled || !cloud.enableField}
+          disabled={!cloud.enableField}
           label={cloud.enable ? 'On' : 'Off'}
         />
       </FieldRow>
@@ -71,16 +63,15 @@
   title="Set Device Password (Gen 2+)"
   bind:open={auth.open}
   forceOpen={authExpanded}
-  bind:enabled={auth.enabled}
 >
   <div class="sa-form-grid">
     <div data-span="6">
-      <FieldRow label="Password" bind:enabled={auth.passEnabled} disabled={!auth.enabled}>
+      <FieldRow label="Password" bind:enabled={auth.passEnabled}>
         <input
           class="form-control"
           type="password"
           bind:value={auth.pass}
-          disabled={!auth.enabled || !auth.passEnabled}
+          disabled={!auth.passEnabled}
         />
       </FieldRow>
     </div>
@@ -89,43 +80,25 @@
 
 <UIConfigForm bind:state={ui} />
 
-<SectionCard
-  tag="wifi"
-  title="WiFi STA"
-  bind:open={wifi.open}
-  forceOpen={wifiExpanded}
-  bind:enabled={wifi.enabled}
->
+<SectionCard tag="wifi" title="WiFi STA" bind:open={wifi.open} forceOpen={wifiExpanded}>
   <div class="sa-form-grid">
     <div data-span="4">
-      <FieldRow
-        label="Configure primary STA"
-        bind:enabled={wifi.staEnabled}
-        disabled={!wifi.enabled}
-      />
+      <FieldRow label="Configure primary STA" bind:enabled={wifi.staEnabled} />
     </div>
     <div data-span="4">
-      <FieldRow
-        label="Configure secondary STA (STA1)"
-        bind:enabled={wifi.sta1Enabled}
-        disabled={!wifi.enabled}
-      />
+      <FieldRow label="Configure secondary STA (STA1)" bind:enabled={wifi.sta1Enabled} />
     </div>
     <div data-span="4">
-      <FieldRow
-        label="Configure roaming"
-        bind:enabled={wifi.roamEnabled}
-        disabled={!wifi.enabled}
-      />
+      <FieldRow label="Configure roaming" bind:enabled={wifi.roamEnabled} />
     </div>
   </div>
   {#if wifi.staEnabled}
-    <WifiStaForm label="Primary STA" bind:value={wifi.sta} disabled={!wifi.enabled} />
+    <WifiStaForm label="Primary STA" bind:value={wifi.sta} />
   {/if}
   {#if wifi.sta1Enabled}
-    <WifiStaForm label="Secondary STA (STA1)" bind:value={wifi.sta1} disabled={!wifi.enabled} />
+    <WifiStaForm label="Secondary STA (STA1)" bind:value={wifi.sta1} />
   {/if}
   {#if wifi.roamEnabled}
-    <WifiRoamForm bind:value={wifi.roam} disabled={!wifi.enabled} />
+    <WifiRoamForm bind:value={wifi.roam} />
   {/if}
 </SectionCard>

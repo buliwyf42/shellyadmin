@@ -72,7 +72,6 @@ function inferWSTLSMode(
 
 export function createSysState(): SysState {
   return {
-    enabled: false,
     nameEnabled: false,
     name: '{device_name}',
     tzEnabled: false,
@@ -100,7 +99,6 @@ export function createSysState(): SysState {
 }
 
 export function buildSys(s: SysState): Record<string, unknown> | null {
-  if (!s.enabled) return null;
   const sys: Record<string, unknown> = {};
   const deviceCfg: Record<string, unknown> = {};
   const location: Record<string, unknown> = {};
@@ -220,7 +218,6 @@ export function hydrateSys(record: Record<string, unknown>): HydrateResult<SysSt
   }
 
   const state = createSysState();
-  state.enabled = true;
   const topName = stringField(record, 'name');
   const nestedName = device ? stringField(device, 'name') : undefined;
   if (topName !== undefined || nestedName !== undefined) {
@@ -320,7 +317,6 @@ export function hydrateSys(record: Record<string, unknown>): HydrateResult<SysSt
 
 export function createMqttState(): MqttState {
   return {
-    enabled: false,
     enableField: false,
     enable: true,
     serverEnabled: false,
@@ -350,7 +346,6 @@ export function createMqttState(): MqttState {
 }
 
 export function buildMqtt(s: MqttState): Record<string, unknown> | null {
-  if (!s.enabled) return null;
   const mqtt: Record<string, unknown> = {};
   if (s.enableField) mqtt.enable = s.enable;
   if (s.serverEnabled) mqtt.server = s.server;
@@ -400,7 +395,6 @@ export function hydrateMqtt(record: Record<string, unknown>): HydrateResult<Mqtt
     };
   }
   const state = createMqttState();
-  state.enabled = true;
   const enableValue = boolField(record, 'enable');
   if (enableValue !== undefined) {
     state.enableField = true;
@@ -468,7 +462,6 @@ export function hydrateMqtt(record: Record<string, unknown>): HydrateResult<Mqtt
 
 export function createWsState(): WsState {
   return {
-    enabled: false,
     enableField: false,
     enable: true,
     serverEnabled: false,
@@ -482,7 +475,6 @@ export function createWsState(): WsState {
 }
 
 export function buildWs(s: WsState): Record<string, unknown> | null {
-  if (!s.enabled) return null;
   const ws: Record<string, unknown> = {};
   if (s.enableField) ws.enable = s.enable;
   if (s.serverEnabled) ws.server = s.server;
@@ -507,7 +499,6 @@ export function hydrateWs(record: Record<string, unknown>): HydrateResult<WsStat
     return { ok: false, reason: 'Template ws tls_mode is not representable in the form.' };
   }
   const state = createWsState();
-  state.enabled = true;
   const enableValue = boolField(record, 'enable');
   if (enableValue !== undefined) {
     state.enableField = true;
@@ -535,7 +526,6 @@ export function hydrateWs(record: Record<string, unknown>): HydrateResult<WsStat
 
 export function createBleState(): BleState {
   return {
-    enabled: false,
     rpcEnabledField: false,
     rpcEnabled: false,
     observerEnabledField: false,
@@ -545,7 +535,6 @@ export function createBleState(): BleState {
 }
 
 export function buildBle(s: BleState): Record<string, unknown> | null {
-  if (!s.enabled) return null;
   const ble: Record<string, unknown> = {};
   if (s.rpcEnabledField) ble.rpc = { enable: s.rpcEnabled };
   if (s.observerEnabledField) ble.observer = { enable: s.observerEnabled };
@@ -578,7 +567,6 @@ export function hydrateBle(record: Record<string, unknown>): HydrateResult<BleSt
     return { ok: false, reason: 'Template ble.observer section contains unsupported fields.' };
   }
   const state = createBleState();
-  state.enabled = true;
   const rpcValue = rpc ? boolField(rpc, 'enable') : undefined;
   if (rpcValue !== undefined) {
     state.rpcEnabledField = true;
@@ -595,11 +583,10 @@ export function hydrateBle(record: Record<string, unknown>): HydrateResult<BleSt
 // --- matter ---
 
 export function createMatterState(): MatterState {
-  return { enabled: false, enableField: false, enable: true, open: false };
+  return { enableField: false, enable: true, open: false };
 }
 
 export function buildMatter(s: MatterState): Record<string, unknown> | null {
-  if (!s.enabled) return null;
   const matter: Record<string, unknown> = {};
   if (s.enableField) matter.enable = s.enable;
   return Object.keys(matter).length > 0 ? matter : null;
@@ -610,7 +597,6 @@ export function hydrateMatter(record: Record<string, unknown>): HydrateResult<Ma
     return { ok: false, reason: 'Template matter section contains unsupported fields.' };
   }
   const state = createMatterState();
-  state.enabled = true;
   const enableValue = boolField(record, 'enable');
   if (enableValue !== undefined) {
     state.enableField = true;
@@ -622,11 +608,10 @@ export function hydrateMatter(record: Record<string, unknown>): HydrateResult<Ma
 // --- cloud ---
 
 export function createCloudState(): CloudState {
-  return { enabled: false, enableField: false, enable: true, open: false };
+  return { enableField: false, enable: true, open: false };
 }
 
 export function buildCloud(s: CloudState): Record<string, unknown> | null {
-  if (!s.enabled) return null;
   const cloud: Record<string, unknown> = {};
   if (s.enableField) cloud.enable = s.enable;
   return Object.keys(cloud).length > 0 ? cloud : null;
@@ -637,7 +622,6 @@ export function hydrateCloud(record: Record<string, unknown>): HydrateResult<Clo
     return { ok: false, reason: 'Template cloud section contains unsupported fields.' };
   }
   const state = createCloudState();
-  state.enabled = true;
   const enableValue = boolField(record, 'enable');
   if (enableValue !== undefined) {
     state.enableField = true;
@@ -649,11 +633,10 @@ export function hydrateCloud(record: Record<string, unknown>): HydrateResult<Clo
 // --- auth ---
 
 export function createAuthState(): AuthState {
-  return { enabled: false, passEnabled: false, pass: '', open: false };
+  return { passEnabled: false, pass: '', open: false };
 }
 
 export function buildAuth(s: AuthState): Record<string, unknown> | null {
-  if (!s.enabled) return null;
   const auth: Record<string, unknown> = {};
   if (s.passEnabled) auth.pass = s.pass;
   return Object.keys(auth).length > 0 ? auth : null;
@@ -664,7 +647,6 @@ export function hydrateAuth(record: Record<string, unknown>): HydrateResult<Auth
     return { ok: false, reason: 'Template auth section contains unsupported fields.' };
   }
   const state = createAuthState();
-  state.enabled = true;
   const passValue = stringField(record, 'pass');
   if (passValue !== undefined) {
     state.passEnabled = true;
@@ -704,7 +686,6 @@ function createRoamState(): WifiRoamState {
 
 export function createWifiState(): WifiState {
   return {
-    enabled: false,
     staEnabled: false,
     sta: createStaEntry(),
     sta1Enabled: false,
@@ -782,7 +763,6 @@ function hydrateStaEntry(record: Record<string, unknown>): WifiStaEntry {
 }
 
 export function buildWifi(s: WifiState): Record<string, unknown> | null {
-  if (!s.enabled) return null;
   const wifi: Record<string, unknown> = {};
   if (s.staEnabled) {
     const sta = buildStaEntry(s.sta);
@@ -836,7 +816,6 @@ export function hydrateWifi(record: Record<string, unknown>): HydrateResult<Wifi
     return { ok: false, reason: 'Template wifi.roam section contains unsupported fields.' };
   }
   const state = createWifiState();
-  state.enabled = true;
   if (sta) {
     state.staEnabled = true;
     state.sta = hydrateStaEntry(sta);
@@ -865,7 +844,6 @@ export function hydrateWifi(record: Record<string, unknown>): HydrateResult<Wifi
 
 export function createWifiAPState(): WifiAPState {
   return {
-    enabled: false,
     enableField: false,
     enable: false,
     ssidEnabled: false,
@@ -879,7 +857,6 @@ export function createWifiAPState(): WifiAPState {
 }
 
 export function buildWifiAP(s: WifiAPState): Record<string, unknown> | null {
-  if (!s.enabled) return null;
   const ap: Record<string, unknown> = {};
   if (s.enableField) ap.enable = s.enable;
   if (s.ssidEnabled) ap.ssid = s.ssid;
@@ -898,7 +875,6 @@ export function hydrateWifiAP(record: Record<string, unknown>): HydrateResult<Wi
   }
   const state = createWifiAPState();
   if (!ap) return { ok: true, state };
-  state.enabled = true;
   const enableValue = boolField(ap, 'enable');
   if (enableValue !== undefined) {
     state.enableField = true;
@@ -926,7 +902,6 @@ export function hydrateWifiAP(record: Record<string, unknown>): HydrateResult<Wi
 
 export function createEthState(): EthState {
   return {
-    enabled: false,
     enableField: false,
     enable: true,
     ipv4ModeEnabled: false,
@@ -954,7 +929,6 @@ export function createEthState(): EthState {
 }
 
 export function buildEth(s: EthState): Record<string, unknown> | null {
-  if (!s.enabled) return null;
   const eth: Record<string, unknown> = {};
   if (s.enableField) eth.enable = s.enable;
   if (s.ipv4ModeEnabled) eth.ipv4mode = s.ipv4Mode;
@@ -1000,7 +974,6 @@ export function hydrateEth(record: Record<string, unknown>): HydrateResult<EthSt
     return { ok: false, reason: 'Template eth ipv6mode is not representable in the form.' };
   }
   const state = createEthState();
-  state.enabled = true;
   const enableValue = boolField(record, 'enable');
   if (enableValue !== undefined) {
     state.enableField = true;
@@ -1064,11 +1037,10 @@ export function hydrateEth(record: Record<string, unknown>): HydrateResult<EthSt
 // --- modbus ---
 
 export function createModbusState(): ModbusState {
-  return { enabled: false, enableField: false, enable: false, open: false };
+  return { enableField: false, enable: false, open: false };
 }
 
 export function buildModbus(s: ModbusState): Record<string, unknown> | null {
-  if (!s.enabled) return null;
   const modbus: Record<string, unknown> = {};
   if (s.enableField) modbus.enable = s.enable;
   return Object.keys(modbus).length > 0 ? modbus : null;
@@ -1079,7 +1051,6 @@ export function hydrateModbus(record: Record<string, unknown>): HydrateResult<Mo
     return { ok: false, reason: 'Template modbus section contains unsupported fields.' };
   }
   const state = createModbusState();
-  state.enabled = true;
   const enableValue = boolField(record, 'enable');
   if (enableValue !== undefined) {
     state.enableField = true;
@@ -1091,11 +1062,10 @@ export function hydrateModbus(record: Record<string, unknown>): HydrateResult<Mo
 // --- zigbee ---
 
 export function createZigbeeState(): ZigbeeState {
-  return { enabled: false, enableField: false, enable: false, open: false };
+  return { enableField: false, enable: false, open: false };
 }
 
 export function buildZigbee(s: ZigbeeState): Record<string, unknown> | null {
-  if (!s.enabled) return null;
   const zigbee: Record<string, unknown> = {};
   if (s.enableField) zigbee.enable = s.enable;
   return Object.keys(zigbee).length > 0 ? zigbee : null;
@@ -1106,7 +1076,6 @@ export function hydrateZigbee(record: Record<string, unknown>): HydrateResult<Zi
     return { ok: false, reason: 'Template zigbee section contains unsupported fields.' };
   }
   const state = createZigbeeState();
-  state.enabled = true;
   const enableValue = boolField(record, 'enable');
   if (enableValue !== undefined) {
     state.enableField = true;
@@ -1118,11 +1087,10 @@ export function hydrateZigbee(record: Record<string, unknown>): HydrateResult<Zi
 // --- ui ---
 
 export function createUIState(): UIState {
-  return { enabled: false, idleBrightnessEnabled: false, idleBrightness: 30, open: false };
+  return { idleBrightnessEnabled: false, idleBrightness: 30, open: false };
 }
 
 export function buildUI(s: UIState): Record<string, unknown> | null {
-  if (!s.enabled) return null;
   const ui: Record<string, unknown> = {};
   if (s.idleBrightnessEnabled) ui.idle_brightness = s.idleBrightness;
   return Object.keys(ui).length > 0 ? ui : null;
@@ -1133,7 +1101,6 @@ export function hydrateUI(record: Record<string, unknown>): HydrateResult<UIStat
     return { ok: false, reason: 'Template ui section contains unsupported fields.' };
   }
   const state = createUIState();
-  state.enabled = true;
   const brightness = numberField(record, 'idle_brightness');
   if (brightness !== undefined) {
     state.idleBrightnessEnabled = true;
@@ -1145,11 +1112,11 @@ export function hydrateUI(record: Record<string, unknown>): HydrateResult<UIStat
 // --- script ---
 
 export function createScriptsState(): ScriptsState {
-  return { enabled: false, scripts: [], open: false };
+  return { scripts: [], open: false };
 }
 
 export function buildScripts(s: ScriptsState): Record<string, unknown> | null {
-  if (!s.enabled || s.scripts.length === 0) return null;
+  if (s.scripts.length === 0) return null;
   const out: Record<string, unknown> = {};
   for (const entry of s.scripts) {
     if (entry.id.trim() === '') continue;
@@ -1175,5 +1142,5 @@ export function hydrateScripts(record: Record<string, unknown>): HydrateResult<S
     const enable = boolField(cfg, 'enable') ?? true;
     scripts.push({ id: key, name, enable });
   }
-  return { ok: true, state: { enabled: true, scripts, open: false } };
+  return { ok: true, state: { scripts, open: false } };
 }

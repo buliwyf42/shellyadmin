@@ -16,59 +16,41 @@
   ];
 
   $: expanded =
-    state.enabled ||
-    state.enableField ||
-    state.serverEnabled ||
-    state.tlsModeEnabled ||
-    state.sslCAEnabled;
+    state.enableField || state.serverEnabled || state.tlsModeEnabled || state.sslCAEnabled;
 </script>
 
-<SectionCard
-  tag="ws"
-  title="WebSocket (Gen 2+)"
-  bind:open={state.open}
-  forceOpen={expanded}
-  bind:enabled={state.enabled}
->
+<SectionCard tag="ws" title="WebSocket (Gen 2+)" bind:open={state.open} forceOpen={expanded}>
   <div class="sa-form-grid">
     <div data-span="4">
-      <FieldRow label="Enable WebSocket" bind:enabled={state.enableField} disabled={!state.enabled}>
+      <FieldRow label="Enable WebSocket" bind:enabled={state.enableField}>
         <Toggle
           bind:checked={state.enable}
-          disabled={!state.enabled || !state.enableField}
+          disabled={!state.enableField}
           label={state.enable ? 'On' : 'Off'}
         />
       </FieldRow>
     </div>
     <div data-span="4">
-      <FieldRow label="Server URL" bind:enabled={state.serverEnabled} disabled={!state.enabled}>
-        <input
-          class="form-control"
-          bind:value={state.server}
-          disabled={!state.enabled || !state.serverEnabled}
-        />
+      <FieldRow label="Server URL" bind:enabled={state.serverEnabled}>
+        <input class="form-control" bind:value={state.server} disabled={!state.serverEnabled} />
       </FieldRow>
     </div>
     <div data-span="4">
-      <FieldRow
-        label="Connection type"
-        bind:enabled={state.tlsModeEnabled}
-        disabled={!state.enabled}
-      >
+      <FieldRow label="Connection type" bind:enabled={state.tlsModeEnabled}>
         <Select
           bind:value={state.tlsMode}
           options={tlsModeOptions}
-          disabled={!state.enabled || !state.tlsModeEnabled}
+          disabled={!state.tlsModeEnabled}
           ariaLabel="Connection type"
         />
       </FieldRow>
     </div>
     <div data-span="4">
-      <FieldRow label="SSL CA" bind:enabled={state.sslCAEnabled} disabled={!state.enabled}>
+      <FieldRow label="SSL CA" bind:enabled={state.sslCAEnabled}>
         <Select
           bind:value={state.sslCA}
           options={sslCAOptions}
-          disabled={!state.enabled || !state.sslCAEnabled || state.tlsMode !== 'user'}
+          disabled={!state.sslCAEnabled || state.tlsMode !== 'user'}
           ariaLabel="SSL CA"
         />
       </FieldRow>
