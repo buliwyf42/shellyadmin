@@ -15,11 +15,13 @@ import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.resolve(HERE, '..', 'dist', 'assets');
 
-// Budgets in bytes. Current baseline (v0.0.8):
-//   JS:  205 kB raw / 55 kB gzip
-//   CSS: 17 kB raw /  5 kB gzip
+// Budgets in bytes. Bumped at v0.1.6 to absorb the firmware-page rewrite
+// (dual-channel cache, sortable table, install job modal), the auto-update
+// surfaces (Firmware bulk buttons, Devices column, Provision form, Compliance
+// rule), and the configurable gen-badge settings. Pre-v0.1.6 baseline was
+// 260 kB raw / 75 kB gzip; v0.1.6 measured 263.06 kB raw / 72.62 kB gzip.
 const BUDGETS = {
-  js: { raw: 260 * 1024, gzip: 75 * 1024 },
+  js: { raw: 280 * 1024, gzip: 80 * 1024 },
   css: { raw: 30 * 1024, gzip: 8 * 1024 },
 };
 
