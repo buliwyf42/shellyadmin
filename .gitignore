@@ -4,4 +4,5 @@ web/dist/
 secrets/
 .DS_Store
 .devlogs/
+.claude/
 web/node_modules/
