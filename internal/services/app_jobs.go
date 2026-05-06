@@ -412,7 +412,7 @@ func (s *AppService) ConfirmScan(macs []string) (int, error) {
 
 // --- Firmware check ---
 
-const firmwareInstallTimeout = 5 * time.Minute
+const defaultFirmwareInstallTimeout = 5 * time.Minute
 const firmwareInstallPollInterval = 5 * time.Second
 const firmwareInstallConcurrency = 5
 
@@ -479,6 +479,48 @@ func (s *AppService) runFirmwareJob(jobID int64, devices []models.Device) {
 	}
 	if cerr := s.db.CompleteJob(jobID, "completed", string(body), "", len(results), len(devices)); cerr != nil {
 		s.Log("error", fmt.Sprintf("firmware job %d: complete-success write failed: %v", jobID, cerr))
+	}
+}
+
+// runFirmwareCheckScheduler periodically triggers a firmware_check job at
+// the cadence configured via AppSettings.FirmwareCheckInterval (seconds; 0
+// = disabled). Polls the setting every minute so live changes apply without
+// a service restart. Skips ticks when a firmware_check is already running
+// (idempotent under concurrent operator-initiated checks).
+func (s *AppService) runFirmwareCheckScheduler() {
+	const pollInterval = 60 * time.Second
+	var nextRun time.Time
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		case <-time.After(pollInterval):
+		}
+		settings, err := s.db.GetSettings()
+		if err != nil {
+			continue
+		}
+		settings.Normalize()
+		intervalSec := settings.FirmwareCheckInterval
+		if intervalSec <= 0 {
+			// Disabled — keep polling for a future enable but don't fire.
+			nextRun = time.Time{}
+			continue
+		}
+		// First time we see a non-zero interval, anchor the next run.
+		if nextRun.IsZero() {
+			nextRun = time.Now().Add(time.Duration(intervalSec) * time.Second)
+			continue
+		}
+		if time.Now().Before(nextRun) {
+			continue
+		}
+		if _, err := s.StartFirmwareCheck(); err != nil {
+			s.Log("info", fmt.Sprintf("scheduled firmware check skipped: %v", err))
+		} else {
+			s.Log("info", "scheduled firmware check started")
+		}
+		nextRun = time.Now().Add(time.Duration(intervalSec) * time.Second)
 	}
 }
 
@@ -621,15 +663,19 @@ func (s *AppService) StartFirmwareInstall(macs []string, stage string) (int64, i
 	if err != nil {
 		return 0, 0, err
 	}
+	timeout := defaultFirmwareInstallTimeout
+	if settings, err := s.db.GetSettings(); err == nil && settings.FirmwareInstallTimeout > 0 {
+		timeout = time.Duration(settings.FirmwareInstallTimeout * float64(time.Second))
+	}
 	s.bgJobs.Add(1)
 	go func() {
 		defer s.bgJobs.Done()
-		s.runFirmwareInstallJob(jobID, targetMACs, stage, index)
+		s.runFirmwareInstallJob(jobID, targetMACs, stage, index, timeout)
 	}()
 	return jobID, len(targetMACs), nil
 }
 
-func (s *AppService) runFirmwareInstallJob(jobID int64, macs []string, stage string, index map[string]models.Device) {
+func (s *AppService) runFirmwareInstallJob(jobID int64, macs []string, stage string, index map[string]models.Device, timeout time.Duration) {
 	requested := make([]string, 0, len(macs))
 	for _, mac := range macs {
 		requested = append(requested, "mac:"+mac)
@@ -704,7 +750,7 @@ func (s *AppService) runFirmwareInstallJob(jobID int64, macs []string, stage str
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			s.installOne(jobID, i, mac, stage, index[mac], setResult, persistProgress)
+			s.installOne(jobID, i, mac, stage, index[mac], timeout, setResult, persistProgress)
 		}()
 	}
 	wg.Wait()
@@ -719,7 +765,7 @@ func (s *AppService) runFirmwareInstallJob(jobID int64, macs []string, stage str
 	}
 }
 
-func (s *AppService) installOne(jobID int64, idx int, mac, stage string, device models.Device, setResult func(int, func(*FirmwareInstallResult)), persistProgress func()) {
+func (s *AppService) installOne(jobID int64, idx int, mac, stage string, device models.Device, timeout time.Duration, setResult func(int, func(*FirmwareInstallResult)), persistProgress func()) {
 	if s.ctx.Err() != nil {
 		setResult(idx, func(r *FirmwareInstallResult) {
 			r.Status = "unknown"
@@ -748,7 +794,7 @@ func (s *AppService) installOne(jobID int64, idx int, mac, stage string, device 
 	})
 	persistProgress()
 
-	deadline := time.Now().Add(firmwareInstallTimeout)
+	deadline := time.Now().Add(timeout)
 	initialVer := device.FW
 	expected := targetVersion(device, stage)
 	for {
@@ -764,9 +810,9 @@ func (s *AppService) installOne(jobID int64, idx int, mac, stage string, device 
 			setResult(idx, func(r *FirmwareInstallResult) {
 				r.Status = "unknown"
 				if expected != "" {
-					r.Detail = fmt.Sprintf("device still on %s after 5 min (expected %s)", initialVer, expected)
+					r.Detail = fmt.Sprintf("device still on %s after %s (expected %s)", initialVer, formatTimeout(timeout), expected)
 				} else {
-					r.Detail = "no version change detected after 5 min"
+					r.Detail = fmt.Sprintf("no version change detected after %s", formatTimeout(timeout))
 				}
 			})
 			persistProgress()
@@ -836,6 +882,18 @@ func (s *AppService) FirmwareInstallStatus() (FirmwareInstallStatus, error) {
 		Total:   job.Total,
 		Results: result.Results,
 	}, nil
+}
+
+// formatTimeout renders an install timeout as a short human phrase
+// ("5 min", "90 sec") for the install_job's per-device detail line.
+func formatTimeout(d time.Duration) string {
+	if d >= time.Minute && d%time.Minute == 0 {
+		return fmt.Sprintf("%d min", int(d/time.Minute))
+	}
+	if d >= time.Minute {
+		return fmt.Sprintf("%.1f min", d.Minutes())
+	}
+	return fmt.Sprintf("%d sec", int(d.Seconds()))
 }
 
 func targetVersion(d models.Device, stage string) string {

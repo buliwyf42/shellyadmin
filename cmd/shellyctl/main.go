@@ -99,6 +99,7 @@ func main() {
 		_ = database.AddLog(level, services.SanitizeLogMessage(msg))
 	})
 	_ = service.RecoverInterruptedJobs()
+	service.StartBackgroundWorkers()
 	server := &http.Server{
 		Addr:              ":" + port,
 		Handler:           router,

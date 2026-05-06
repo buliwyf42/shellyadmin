@@ -14,7 +14,7 @@ jobs:
   docker:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write # required so the release-creation step at the end can post a Release
       packages: write
       id-token: write
 
@@ -64,3 +64,55 @@ jobs:
           build-args: |
             VERSION=${{ github.ref_name }}
             VCS_REF=${{ github.sha }}
+
+      - name: Extract release notes from CHANGELOG
+        if: startsWith(github.ref, 'refs/tags/v')
+        id: notes
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"           # e.g. v0.1.6
+          version="${tag#v}"                  # e.g. 0.1.6
+          # Pull lines between "## [<version>]" and the next "## [" header,
+          # then strip the bracketing header line and trailing blank line so
+          # the body matches what we hand-write into GitHub Releases.
+          awk -v v="$version" '
+            $0 ~ "^## \\[" v "\\]" { capture = 1; next }
+            capture && /^## \[/    { exit }
+            capture                { print }
+          ' CHANGELOG.md > /tmp/release-notes.md
+          if [ ! -s /tmp/release-notes.md ]; then
+            echo "no CHANGELOG entry found for $tag, falling back to commit subject" >&2
+            git log -1 --pretty=%B "$tag" > /tmp/release-notes.md
+          fi
+          {
+            echo "version=$version"
+            echo "notes-file=/tmp/release-notes.md"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create or update GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          # The CHANGELOG section header doubles as a useful release title.
+          title="$(awk -v v="${{ steps.notes.outputs.version }}" '
+            $0 ~ "^## \\[" v "\\]" { print; exit }
+          ' CHANGELOG.md | sed -E "s/^## \[([^]]+)\] - .*/\1/")"
+          if [ -z "$title" ]; then
+            title="$tag"
+          else
+            title="v$title"
+          fi
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release edit "$tag" --title "$title" --notes-file /tmp/release-notes.md
+          else
+            extra=()
+            # Mark v0.x.y as the latest release; pre-releases (v*-rc*, v*-beta*) opt out.
+            case "$tag" in
+              *-rc*|*-beta*|*-alpha*) extra+=(--prerelease) ;;
+              *)                       extra+=(--latest) ;;
+            esac
+            gh release create "$tag" "${extra[@]}" --title "$title" --notes-file /tmp/release-notes.md
+          fi

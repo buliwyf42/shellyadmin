@@ -3,16 +3,24 @@ package models
 import "strings"
 
 type AppSettings struct {
-	Subnets             []string        `json:"subnets"`
-	ScanTimeout         float64         `json:"scan_timeout"`
-	RefreshTimeout      float64         `json:"refresh_timeout"`
-	ScanConcurrency     int             `json:"scan_concurrency"`
-	EnableMDNS          bool            `json:"enable_mdns"`
-	AdvancedModeEnabled bool            `json:"advanced_mode_enabled"`
-	Gen2BadgeClass      string          `json:"gen2_badge_class"`
-	Gen3BadgeClass      string          `json:"gen3_badge_class"`
-	Gen4BadgeClass      string          `json:"gen4_badge_class"`
-	Compliance          ComplianceRules `json:"compliance"`
+	Subnets             []string `json:"subnets"`
+	ScanTimeout         float64  `json:"scan_timeout"`
+	RefreshTimeout      float64  `json:"refresh_timeout"`
+	ScanConcurrency     int      `json:"scan_concurrency"`
+	EnableMDNS          bool     `json:"enable_mdns"`
+	AdvancedModeEnabled bool     `json:"advanced_mode_enabled"`
+	Gen2BadgeClass      string   `json:"gen2_badge_class"`
+	Gen3BadgeClass      string   `json:"gen3_badge_class"`
+	Gen4BadgeClass      string   `json:"gen4_badge_class"`
+	// FirmwareInstallTimeout caps how long an individual device may take to
+	// reboot onto the new firmware before the install_job marks it "unknown".
+	// Seconds; default 300 (5 min). Per-device, not job-total.
+	FirmwareInstallTimeout float64 `json:"firmware_install_timeout"`
+	// FirmwareCheckInterval triggers a periodic firmware_check job at the
+	// given cadence in seconds. 0 disables the scheduler (manual-only). The
+	// scheduler skips a tick if a firmware_check is already running.
+	FirmwareCheckInterval int             `json:"firmware_check_interval"`
+	Compliance            ComplianceRules `json:"compliance"`
 }
 
 type ComplianceRules struct {
@@ -75,14 +83,16 @@ type CustomRule struct {
 
 func DefaultSettings() AppSettings {
 	return AppSettings{
-		Subnets:         []string{},
-		ScanTimeout:     2,
-		RefreshTimeout:  5,
-		ScanConcurrency: 64,
-		EnableMDNS:      false,
-		Gen2BadgeClass:  "bg-warning text-dark",
-		Gen3BadgeClass:  "bg-success",
-		Gen4BadgeClass:  "bg-info text-dark",
+		Subnets:                []string{},
+		ScanTimeout:            2,
+		RefreshTimeout:         5,
+		ScanConcurrency:        64,
+		EnableMDNS:             false,
+		Gen2BadgeClass:         "bg-warning text-dark",
+		Gen3BadgeClass:         "bg-success",
+		Gen4BadgeClass:         "bg-info text-dark",
+		FirmwareInstallTimeout: 300,
+		FirmwareCheckInterval:  0,
 	}
 }
 
@@ -112,6 +122,12 @@ func (s *AppSettings) Normalize() {
 	}
 	if strings.TrimSpace(s.Gen4BadgeClass) == "" {
 		s.Gen4BadgeClass = "bg-info text-dark"
+	}
+	if s.FirmwareInstallTimeout <= 0 {
+		s.FirmwareInstallTimeout = 300
+	}
+	if s.FirmwareCheckInterval < 0 {
+		s.FirmwareCheckInterval = 0
 	}
 	s.Compliance.Normalize()
 }

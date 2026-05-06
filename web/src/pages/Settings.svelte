@@ -14,8 +14,22 @@
     gen2_badge_class: 'bg-warning text-dark',
     gen3_badge_class: 'bg-success',
     gen4_badge_class: 'bg-info text-dark',
+    firmware_install_timeout: 300,
+    firmware_check_interval: 0,
     compliance: {},
   };
+
+  // Sane preset cadences for the scheduled firmware check; the backend
+  // accepts any positive seconds so an operator can dial in something custom
+  // via the JSON API. The dropdown stays small.
+  const firmwareCheckCadences: { value: number; label: string }[] = [
+    { value: 0, label: 'Off (manual only)' },
+    { value: 60 * 60, label: 'Hourly' },
+    { value: 6 * 60 * 60, label: 'Every 6 hours' },
+    { value: 12 * 60 * 60, label: 'Every 12 hours' },
+    { value: 24 * 60 * 60, label: 'Daily' },
+    { value: 7 * 24 * 60 * 60, label: 'Weekly' },
+  ];
 
   const badgeColorOptions: { value: string; label: string }[] = [
     { value: 'bg-success', label: 'Green (success)' },
@@ -187,10 +201,49 @@
           <input type="checkbox" class="form-check-input" bind:checked={settings.enable_mdns} />
           <span>Enable mDNS-assisted discovery</span>
         </label>
-        <p class="text-secondary mt-2 mb-0">
+        <p class="text-secondary mt-2 mb-3">
           Tune discovery, refresh, and concurrency here. mDNS works best on hosts that can receive
           local multicast traffic; Docker setups may need host networking for reliable results.
         </p>
+
+        <h3 class="h6 mt-4">Firmware</h3>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label" for="settings-firmware-check-interval">
+              Scheduled firmware check
+            </label>
+            <select
+              id="settings-firmware-check-interval"
+              class="form-select"
+              bind:value={settings.firmware_check_interval}
+              title="When non-zero, ShellyAdmin runs Check Firmware on every device at this cadence."
+            >
+              {#each firmwareCheckCadences as opt (opt.value)}
+                <option value={opt.value}>{opt.label}</option>
+              {/each}
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="settings-firmware-install-timeout">
+              Install timeout (s)
+            </label>
+            <input
+              id="settings-firmware-install-timeout"
+              class="form-control"
+              type="number"
+              min="60"
+              step="30"
+              bind:value={settings.firmware_install_timeout}
+              title="Per-device timeout: how long the install_job waits for a device to reboot onto the new firmware before marking it 'unknown'. Default 300 (5 min)."
+            />
+          </div>
+        </div>
+        <p class="text-secondary small mt-2 mb-0">
+          The scheduled check skips a tick if a manual Check Firmware is already running. Install
+          timeout is per-device, not job-total — a fleet of 50 devices still completes in minutes
+          thanks to bounded parallel installs.
+        </p>
+
         <button class="btn btn-warning text-dark mt-3" on:click={saveSettings}>Save Settings</button
         >
       </div>

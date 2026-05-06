@@ -122,6 +122,10 @@ export interface AppSettings {
   gen2_badge_class?: string;
   gen3_badge_class?: string;
   gen4_badge_class?: string;
+  /** Per-device install timeout in seconds. Default 300. */
+  firmware_install_timeout?: number;
+  /** Scheduled firmware check cadence in seconds. 0 = disabled. */
+  firmware_check_interval?: number;
   compliance: ComplianceRules;
 }
 
