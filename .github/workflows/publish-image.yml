@@ -96,14 +96,19 @@ jobs:
         run: |
           set -euo pipefail
           tag="${GITHUB_REF_NAME}"
-          # The CHANGELOG section header doubles as a useful release title.
-          title="$(awk -v v="${{ steps.notes.outputs.version }}" '
+          version="${{ steps.notes.outputs.version }}"
+          # CHANGELOG headers may carry an optional em-dash subtitle:
+          #   ## [0.1.8] - 2026-05-07 — Quick summary of the release
+          # When present, use it as the release title suffix. Falls back to
+          # bare "v<version>" when the header has no subtitle.
+          header="$(awk -v v="$version" '
             $0 ~ "^## \\[" v "\\]" { print; exit }
-          ' CHANGELOG.md | sed -E "s/^## \[([^]]+)\] - .*/\1/")"
-          if [ -z "$title" ]; then
-            title="$tag"
+          ' CHANGELOG.md)"
+          subtitle="$(printf '%s' "$header" | sed -nE 's/^## \[[^]]+\] - [0-9-]+ +— +(.+)$/\1/p')"
+          if [ -n "$subtitle" ]; then
+            title="v${version} — ${subtitle}"
           else
-            title="v$title"
+            title="v${version}"
           fi
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release edit "$tag" --title "$title" --notes-file /tmp/release-notes.md

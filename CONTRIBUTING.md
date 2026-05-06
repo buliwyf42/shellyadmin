@@ -96,3 +96,16 @@ Please keep pull requests focused and include:
 Public releases are tracked in [CHANGELOG.md](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/CHANGELOG.md).
 
 When a change should appear in release notes, mention it in the pull request description.
+
+### CHANGELOG header convention
+
+Each release entry starts with a header in one of two forms:
+
+```
+## [0.1.8] - 2026-05-07
+## [0.1.8] - 2026-05-07 — Quick summary of the release
+```
+
+The `.github/workflows/publish-image.yml` workflow auto-creates a GitHub Release on every `v*` tag push and pulls the entry body (lines between this header and the next `##`) as the release notes. If the header carries an em-dash subtitle (second form), the release title becomes `vX.Y.Z — <subtitle>`. Without a subtitle, the title is just `vX.Y.Z`.
+
+Release tags matching `v*-rc*`, `v*-beta*`, or `v*-alpha*` are automatically marked as prereleases.
