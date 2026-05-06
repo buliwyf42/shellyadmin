@@ -24,6 +24,7 @@ Additionally, the lat/lon inputs on the Provision page used plain text inputs, w
 - Both Provision and Compliance pages follow the same section order: `sys → mqtt → cloud → ws → ble → wifi`.
 - Sections that only exist on one page (e.g. `matter`, `auth`, `kvs`, `script`, `ui` on Provision; `custom rules` on Compliance) are appended after the shared sections.
 - `ota` was removed from the shared order in v0.0.14 (see implementation note below).
+- `auto_update` was added in v0.1.6 as its own section on both pages (Provision: form + JSON; Compliance: a single dropdown rule). It is intentionally **not** placed under the existing "FW 2.0+" SectionCard on Compliance — `Schedule.*` is supported on any Gen2+ device with firmware 1.2.0+, not 2.0+ specifically. See [ADR-0009](./0009-firmware-auto-update-via-schedule.md) for the underlying mechanism.
 
 **Shared sys field ordering:**
 - Both pages order sys fields as: `tz → sntp → time_format → debug_ws → debug_udp → rpc_udp → lat → lon → eco → discoverable`.
