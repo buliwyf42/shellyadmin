@@ -68,6 +68,18 @@ func NewAppService(database Store, dataDir string, logf func(ctx context.Context
 	}
 }
 
+// StartBackgroundWorkers spawns the long-lived background goroutines owned
+// by this service (currently just the firmware-check scheduler). Called once
+// at startup from main.go after RecoverInterruptedJobs. Goroutines exit on
+// service Stop and are awaited via s.bgJobs.
+func (s *AppService) StartBackgroundWorkers() {
+	s.bgJobs.Add(1)
+	go func() {
+		defer s.bgJobs.Done()
+		s.runFirmwareCheckScheduler()
+	}()
+}
+
 // Stop signals background jobs to exit, waits for them to drain (bounded by
 // shutdownCtx), and marks any jobs still "running" as "interrupted". Safe to
 // call once; subsequent calls are no-ops.
