@@ -694,9 +694,12 @@
           {#if $colVis.fw}
             <td>
               {#if device.fw}{device.fw}{:else}<span class="text-secondary">n/a</span>{/if}
-              {#if device.fw_available_ver}<span class="badge bg-info text-dark"
-                  >↑ {device.fw_available_ver}</span
-                >{/if}
+              {#if device.fw_available_stable && device.fw_available_stable !== device.fw}
+                <span class="badge bg-info text-dark">↑ {device.fw_available_stable}</span>
+              {/if}
+              {#if device.fw_available_beta && device.fw_available_beta !== device.fw}
+                <span class="badge bg-secondary" title="beta">β {device.fw_available_beta}</span>
+              {/if}
             </td>
           {/if}
           {#if $colVis.online}

@@ -30,6 +30,7 @@ func TestDocumentedAPIRoutesMatchExpectedRouteSet(t *testing.T) {
 		http.MethodGet + " /api/devices/{target}",
 		http.MethodGet + " /api/devices/{target}/actions",
 		http.MethodGet + " /api/devices/{target}/export",
+		http.MethodGet + " /api/firmware/install/status",
 		http.MethodGet + " /api/firmware/status",
 		http.MethodGet + " /api/logs",
 		http.MethodGet + " /api/logs/export",
