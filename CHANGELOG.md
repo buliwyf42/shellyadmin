@@ -4,6 +4,157 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-05-06
+
+Adds firmware **auto-update** support via the device's `Schedule.*` API (the
+same mechanism the device's own web UI uses) and surfaces it across the
+Firmware, Devices, Compliance, and Provision pages. Refresh is extended to
+also sync firmware availability + auto-update mode, so it's now the single
+"make this row reflect reality" button. Includes migration
+`018_device_fw_auto_update.sql`. CI: migrated to golangci-lint v2 +
+`golangci-lint-action@v9` ahead of the 2026-06-02 Node 20 sunset.
+
+### Added
+- **`fw_auto_update` per-device** (`""` | `off` | `stable` | `beta`).
+  Shelly Gen2+ exposes no dedicated OTA-config method; the local web UI
+  implements its "Enable auto update firmware" toggle (FW 1.2.0+) as a
+  `Schedule.Create` job that calls `Shelly.Update` with
+  `origin: "shelly_service"`. ShellyAdmin honours the same marker so
+  user-created Schedule entries are not clobbered. New helper module
+  `internal/core/firmware/autoupdate.go`.
+- **Bulk auto-update buttons** on the Firmware page: `Auto → Off / Stable
+  / Beta` operate on the row selection. Row checkboxes are now
+  channel-agnostic (no longer disabled when a device is already on the
+  latest firmware), so any device can be a target. `Update N` still
+  filters internally to install-eligible rows.
+- **`set_auto_update` bulk action** in the device-action API
+  (`POST /api/bulk` with `value: "off"|"stable"|"beta"`).
+- **Auto-Update column** on both the Firmware and Devices pages
+  (toggleable on Devices via Columns).
+- **Compliance rule** `auto_update_stage` in its own SectionCard
+  "Auto-Update Schedule (Gen 2+, FW 1.2.0+)". Devices whose schedule
+  doesn't match flag as non-compliant. Skipped on devices not yet
+  firmware-checked so mixed fleets don't false-positive.
+- **Provision template section** `auto_update`. Canonical bare-string
+  encoding (`"auto_update": "stable"`); also accepts
+  `{stage: "stable"}`. New "Auto-Update Schedule (Gen 2+)" section in
+  the Provision Misc form. Backend handler in `applySection`.
+
+### Changed
+- **Refresh now syncs firmware data.** Per-device Refresh (Devices page)
+  and bulk Refresh both call `Shelly.CheckForUpdate` + `Schedule.List`
+  per online device, updating `fw`, `fw_available_stable`,
+  `fw_available_beta`, `fw_checked_at`, `fw_auto_update` in the same
+  pass. Refresh stops being a "data subset" relative to Check Firmware.
+- **Refresh no longer blanks the firmware cache.** Latent regression:
+  `scanner.ProbeDeviceWithOptions` constructed a fresh Device that
+  zeroed the firmware fields. The fix carries the persisted values
+  forward before the firmware re-check writes fresh ones, so a
+  transient cloud blip during refresh leaves your cache intact.
+- **Compliance: Auto-Update rule lives in its own SectionCard** between
+  Zigbee and "FW 2.0+ checks". Previously nested inside the 2.0+
+  section, which misled operators since Schedule.* works on FW 1.2.0+.
+- **CI: golangci-lint v1.64 → v2.6**; `.golangci.yml` migrated via
+  `golangci-lint config migrate`; action `@v6` → `@v9` (Node.js 24).
+- **Bundle budget** bumped to 280 kB raw / 80 kB gzip to absorb the
+  v0.1.5+v0.1.6 surface additions.
+
+### Fixed
+- Row checkboxes on the Firmware page no longer auto-uncheck themselves
+  on channel toggle — devices on the latest firmware can now be
+  selected for the auto-update bulk actions.
+- Bulk auto-update status message moved out of the toolbar into a
+  dismissable inline notice between toolbar and progress bars.
+
+### Migration notes
+- Migration `018_device_fw_auto_update.sql` adds the `fw_auto_update`
+  column. Empty default = "never read"; populated by the next firmware
+  check or refresh on each device.
+
+## [0.1.5] - 2026-05-06
+
+Full rebuild of the firmware update page: dual-channel availability
+cache, dedicated install-progress job, and confirmation modal — driven
+by a `/grill-me` design pass after multiple bug reports against the
+v0.1.4 page. Adds migration `017_device_fw_per_channel.sql`.
+
+### Added
+- **Per-device, per-channel firmware cache** on the Device row:
+  `fw_available_stable`, `fw_available_beta`, `fw_checked_at`.
+  `Shelly.CheckForUpdate` returns both stable and beta sections in a
+  single response; we now persist both. The Firmware page channel
+  selector becomes a pure display + install filter — toggling is
+  instant with no re-check.
+- **Dedicated `firmware_install` job** replacing the fire-and-forget
+  `Shelly.Update` path. Bounded concurrency (5 in flight), per-device
+  polling of `Shelly.GetDeviceInfo` every 5 s until version match,
+  hard 5-min timeout per device. New `GET /api/firmware/install/status`
+  surfaces live progress.
+- **Confirmation modal** on bulk update — lists affected device names,
+  IPs, and target version, plus the channel, before any RPC fires.
+- **Sortable Firmware table.** Click any column header (Name, Gen,
+  Model, IP, Current, Available Stable, Available Beta, Status). IP
+  sorts numerically by octet.
+- **Select-all checkbox** in the table header with indeterminate state
+  when only some rows match.
+- **Configurable Gen 2 / 3 / 4 badge colors** (Settings → UI
+  Preferences). Seven-preset Bootstrap palette with live preview.
+- **Shared Stable/Beta channel store** (persisted to localStorage) so
+  toggling on the Firmware page also takes effect on the Devices page
+  and vice versa.
+- **Out-of-band firmware drift detection.** Every firmware check now
+  also calls `Shelly.GetDeviceInfo` and writes the running version
+  back to `Device.FW`, so devices upgraded via the device's own web UI
+  reflect their current firmware in ShellyAdmin without needing a
+  separate Refresh.
+- **Firmware columns on the Devices page** (`fw_available_stable`,
+  `fw_available_beta`) so update availability is visible from the
+  primary list, not just the Firmware page.
+
+### Changed
+- **`firmware.Result` rebuilt to dual-channel**: `stable_ver`,
+  `beta_ver`, `stable_update`, `beta_update`, `status`, `note`,
+  `checked_at`. Old `update_available` / `available_ver` / `stage`
+  fields removed. `pickStage` / `stageNote` helpers deleted — they
+  silently fell back to the other channel and caused wrong-channel
+  ghost updates.
+- **Friendlier RPC errors.** Timeouts → "device did not respond in
+  time", connection failures → "connection refused" / "no route to
+  host", DNS failures → "DNS lookup failed". Anything unrecognized is
+  truncated to 120 chars instead of dumping a raw Go stack into the
+  status detail line.
+- **Firmware install timeout message** now describes what actually
+  failed: "device still on 1.7.5 after 5 min (expected 1.8.99)"
+  instead of the previous "did not come back in time".
+- **Per-device firmware check timeout** bumped 5 s → 10 s.
+- **Stale install overlay clears on the next firmware check**, so a
+  fresh check meaningfully resets the page.
+
+### Fixed
+- **`selected` Set reactivity** — Svelte 4 doesn't track `.add()` /
+  `.delete()` mutations, so the "Update N" counter never updated
+  ([previous behaviour: counter stayed at 0]). Replaced the Set with
+  `bind:group` against a `string[]`. Also fixes the "counter shows 1
+  but no row checked" stale-MAC bug, and the "still selected after
+  channel toggle" bug.
+- **Wrong-channel ghost updates** when stable was selected but only
+  beta had an update — `pickStage` would silently fall through, the
+  row got marked updateable, then `Shelly.Update` was called with
+  `stage: stable` and silently no-op'd.
+- **Status badge stuck on "update" forever** after a successful
+  install — now flips to "current" automatically once the device
+  reboots onto the new firmware.
+- **Missing name + model** on the Firmware page rows; **non-clickable
+  IP**. Both addressed in the new column layout (clickable IP opens
+  the Shelly device's own web UI in a new tab).
+
+### Migration notes
+- Migration `017_device_fw_per_channel.sql` adds three columns
+  (`fw_available_stable`, `fw_available_beta`, `fw_checked_at`).
+  Existing rows get empty defaults until the next firmware check
+  populates them. Legacy `fw_status` / `fw_available_ver` columns are
+  left in place but no longer read or written.
+
 ## [0.1.4] - 2026-05-04
 
 UX: remove the section-level "enable section" checkbox from every form on

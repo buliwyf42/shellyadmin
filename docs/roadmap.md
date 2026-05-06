@@ -7,18 +7,17 @@ not commitments — scope and timing will shift as the project matures.
 For accepted architectural decisions see [adr/README.md](./adr/README.md). For the
 threat model and deployment expectations see [SECURITY.md](./SECURITY.md).
 
-## Now (v0.0.x)
+## Now (v0.1.x)
 
 - Broader action discovery for device components where protocol support is reliable.
   Requires surveying per-component RPC availability before exposing it in the UI so
   we do not ship actions that silently fail on specific models.
-- Tighten CI with Go (`golangci-lint`, `go vet`) and frontend (ESLint, Prettier) checks.
-- Restrict scan targets to RFC1918 / link-local networks and cap CIDR size to close
-  the DoS surface from very large subnets.
-- Introduce a `Store` interface at the service/DB boundary to enable unit tests
-  against a fake database.
-- Raise bulk-action audit fidelity so per-device outcomes (including the MAC addresses
-  affected) are recoverable from the audit log alone.
+- Drop the legacy plaintext `password` / `ha1` columns on `credentials` and
+  `credential_groups` once enough releases have shipped with the cipher migration
+  in place to make rollback unnecessary. Landing this requires a migration that
+  refuses to downgrade.
+- Drop the legacy `fw_status` / `fw_available_ver` columns left orphaned by
+  v0.1.5's per-channel rebuild (kept around for one rollback window).
 
 ## Next (pre-v1)
 
@@ -27,9 +26,14 @@ threat model and deployment expectations see [SECURITY.md](./SECURITY.md).
 - Handler-side interface extraction and broader unit test coverage on
   `internal/core/scanner`, `internal/core/firmware`, and `internal/core/setters`.
 - Review and tighten gin, sessions, and x/crypto dependency pins on a regular cadence.
-- Drop the legacy plaintext `password` / `ha1` columns on `credentials` and
-  `credential_groups` once a release has shipped with the one-shot cipher migration
-  in place. Landing this requires a migration that refuses to downgrade.
+- Configurable firmware-install timeout (currently fixed at 5 minutes per device).
+- Scheduled firmware checks (currently manual-only via "Check Firmware" or piggybacked on Refresh).
+
+## Recently shipped
+
+- v0.1.6 — auto-update via `Schedule.*` (read/write/bulk/compliance/provisioner); Refresh now also syncs firmware data; CI on golangci-lint v2 + Node.js 24.
+- v0.1.5 — Firmware page rebuild (dual-channel cache, `firmware_install` job, modal, sortable table); out-of-band drift detection via `Shelly.GetDeviceInfo`; configurable Gen badge colors; shared Stable/Beta channel.
+- Done long ago: CI tightening (golangci-lint, eslint, prettier, bundle-size), scan-target restriction, `Store` service/DB boundary, per-device bulk-action audit fidelity.
 
 ## v1.0.0 Gate
 

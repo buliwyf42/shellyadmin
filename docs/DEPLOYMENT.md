@@ -61,7 +61,7 @@ This quick-start example is only for plain HTTP on a trusted LAN. For a more dur
 
 Tagged source checkout:
 
-1. Check out a tagged GitHub release, for example `v0.0.4`
+1. Check out a tagged GitHub release, for example `v0.1.6`
 2. Provide the required secrets files
 3. Build and run with Compose from the repository root
 
@@ -70,7 +70,7 @@ Example:
 ```bash
 git clone https://github.com/buliwyf42/shellyadmin.git
 cd shellyadmin
-git checkout v0.0.4
+git checkout v0.1.6
 mkdir -p secrets
 openssl rand -base64 24 > secrets/shellyadmin_pass.txt
 openssl rand -base64 32 > secrets/shellyadmin_secret.txt
@@ -82,7 +82,7 @@ Notes:
 - the Compose file uses `ghcr.io/buliwyf42/shellyadmin:latest` as its default image name
 - `docker compose up -d` can use the published image directly
 - `docker compose up -d --build` rebuilds locally from the checked-out source when you want an exact local release build
-- GitHub Actions publishes versioned images for tags such as `v0.0.4`
+- GitHub Actions publishes versioned images for tags such as `v0.1.6`
 
 Recommended production characteristics:
 

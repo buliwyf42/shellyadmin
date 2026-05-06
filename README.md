@@ -15,7 +15,7 @@ It is designed as a single-container deployment with:
 ## Status
 
 This repository is under active development.
-Current UI/API baseline is `v0.1.4`.
+Current UI/API baseline is `v0.1.6`.
 
 Public support posture:
 
@@ -83,10 +83,16 @@ Use strong secrets for real installs. The `COOKIE_SECURE=false` example above is
 - Locale-aware relative/absolute time presentation in both Devices and per-device detail
 - Stale row signal when the latest refresh attempt fails
 - Compliance status in Devices view with hover details
-- Manual firmware check and update flow
+- Manual firmware check and update flow:
+  - per-device, per-channel availability cache (stable + beta read in a single check)
+  - sortable, select-all-aware Firmware page with a confirmation modal before bulk install
+  - dedicated install job with per-device version-match polling and a 5-minute timeout
+  - bulk auto-update controls (Off / Stable / Beta) implemented via `Schedule.*`, the same mechanism the device's own web UI uses
+  - shared Stable/Beta channel between the Firmware and Devices pages (persisted to localStorage)
 - Guided provisioning form plus JSON mode with template management (load, save, delete, rename) in-context:
   - full `Wifi.SetConfig` surface: primary STA, secondary STA (STA1), roaming (RSSI threshold, interval), static IPv4 per STA
   - Script section (per-id loop), UI.SetConfig, Ethernet IPv6/DNS
+  - `auto_update` section (off / stable / beta) — synthesised onto the device as a `Schedule.*` job
   - `restart_required` badge per device in results; "Reboot restart-required devices" button
 - Auth Groups page:
   - groups contain their own auth credentials (`username`, `password`/`ha1`, tags)
