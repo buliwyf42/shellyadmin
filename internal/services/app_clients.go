@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"strings"
 	"time"
 
@@ -91,6 +92,28 @@ func (s *AppService) setterOptions(d models.Device, timeout time.Duration) sette
 		opts.HA1 = cred.HA1
 	}
 	return opts
+}
+
+// refreshFirmwareCache pulls per-channel availability and the auto-update
+// schedule for one device, in place, so a Refresh keeps everything that
+// runFirmwareJob would have written. Best-effort — failures leave the existing
+// persisted fields intact.
+func (s *AppService) refreshFirmwareCache(ctx context.Context, d *models.Device) {
+	if d == nil || d.Gen < 2 || !d.Online || d.AuthRequired {
+		return
+	}
+	fwOpts := s.firmwareOptions(*d, 5*time.Second)
+	if r := firmware.CheckOneWithOptions(ctx, *d, fwOpts); r.Status == "ok" {
+		if r.CurrentVer != "" {
+			d.FW = r.CurrentVer
+		}
+		d.FWAvailableStable = r.StableVer
+		d.FWAvailableBeta = r.BetaVer
+		d.FWCheckedAt = r.CheckedAt
+	}
+	if mode, err := firmware.ReadAutoUpdate(ctx, d.IP, d.Gen, fwOpts); err == nil {
+		d.FWAutoUpdate = mode
+	}
 }
 
 func (s *AppService) firmwareOptions(d models.Device, timeout time.Duration) firmware.Options {

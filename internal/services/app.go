@@ -207,6 +207,14 @@ func (s *AppService) RefreshDevice(ctx context.Context, target string) ([]models
 	probed.AuthLockedUntil = ""
 	// Carry forward operator-set TLS opt-out — it isn't reported by the device.
 	probed.TLSAllowInsecure = current.TLSAllowInsecure
+	// Carry forward the firmware cache so a Refresh that fails to re-check
+	// firmware (e.g. transient cloud blip) doesn't blank out the fields. The
+	// helper below overwrites these on success.
+	probed.FWAvailableStable = current.FWAvailableStable
+	probed.FWAvailableBeta = current.FWAvailableBeta
+	probed.FWCheckedAt = current.FWCheckedAt
+	probed.FWAutoUpdate = current.FWAutoUpdate
+	s.refreshFirmwareCache(ctx, probed)
 	if err := s.db.UpsertDevice(*probed); err != nil {
 		return nil, err
 	}

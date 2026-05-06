@@ -9,6 +9,9 @@ type AppSettings struct {
 	ScanConcurrency     int             `json:"scan_concurrency"`
 	EnableMDNS          bool            `json:"enable_mdns"`
 	AdvancedModeEnabled bool            `json:"advanced_mode_enabled"`
+	Gen2BadgeClass      string          `json:"gen2_badge_class"`
+	Gen3BadgeClass      string          `json:"gen3_badge_class"`
+	Gen4BadgeClass      string          `json:"gen4_badge_class"`
 	Compliance          ComplianceRules `json:"compliance"`
 }
 
@@ -56,6 +59,7 @@ type ComplianceRules struct {
 	WiFiHostname     string       `json:"wifi_hostname"`
 	BLEPaired        *bool        `json:"ble_paired"`
 	WebhooksConfig   *bool        `json:"webhooks_configured"`
+	AutoUpdateStage  string       `json:"auto_update_stage"` // "" (skip) | "off" | "stable" | "beta"
 	CustomRules      []CustomRule `json:"custom_rules"`
 }
 
@@ -76,6 +80,9 @@ func DefaultSettings() AppSettings {
 		RefreshTimeout:  5,
 		ScanConcurrency: 64,
 		EnableMDNS:      false,
+		Gen2BadgeClass:  "bg-warning text-dark",
+		Gen3BadgeClass:  "bg-success",
+		Gen4BadgeClass:  "bg-info text-dark",
 	}
 }
 
@@ -96,6 +103,15 @@ func (s *AppSettings) Normalize() {
 	}
 	if s.RefreshTimeout <= 0 {
 		s.RefreshTimeout = 5
+	}
+	if strings.TrimSpace(s.Gen2BadgeClass) == "" {
+		s.Gen2BadgeClass = "bg-warning text-dark"
+	}
+	if strings.TrimSpace(s.Gen3BadgeClass) == "" {
+		s.Gen3BadgeClass = "bg-success"
+	}
+	if strings.TrimSpace(s.Gen4BadgeClass) == "" {
+		s.Gen4BadgeClass = "bg-info text-dark"
 	}
 	s.Compliance.Normalize()
 }

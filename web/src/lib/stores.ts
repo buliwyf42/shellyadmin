@@ -11,6 +11,7 @@ export const deviceColumns = [
   { key: 'gen', label: 'Type' },
   { key: 'model', label: 'Model' },
   { key: 'fw', label: 'Firmware' },
+  { key: 'fw_auto_update', label: 'Auto-Update' },
   { key: 'online', label: 'Online' },
   { key: 'wifi_ssid', label: 'WiFi' },
   { key: 'mqtt_enabled', label: 'MQTT' },
@@ -76,10 +77,13 @@ function persisted<T>(key: string, fallback: T) {
   return store;
 }
 
+export type FirmwareChannel = 'stable' | 'beta';
+
 export const devices = writable<Device[]>([]);
 export const colVis = persisted<Record<string, boolean>>('colVis', defaultCols);
 export const refreshInterval = persisted<number>('refreshInterval', 0);
 export const uiScale = persisted<UIScale>('uiScale', 'default');
+export const firmwareChannel = persisted<FirmwareChannel>('firmwareChannel', 'stable');
 export const currentPath = writable<string>(window.location.pathname);
 
 export function navigate(path: string): void {

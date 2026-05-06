@@ -105,6 +105,13 @@ func Evaluate(dev models.Device, rules models.ComplianceRules) (bool, []string) 
 	compareBoolPtr(rules.EnhancedSecurity, dev.EnhancedSecurity, "enhanced_security")
 	compareBoolPtr(rules.TLSCertValid, dev.TLSCertValid, "tls_cert_valid")
 	compareString(rules.WiFiHostname, dev.WiFiHostname, "wifi_hostname")
+	if want := strings.TrimSpace(rules.AutoUpdateStage); want != "" {
+		got := strings.TrimSpace(dev.FWAutoUpdate)
+		// Empty got = "never read" — skip until a check has populated it.
+		if got != "" && got != want {
+			issues = append(issues, "auto_update_stage mismatch")
+		}
+	}
 	evaluateCustomRules(&issues, dev, rules.CustomRules, deviceName)
 
 	return len(issues) == 0, issues

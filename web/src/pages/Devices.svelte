@@ -1,15 +1,24 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { APIError, api } from '../lib/api';
-  import { colVis, deviceColumns, devices, navigate, refreshInterval } from '../lib/stores';
+  import {
+    colVis,
+    deviceColumns,
+    devices,
+    firmwareChannel,
+    navigate,
+    refreshInterval,
+  } from '../lib/stores';
   import { formatDateTime, formatRelativeDateTime } from '../lib/time';
-  import type { Device } from '../lib/types';
+  import type { AppSettings, Device } from '../lib/types';
+  import { genBadgeClass, genLabel, genTitle } from '../lib/genBadge';
   import ComplianceBadge from '../components/ComplianceBadge.svelte';
   import ErrorNotice from '../components/ErrorNotice.svelte';
   import SortHeader from '../components/SortHeader.svelte';
 
   let filter = '';
   let loading = false;
+  let appSettings: AppSettings | null = null;
   let error = '';
   let errorDetails = '';
   let showColumns = false;
@@ -172,17 +181,15 @@
   }
 
   function generationLabel(device: Device): string {
-    return `Gen ${device.gen}.x`;
+    return genLabel(device.gen);
   }
 
   function supportClass(device: Device): string {
-    if (device.gen === 2) return 'bg-warning text-dark';
-    return 'bg-success';
+    return genBadgeClass(device.gen, appSettings);
   }
 
   function supportTitle(device: Device): string {
-    if (device.gen === 2) return 'Limited support';
-    return 'Supported';
+    return genTitle(device.gen);
   }
 
   function statusBadgeClass(
@@ -349,6 +356,10 @@
 
   onMount(() => {
     void load();
+    api
+      .getSettings()
+      .then((s) => (appSettings = s))
+      .catch(() => undefined);
     return () => clearAutoRefresh();
   });
 </script>
@@ -372,6 +383,14 @@
       <option value={30000}>Auto refresh: 30 sec</option>
       <option value={60000}>Auto refresh: 1 min</option>
       <option value={300000}>Auto refresh: 5 min</option>
+    </select>
+    <select
+      class="form-select toolbar-select"
+      bind:value={$firmwareChannel}
+      title="Which channel's update version to highlight in the FW column"
+    >
+      <option value="stable">FW channel: Stable</option>
+      <option value="beta">FW channel: Beta</option>
     </select>
     <button class="btn btn-outline-light" on:click={() => (showColumns = !showColumns)}
       >{showColumns ? 'Hide Columns' : 'Columns'}</button
@@ -475,6 +494,13 @@
         {#if $colVis.fw}<SortHeader
             label="Firmware"
             column="fw"
+            {sortKey}
+            {sortDir}
+            onSort={setSort}
+          />{/if}
+        {#if $colVis.fw_auto_update}<SortHeader
+            label="Auto-Update"
+            column="fw_auto_update"
             {sortKey}
             {sortDir}
             onSort={setSort}
@@ -694,11 +720,29 @@
           {#if $colVis.fw}
             <td>
               {#if device.fw}{device.fw}{:else}<span class="text-secondary">n/a</span>{/if}
-              {#if device.fw_available_stable && device.fw_available_stable !== device.fw}
-                <span class="badge bg-info text-dark">↑ {device.fw_available_stable}</span>
+              {#if $firmwareChannel === 'beta' && device.fw_available_beta && device.fw_available_beta !== device.fw}
+                <span class="badge bg-info text-dark" title="beta available">
+                  ↑ {device.fw_available_beta}
+                </span>
+              {:else if $firmwareChannel === 'stable' && device.fw_available_stable && device.fw_available_stable !== device.fw}
+                <span class="badge bg-info text-dark" title="stable available">
+                  ↑ {device.fw_available_stable}
+                </span>
               {/if}
-              {#if device.fw_available_beta && device.fw_available_beta !== device.fw}
-                <span class="badge bg-secondary" title="beta">β {device.fw_available_beta}</span>
+            </td>
+          {/if}
+          {#if $colVis.fw_auto_update}
+            <td>
+              {#if device.fw_auto_update === 'stable'}
+                <span class="badge bg-success" title="auto-update Stable">stable</span>
+              {:else if device.fw_auto_update === 'beta'}
+                <span class="badge bg-info text-dark" title="auto-update Beta">beta</span>
+              {:else if device.fw_auto_update === 'off'}
+                <span class="badge bg-secondary" title="auto-update disabled">off</span>
+              {:else}
+                <span class="badge bg-dark border border-secondary" title="not yet read"
+                  >unknown</span
+                >
               {/if}
             </td>
           {/if}

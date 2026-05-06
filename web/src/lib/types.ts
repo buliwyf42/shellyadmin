@@ -49,6 +49,7 @@ export interface Device {
   fw_available_stable: string;
   fw_available_beta: string;
   fw_checked_at: string;
+  fw_auto_update: string; // "" | "off" | "stable" | "beta"
   serial: string;
   is_new?: boolean;
   compliant: boolean;
@@ -97,6 +98,7 @@ export interface ComplianceRules {
   wifi_hostname?: string;
   ble_paired?: boolean | null;
   webhooks_configured?: boolean | null;
+  auto_update_stage?: '' | 'off' | 'stable' | 'beta';
   custom_rules?: CustomRule[];
 }
 
@@ -117,6 +119,9 @@ export interface AppSettings {
   scan_concurrency: number;
   enable_mdns: boolean;
   advanced_mode_enabled: boolean;
+  gen2_badge_class?: string;
+  gen3_badge_class?: string;
+  gen4_badge_class?: string;
   compliance: ComplianceRules;
 }
 

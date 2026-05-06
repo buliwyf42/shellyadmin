@@ -1,26 +1,48 @@
 <script lang="ts">
   import { onDestroy } from 'svelte';
   import { APIError, api } from '../lib/api';
+  import { firmwareChannel, type FirmwareChannel } from '../lib/stores';
   import type {
+    AppSettings,
     Device,
     FWResult,
     FirmwareInstallResult,
     FirmwareInstallStatus,
     FirmwareStatus,
   } from '../lib/types';
+  import { genBadgeClass, genLabel, genTitle } from '../lib/genBadge';
   import ErrorNotice from '../components/ErrorNotice.svelte';
   import ProgressBar from '../components/ProgressBar.svelte';
+  import SortHeader from '../components/SortHeader.svelte';
 
-  type Channel = 'stable' | 'beta';
+  type Channel = FirmwareChannel;
 
-  let stage: Channel = 'stable';
+  // Bound to a global persisted store (shared with Devices page).
+  let stage: Channel;
+  firmwareChannel.subscribe((v) => (stage = v));
+  function setStage(v: Channel) {
+    firmwareChannel.set(v);
+  }
   let checkStatus: FirmwareStatus = { running: false, done: 0, total: 0, results: [] };
   let installStatus: FirmwareInstallStatus = { running: false, done: 0, total: 0, results: [] };
   let devicesByMAC: Record<string, Device> = {};
+  let appSettings: AppSettings | null = null;
   let selectedMacs: string[] = [];
   let checkTimer: number | undefined;
   let installTimer: number | undefined;
+  let installOverlayActive = false; // hide stale install state once a fresh check completes
+  let sortKey = 'name';
+  let sortDir: 'asc' | 'desc' = 'asc';
   let confirmOpen = false;
+
+  function setSort(key: string) {
+    if (sortKey === key) {
+      sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      sortKey = key;
+      sortDir = 'asc';
+    }
+  }
   let error = '';
   let errorDetails = '';
 
@@ -54,8 +76,17 @@
   });
   api.firmwareInstallStatus().then((s) => {
     installStatus = s;
-    if (s.running) startInstallPolling();
+    if (s.running) {
+      installOverlayActive = true;
+      startInstallPolling();
+    } else {
+      installOverlayActive = false;
+    }
   });
+  api
+    .getSettings()
+    .then((s) => (appSettings = s))
+    .catch(() => undefined);
 
   function startCheckPolling() {
     if (checkTimer) return;
@@ -66,6 +97,9 @@
           stopCheckPolling();
           // Re-pull devices so Available columns reflect freshly persisted cache.
           refreshDeviceIndex();
+          // The user just took a fresh check — drop any stale install
+          // overlay so each row reflects current reality.
+          installOverlayActive = false;
         }
       } catch (err) {
         captureError(err);
@@ -126,17 +160,45 @@
     confirmOpen = false;
     error = '';
     errorDetails = '';
+    if (updateEligibleMacs.length === 0) return;
     try {
-      await api.firmwareUpdate(selectedMacs, stage);
+      await api.firmwareUpdate(updateEligibleMacs, stage);
       installStatus = { ...installStatus, running: true };
+      installOverlayActive = true;
       startInstallPolling();
     } catch (err) {
       captureError(err);
     }
   }
 
-  function openConfirm() {
+  let autoUpdateBusy = false;
+  let autoUpdateStatus = '';
+
+  async function applyAutoUpdate(mode: 'off' | 'stable' | 'beta') {
     if (selectedMacs.length === 0) return;
+    error = '';
+    errorDetails = '';
+    autoUpdateStatus = '';
+    autoUpdateBusy = true;
+    try {
+      const res = await api.bulk({
+        action: 'set_auto_update',
+        macs: [...selectedMacs],
+        value: mode,
+      });
+      const ok = res.results.filter((r) => r.status === 'ok').length;
+      const failed = res.results.length - ok;
+      autoUpdateStatus = `Auto-update → ${mode}: ${ok} ok${failed ? `, ${failed} failed` : ''}`;
+      await refreshDeviceIndex();
+    } catch (err) {
+      captureError(err);
+    } finally {
+      autoUpdateBusy = false;
+    }
+  }
+
+  function openConfirm() {
+    if (updateEligibleMacs.length === 0) return;
     confirmOpen = true;
   }
 
@@ -149,6 +211,7 @@
 
   $: installByMAC = (() => {
     const m: Record<string, FirmwareInstallResult> = {};
+    if (!installOverlayActive) return m;
     for (const r of installStatus.results) m[r.mac] = r;
     return m;
   })();
@@ -170,28 +233,83 @@
         ip: d.ip,
         name: d.name,
         model: d.model,
+        gen: d.gen,
         currentVer: d.fw,
         stableVer,
         betaVer,
         stableUpdate: stableVer !== '' && stableVer !== d.fw,
         betaUpdate: betaVer !== '' && betaVer !== d.fw,
+        autoUpdate: d.fw_auto_update,
         installState: i,
         checkErr,
       };
     });
 
+  // Sort comparator for the table. Falls back to device_num when the chosen
+  // column has identical values so adjacent ties stay in insertion order.
+  function sortValueFor(row: (typeof rows)[number], key: string): string | number {
+    switch (key) {
+      case 'name':
+        return (row.name || '').toLowerCase();
+      case 'gen':
+        return row.gen;
+      case 'model':
+        return (row.model || '').toLowerCase();
+      case 'ip': {
+        // Numeric octet sort so 192.168.211.9 < 192.168.211.10.
+        const parts = (row.ip || '').split('.');
+        return parts.reduce((acc, oct, i) => acc + Number(oct || 0) * Math.pow(256, 3 - i), 0);
+      }
+      case 'current':
+        return (row.currentVer || '').toLowerCase();
+      case 'stable':
+        return (row.stableVer || '').toLowerCase();
+      case 'beta':
+        return (row.betaVer || '').toLowerCase();
+      case 'auto_update':
+        return (row.autoUpdate || '').toLowerCase();
+      case 'status':
+        // Group by derived status label for predictable ordering.
+        return statusBadge(row).label;
+      default:
+        return '';
+    }
+  }
+
+  $: sortedRows = (() => {
+    const copy = [...rows];
+    copy.sort((a, b) => {
+      const av = sortValueFor(a, sortKey);
+      const bv = sortValueFor(b, sortKey);
+      let cmp: number;
+      if (typeof av === 'number' && typeof bv === 'number') cmp = av - bv;
+      else cmp = String(av).localeCompare(String(bv));
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+    return copy;
+  })();
+
+  function autoUpdateBadge(mode: string): { label: string; cls: string } {
+    switch (mode) {
+      case 'stable':
+        return { label: 'stable', cls: 'bg-success' };
+      case 'beta':
+        return { label: 'beta', cls: 'bg-info text-dark' };
+      case 'off':
+        return { label: 'off', cls: 'bg-secondary' };
+      default:
+        return { label: 'unknown', cls: 'bg-dark border border-secondary' };
+    }
+  }
+
   function hasUpdateOnChannel(row: { stableUpdate: boolean; betaUpdate: boolean }, ch: Channel) {
     return ch === 'beta' ? row.betaUpdate : row.stableUpdate;
   }
 
-  // Auto-uncheck rows that don't have an update on the active channel.
-  $: {
-    const valid = new Set(rows.filter((r) => hasUpdateOnChannel(r, stage)).map((r) => r.mac));
-    const filtered = selectedMacs.filter((m) => valid.has(m));
-    if (filtered.length !== selectedMacs.length) {
-      selectedMacs = filtered;
-    }
-  }
+  // (Was: auto-uncheck rows that don't have an update on the active channel.
+  // Removed in favour of channel-agnostic selection so the auto-update bulk
+  // buttons can target current-firmware devices. The Update flow now filters
+  // to `updateEligibleMacs` at the action level.)
 
   type Badge = { label: string; cls: string; spinner?: boolean };
 
@@ -231,7 +349,32 @@
     return `Checked ${Math.floor(ago / 3600)}h ago`;
   }
 
-  $: confirmDevices = rows.filter((r) => selectedMacs.includes(r.mac));
+  $: confirmDevices = rows.filter((r) => updateEligibleMacs.includes(r.mac));
+
+  // Select-all spans every row so the auto-update bulk action can target
+  // devices that are already on the latest firmware. The Update flow filters
+  // internally to rows with an available update on the active channel — see
+  // `updateEligibleCount` below.
+  $: selectableMacs = rows.map((r) => r.mac);
+  $: allChecked =
+    selectableMacs.length > 0 && selectableMacs.every((m) => selectedMacs.includes(m));
+  $: someChecked = selectableMacs.some((m) => selectedMacs.includes(m));
+  $: updateEligibleMacs = selectedMacs.filter((m) => {
+    const r = rows.find((x) => x.mac === m);
+    return r ? hasUpdateOnChannel(r, stage) : false;
+  });
+
+  function toggleAll(e: Event) {
+    const target = e.currentTarget as HTMLInputElement;
+    if (target.checked) {
+      const set = new Set(selectedMacs);
+      for (const m of selectableMacs) set.add(m);
+      selectedMacs = [...set];
+    } else {
+      const drop = new Set(selectableMacs);
+      selectedMacs = selectedMacs.filter((m) => !drop.has(m));
+    }
+  }
 </script>
 
 <section class="page-hero">
@@ -241,7 +384,11 @@
     {#if formatChecked()}<span class="text-secondary small">{formatChecked()}</span>{/if}
   </div>
   <div class="page-toolbar">
-    <select class="form-select toolbar-select-md" bind:value={stage}>
+    <select
+      class="form-select toolbar-select-md"
+      value={stage}
+      on:change={(e) => setStage((e.currentTarget as HTMLSelectElement).value as Channel)}
+    >
       <option value="stable">Stable</option>
       <option value="beta">Beta</option>
     </select>
@@ -254,15 +401,65 @@
     <button
       class="btn btn-outline-light"
       on:click={openConfirm}
-      disabled={selectedMacs.length === 0 || checkStatus.running || installStatus.running}
-      >Update {selectedMacs.length}</button
+      disabled={updateEligibleMacs.length === 0 || checkStatus.running || installStatus.running}
+      title={updateEligibleMacs.length === selectedMacs.length
+        ? `Update ${updateEligibleMacs.length} selected device(s)`
+        : `Update ${updateEligibleMacs.length} of ${selectedMacs.length} selected (rest have no update on the ${stage} channel)`}
+      >Update {updateEligibleMacs.length}{selectedMacs.length !== updateEligibleMacs.length
+        ? `/${selectedMacs.length}`
+        : ''}</button
     >
+    <div
+      class="btn-group"
+      role="group"
+      aria-label="Auto-update bulk action for the selected devices"
+    >
+      <button
+        type="button"
+        class="btn btn-outline-secondary"
+        on:click={() => applyAutoUpdate('off')}
+        disabled={selectedMacs.length === 0 || autoUpdateBusy || installStatus.running}
+        title="Set selected devices' local auto-update schedule to OFF"
+      >
+        Auto → Off
+      </button>
+      <button
+        type="button"
+        class="btn btn-outline-success"
+        on:click={() => applyAutoUpdate('stable')}
+        disabled={selectedMacs.length === 0 || autoUpdateBusy || installStatus.running}
+        title="Set selected devices to auto-install Stable firmware nightly"
+      >
+        Auto → Stable
+      </button>
+      <button
+        type="button"
+        class="btn btn-outline-info"
+        on:click={() => applyAutoUpdate('beta')}
+        disabled={selectedMacs.length === 0 || autoUpdateBusy || installStatus.running}
+        title="Set selected devices to auto-install Beta firmware nightly"
+      >
+        Auto → Beta
+      </button>
+    </div>
   </div>
 </section>
 
 <ErrorNotice summary={error} details={errorDetails} />
 
-{#if checkStatus.running || checkStatus.total > 0}
+{#if autoUpdateStatus}
+  <div class="alert alert-secondary py-2 mb-3 d-flex align-items-center gap-2" role="status">
+    <span class="flex-grow-1">{autoUpdateStatus}</span>
+    <button
+      type="button"
+      class="btn-close btn-close-white"
+      aria-label="Dismiss"
+      on:click={() => (autoUpdateStatus = '')}
+    ></button>
+  </div>
+{/if}
+
+{#if checkStatus.running}
   <div class="mb-3">
     <ProgressBar
       done={checkStatus.done}
@@ -274,7 +471,7 @@
   </div>
 {/if}
 
-{#if installStatus.running || installStatus.total > 0}
+{#if installStatus.running}
   <div class="mb-3">
     <ProgressBar
       done={installStatus.done}
@@ -289,19 +486,35 @@
 <table class="table table-dark table-striped">
   <thead>
     <tr>
-      <th></th>
-      <th>Name</th>
-      <th>Model</th>
-      <th>IP</th>
-      <th>Current</th>
-      <th>Available Stable</th>
-      <th>Available Beta</th>
-      <th>Status</th>
+      <th>
+        <input
+          type="checkbox"
+          class="form-check-input"
+          aria-label="Select every device in the table"
+          title={selectableMacs.length === 0
+            ? 'No devices to select'
+            : `Select all ${selectableMacs.length} devices`}
+          checked={allChecked}
+          indeterminate={!allChecked && someChecked}
+          disabled={selectableMacs.length === 0 || installStatus.running}
+          on:change={toggleAll}
+        />
+      </th>
+      <SortHeader label="Name" column="name" {sortKey} {sortDir} onSort={setSort} />
+      <SortHeader label="Gen" column="gen" {sortKey} {sortDir} onSort={setSort} />
+      <SortHeader label="Model" column="model" {sortKey} {sortDir} onSort={setSort} />
+      <SortHeader label="IP" column="ip" {sortKey} {sortDir} onSort={setSort} />
+      <SortHeader label="Current" column="current" {sortKey} {sortDir} onSort={setSort} />
+      <SortHeader label="Available Stable" column="stable" {sortKey} {sortDir} onSort={setSort} />
+      <SortHeader label="Available Beta" column="beta" {sortKey} {sortDir} onSort={setSort} />
+      <SortHeader label="Auto-Update" column="auto_update" {sortKey} {sortDir} onSort={setSort} />
+      <SortHeader label="Status" column="status" {sortKey} {sortDir} onSort={setSort} />
     </tr>
   </thead>
   <tbody>
-    {#each rows as row (row.mac)}
+    {#each sortedRows as row (row.mac)}
       {@const badge = statusBadge(row)}
+      {@const ab = autoUpdateBadge(row.autoUpdate)}
       <tr>
         <td>
           <input
@@ -309,10 +522,18 @@
             class="form-check-input"
             value={row.mac}
             bind:group={selectedMacs}
-            disabled={!hasUpdateOnChannel(row, stage) || installStatus.running}
+            disabled={installStatus.running}
+            title={hasUpdateOnChannel(row, stage)
+              ? 'Eligible for both update and auto-update bulk actions'
+              : 'Eligible for auto-update bulk actions only (no update on this channel)'}
           />
         </td>
         <td>{row.name || '-'}</td>
+        <td>
+          <span class={`badge ${genBadgeClass(row.gen, appSettings)}`} title={genTitle(row.gen)}
+            >{genLabel(row.gen)}</span
+          >
+        </td>
         <td>{row.model || '-'}</td>
         <td><a href={`http://${row.ip}/`} target="_blank" rel="noreferrer noopener">{row.ip}</a></td
         >
@@ -336,6 +557,9 @@
           {/if}
         </td>
         <td>
+          <span class={`badge ${ab.cls}`}>{ab.label}</span>
+        </td>
+        <td>
           <span class={`badge ${badge.cls}`}>
             {#if badge.spinner}<span
                 class="spinner-border spinner-border-sm me-1"
@@ -351,9 +575,9 @@
         </td>
       </tr>
     {/each}
-    {#if rows.length === 0}
+    {#if sortedRows.length === 0}
       <tr>
-        <td colspan="8" class="text-secondary text-center py-3">No devices known yet.</td>
+        <td colspan="10" class="text-secondary text-center py-3">No devices known yet.</td>
       </tr>
     {/if}
   </tbody>

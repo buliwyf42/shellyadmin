@@ -17,6 +17,7 @@
   import ScriptsForm from './provision/ScriptsForm.svelte';
   import type {
     AuthState,
+    AutoUpdateState,
     BleState,
     CloudState,
     EthState,
@@ -33,6 +34,7 @@
   } from './provision/types';
   import {
     buildAuth,
+    buildAutoUpdate,
     buildBle,
     buildCloud,
     buildEth,
@@ -47,6 +49,7 @@
     buildWs,
     buildZigbee,
     createAuthState,
+    createAutoUpdateState,
     createBleState,
     createCloudState,
     createEthState,
@@ -61,6 +64,7 @@
     createWsState,
     createZigbeeState,
     hydrateAuth,
+    hydrateAutoUpdate,
     hydrateBle,
     hydrateCloud,
     hydrateEth,
@@ -104,6 +108,7 @@
   let wsState: WsState = createWsState();
   let bleState: BleState = createBleState();
   let matterState: MatterState = createMatterState();
+  let autoUpdateState: AutoUpdateState = createAutoUpdateState();
   let cloudState: CloudState = createCloudState();
   let authState: AuthState = createAuthState();
   let wifiState: WifiState = createWifiState();
@@ -326,6 +331,7 @@
     wsState = createWsState();
     bleState = createBleState();
     matterState = createMatterState();
+    autoUpdateState = createAutoUpdateState();
     cloudState = createCloudState();
     authState = createAuthState();
     wifiState = createWifiState();
@@ -360,8 +366,18 @@
     let nextZigbee: ZigbeeState | null = null;
     let nextUI: UIState | null = null;
     let nextScripts: ScriptsState | null = null;
+    let nextAutoUpdate: AutoUpdateState | null = null;
     for (const [sectionName, rawSection] of Object.entries(template)) {
       const section = sectionName.trim().toLowerCase();
+      // auto_update is a special-case section: the canonical encoding is a
+      // bare string ("off"|"stable"|"beta"). Handle it before the
+      // asRecord-must-be-object guard rejects non-objects.
+      if (section === 'auto_update') {
+        const r = hydrateAutoUpdate(rawSection);
+        if (!r.ok) return r;
+        nextAutoUpdate = r.state;
+        continue;
+      }
       const record = asRecord(rawSection);
       if (!record) {
         return { ok: false, reason: `Template section "${sectionName}" is not an object.` };
@@ -461,6 +477,7 @@
     if (nextWs) wsState = nextWs;
     if (nextBle) bleState = nextBle;
     if (nextMatter) matterState = nextMatter;
+    if (nextAutoUpdate) autoUpdateState = nextAutoUpdate;
     if (nextCloud) cloudState = nextCloud;
     if (nextAuth) authState = nextAuth;
     if (nextWifi) wifiState = nextWifi;
@@ -485,6 +502,8 @@
     if (ble) out.ble = ble;
     const matter = buildMatter(matterState);
     if (matter) out.matter = matter;
+    const autoUpdate = buildAutoUpdate(autoUpdateState);
+    if (autoUpdate) out.auto_update = autoUpdate;
     const cloud = buildCloud(cloudState);
     if (cloud) out.cloud = cloud;
     const auth = buildAuth(authState);
@@ -824,6 +843,7 @@
             <BleForm bind:state={bleState} />
             <MiscForm
               bind:matter={matterState}
+              bind:autoUpdate={autoUpdateState}
               bind:cloud={cloudState}
               bind:auth={authState}
               bind:wifi={wifiState}

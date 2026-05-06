@@ -55,6 +55,7 @@ type Device struct {
 	FWAvailableStable string   `json:"fw_available_stable"`
 	FWAvailableBeta   string   `json:"fw_available_beta"`
 	FWCheckedAt       string   `json:"fw_checked_at"`
+	FWAutoUpdate      string   `json:"fw_auto_update"`
 	Serial            string   `json:"serial"`
 	Compliant         bool     `json:"compliant"`
 	ComplianceIssues  []string `json:"compliance_issues"`
