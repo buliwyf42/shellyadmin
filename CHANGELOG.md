@@ -4,6 +4,61 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-05-06
+
+Scheduled firmware checks, configurable install timeout, the legacy
+firmware/credential column drop, and a CI auto-release pipeline. No
+operator-visible change to existing workflows; the new surfaces are
+opt-in via Settings → Firmware. Includes migrations
+`019_drop_legacy_fw_columns.sql` and
+`020_drop_legacy_credential_columns.sql`.
+
+### Added
+- **Scheduled firmware checks** — new `firmware_check_interval` setting
+  (seconds, 0 = disabled). A long-lived background goroutine polls
+  AppSettings every 60 s, fires `StartFirmwareCheck` at the configured
+  cadence, and skips ticks when a manual check is already running.
+  Settings UI exposes presets: Off / Hourly / 6h / 12h / Daily / Weekly.
+- **Configurable per-device install timeout** — new
+  `firmware_install_timeout` setting (seconds, default 300). Replaces
+  the previous hardcoded 5 min. Per-device, not job-total. Surfaced in
+  the timeout detail line ("device still on X after 8 min" etc.).
+- **Auto-release on tag push** —
+  `.github/workflows/publish-image.yml` now extracts the matching
+  CHANGELOG entry via awk and calls `gh release create` (or
+  `gh release edit` if the release was hand-created), so future `v*`
+  tag pushes produce a GitHub Release alongside the GHCR image. Tags
+  matching `*-rc*` / `*-beta*` / `*-alpha*` are auto-marked as
+  prereleases.
+- Unit tests for `firmwareInstallTimeoutFromSettings`,
+  `firmwareSchedulerDecision`, and `formatTimeout` covering all
+  reachable branches (`internal/services/app_jobs_test.go`).
+
+### Changed
+- **Migration `019_drop_legacy_fw_columns.sql`** drops `fw_status` and
+  `fw_available_ver` from `devices`. Both columns have been
+  unread/unwritten by Go code since v0.1.5; the rollback window is
+  closed.
+- **Migration `020_drop_legacy_credential_columns.sql`** drops
+  `password` and `ha1` from both `credentials` and `credential_groups`.
+  These columns have been zeroed at every boot since v0.0.15 (the
+  one-shot encryption sweep). Cipher columns
+  (`password_cipher`, `ha1_cipher`) are now the only at-rest source.
+  The `encryptPlaintextCredentials` sweep is removed; `resolveSecret`
+  is replaced by a trivial `decryptCipher` helper.
+- `.gitignore` now excludes `.claude/` so the local CLI working
+  directory stops appearing in `git status`.
+
+### Migration notes
+- SQLite `ALTER TABLE DROP COLUMN` is in-place but does not VACUUM the
+  file. Plaintext bytes from pre-v0.0.15 installs may remain on disk
+  pages until SQLite recycles them. Operators with strict scrubbing
+  requirements should run
+  `sqlite3 ${DATA_DIR}/shellyctl.db "VACUUM"` once after upgrade.
+- Downgrade below v0.1.7 is not supported on installs that have run
+  migrations 019/020. The dropped columns can't be recovered without a
+  pre-upgrade backup.
+
 ## [0.1.6] - 2026-05-06
 
 Adds firmware **auto-update** support via the device's `Schedule.*` API (the

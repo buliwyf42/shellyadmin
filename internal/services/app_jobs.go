@@ -501,18 +501,9 @@ func (s *AppService) runFirmwareCheckScheduler() {
 			continue
 		}
 		settings.Normalize()
-		intervalSec := settings.FirmwareCheckInterval
-		if intervalSec <= 0 {
-			// Disabled — keep polling for a future enable but don't fire.
-			nextRun = time.Time{}
-			continue
-		}
-		// First time we see a non-zero interval, anchor the next run.
-		if nextRun.IsZero() {
-			nextRun = time.Now().Add(time.Duration(intervalSec) * time.Second)
-			continue
-		}
-		if time.Now().Before(nextRun) {
+		var emit bool
+		nextRun, emit = firmwareSchedulerDecision(time.Now(), settings.FirmwareCheckInterval, nextRun)
+		if !emit {
 			continue
 		}
 		if _, err := s.StartFirmwareCheck(); err != nil {
@@ -520,7 +511,6 @@ func (s *AppService) runFirmwareCheckScheduler() {
 		} else {
 			s.Log("info", "scheduled firmware check started")
 		}
-		nextRun = time.Now().Add(time.Duration(intervalSec) * time.Second)
 	}
 }
 
@@ -664,8 +654,8 @@ func (s *AppService) StartFirmwareInstall(macs []string, stage string) (int64, i
 		return 0, 0, err
 	}
 	timeout := defaultFirmwareInstallTimeout
-	if settings, err := s.db.GetSettings(); err == nil && settings.FirmwareInstallTimeout > 0 {
-		timeout = time.Duration(settings.FirmwareInstallTimeout * float64(time.Second))
+	if settings, err := s.db.GetSettings(); err == nil {
+		timeout = firmwareInstallTimeoutFromSettings(settings)
 	}
 	s.bgJobs.Add(1)
 	go func() {
@@ -882,6 +872,36 @@ func (s *AppService) FirmwareInstallStatus() (FirmwareInstallStatus, error) {
 		Total:   job.Total,
 		Results: result.Results,
 	}, nil
+}
+
+// firmwareInstallTimeoutFromSettings is the canonical conversion from the
+// AppSettings field to a time.Duration. Pulled into a top-level helper so it
+// can be unit-tested without spinning up an install job, and so any caller
+// that needs the same value (test harness, future debug endpoint) doesn't
+// re-implement the float-seconds-to-Duration math.
+func firmwareInstallTimeoutFromSettings(s models.AppSettings) time.Duration {
+	if s.FirmwareInstallTimeout > 0 {
+		return time.Duration(s.FirmwareInstallTimeout * float64(time.Second))
+	}
+	return defaultFirmwareInstallTimeout
+}
+
+// firmwareSchedulerDecision is the per-tick logic of runFirmwareCheckScheduler.
+// `now` is wall-clock time; `intervalSec` is the configured cadence (0 means
+// disabled); `nextRun` is the previously-scheduled fire time (zero value =
+// "anchor on first non-zero interval seen"). Returns the new nextRun anchor
+// and whether the caller should fire StartFirmwareCheck right now.
+func firmwareSchedulerDecision(now time.Time, intervalSec int, nextRun time.Time) (time.Time, bool) {
+	if intervalSec <= 0 {
+		return time.Time{}, false
+	}
+	if nextRun.IsZero() {
+		return now.Add(time.Duration(intervalSec) * time.Second), false
+	}
+	if now.Before(nextRun) {
+		return nextRun, false
+	}
+	return now.Add(time.Duration(intervalSec) * time.Second), true
 }
 
 // formatTimeout renders an install timeout as a short human phrase
