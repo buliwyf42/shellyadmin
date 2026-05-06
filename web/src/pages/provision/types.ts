@@ -83,6 +83,12 @@ export type MatterState = {
   open: boolean;
 };
 
+export type AutoUpdateState = {
+  enabled: boolean;
+  mode: 'off' | 'stable' | 'beta';
+  open: boolean;
+};
+
 export type CloudState = {
   enableField: boolean;
   enable: boolean;

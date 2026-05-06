@@ -1,5 +1,12 @@
 <script lang="ts">
-  import type { AuthState, CloudState, MatterState, UIState, WifiState } from './types';
+  import type {
+    AuthState,
+    AutoUpdateState,
+    CloudState,
+    MatterState,
+    UIState,
+    WifiState,
+  } from './types';
   import SectionCard from '../../components/SectionCard.svelte';
   import FieldRow from '../../components/FieldRow.svelte';
   import Toggle from '../../components/Toggle.svelte';
@@ -8,12 +15,14 @@
   import UIConfigForm from './UIConfigForm.svelte';
 
   export let matter: MatterState;
+  export let autoUpdate: AutoUpdateState;
   export let cloud: CloudState;
   export let auth: AuthState;
   export let wifi: WifiState;
   export let ui: UIState;
 
   $: matterExpanded = matter.enableField;
+  $: autoUpdateExpanded = autoUpdate.enabled;
   $: cloudExpanded = cloud.enableField;
   $: authExpanded = auth.passEnabled;
   $: wifiExpanded =
@@ -24,6 +33,29 @@
     wifi.roamEnabled;
   $: uiExpanded = ui.idleBrightnessEnabled;
 </script>
+
+<SectionCard
+  tag="auto_update"
+  title="Auto-Update Schedule (Gen 2+)"
+  bind:open={autoUpdate.open}
+  forceOpen={autoUpdateExpanded}
+>
+  <div class="sa-form-grid">
+    <div data-span="6">
+      <FieldRow label="Configure auto-update" bind:enabled={autoUpdate.enabled}>
+        <select class="form-select" bind:value={autoUpdate.mode} disabled={!autoUpdate.enabled}>
+          <option value="off">Off (delete any existing schedule)</option>
+          <option value="stable">Stable (nightly)</option>
+          <option value="beta">Beta (nightly)</option>
+        </select>
+      </FieldRow>
+    </div>
+  </div>
+  <p class="text-secondary small mb-0 mt-2">
+    Synthesises a Schedule.* job that calls Shelly.Update nightly with origin="shelly_service" — the
+    same mechanism the device's own web UI uses.
+  </p>
+</SectionCard>
 
 <SectionCard
   tag="matter"

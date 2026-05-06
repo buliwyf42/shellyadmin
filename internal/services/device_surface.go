@@ -157,6 +157,12 @@ func (s *AppService) BulkAction(ctx context.Context, req BulkActionRequest) ([]B
 		if success {
 			status = "ok"
 		}
+		if success && req.Action == "set_auto_update" {
+			device.FWAutoUpdate = strings.ToLower(strings.TrimSpace(req.Value))
+			if uerr := s.db.UpsertDevice(device); uerr != nil {
+				s.LogCtx(ctx, "warn", fmt.Sprintf("bulk set_auto_update persist mac=%s err=%v", device.MAC, uerr))
+			}
+		}
 		results = append(results, BulkActionResult{MAC: device.MAC, IP: device.IP, Status: status, Detail: detail})
 	}
 	s.LogCtx(ctx, "INFO", fmt.Sprintf("bulk action applied action=%s targets=%d %s", req.Action, len(results), summarizeBulkResults(results)))
@@ -208,12 +214,19 @@ func (s *AppService) ExecuteDeviceAction(ctx context.Context, target, action str
 		s.LogCtx(ctx, "INFO", fmt.Sprintf("device action refresh target=%s", target))
 		return DeviceActionResult{Action: action, Status: "ok", Detail: "device refreshed"}, nil
 	case "firmware_check":
-		result := firmware.CheckOneWithOptions(ctx, detail.Device, s.firmwareOptions(detail.Device, 5*time.Second))
-		// Persist per-channel cache so the rest of the app can read it.
+		result := firmware.CheckOneWithOptions(ctx, detail.Device, s.firmwareOptions(detail.Device, 10*time.Second))
+		// Persist per-channel cache + running version (from GetDeviceInfo) so
+		// out-of-band firmware upgrades reflect immediately.
 		updated := detail.Device
+		if result.CurrentVer != "" {
+			updated.FW = result.CurrentVer
+		}
 		updated.FWAvailableStable = result.StableVer
 		updated.FWAvailableBeta = result.BetaVer
 		updated.FWCheckedAt = result.CheckedAt
+		if mode, autoErr := firmware.ReadAutoUpdate(ctx, updated.IP, updated.Gen, s.firmwareOptions(updated, 5*time.Second)); autoErr == nil {
+			updated.FWAutoUpdate = mode
+		}
 		if uerr := s.db.UpsertDevice(updated); uerr != nil {
 			s.LogCtx(ctx, "warn", fmt.Sprintf("device action firmware_check persist target=%s err=%v", target, uerr))
 		}
@@ -351,6 +364,12 @@ func validateBulkAction(req BulkActionRequest) error {
 		if req.Enabled == nil {
 			return fmt.Errorf("%s requires enabled", req.Action)
 		}
+	case "set_auto_update":
+		switch strings.ToLower(strings.TrimSpace(req.Value)) {
+		case firmware.AutoUpdateOff, firmware.AutoUpdateStable, firmware.AutoUpdateBeta:
+		default:
+			return fmt.Errorf("set_auto_update requires value one of: off, stable, beta")
+		}
 	case "reboot":
 		// no extra fields required
 	default:
@@ -383,6 +402,20 @@ func applyBulkAction(ctx context.Context, req BulkActionRequest, device models.D
 	case "set_ble_enabled":
 		ok := st.SetBLEEnabled(ctx, device.IP, *req.Enabled)
 		return ok, fmt.Sprintf("set BLE %s", ternary(*req.Enabled, "enabled", "disabled"))
+	case "set_auto_update":
+		mode := strings.ToLower(strings.TrimSpace(req.Value))
+		fwOpts := firmware.Options{
+			Timeout:       opts.Timeout,
+			Scheme:        opts.Scheme,
+			Username:      opts.Username,
+			Password:      opts.Password,
+			HA1:           opts.HA1,
+			AllowInsecure: opts.AllowInsecure,
+		}
+		if err := firmware.SetAutoUpdate(ctx, device.IP, device.Gen, fwOpts, mode); err != nil {
+			return false, fmt.Sprintf("auto-update %s: %v", mode, err)
+		}
+		return true, fmt.Sprintf("auto-update set to %s", mode)
 	case "reboot":
 		ok := st.Reboot(ctx, device.IP)
 		return ok, "rebooted"
@@ -407,6 +440,8 @@ func bulkActionSummary(req BulkActionRequest) string {
 		return fmt.Sprintf("Set Cloud %s on the selected devices.", ternary(*req.Enabled, "enabled", "disabled"))
 	case "set_ble_enabled":
 		return fmt.Sprintf("Set BLE %s on the selected devices.", ternary(*req.Enabled, "enabled", "disabled"))
+	case "set_auto_update":
+		return fmt.Sprintf("Set firmware auto-update to %s on the selected devices.", strings.ToLower(strings.TrimSpace(req.Value)))
 	case "reboot":
 		return "Reboot the selected devices."
 	default:

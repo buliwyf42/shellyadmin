@@ -37,12 +37,20 @@ Shelly uses **non-standard JSON-RPC error code `404`** (not `-32601`) when a met
 ```
 `isMethodNotFound()` in `provisioner.go` handles both `404` and `-32601` for safety.
 
-### OTA.SetConfig does not exist
-The Shelly Gen2 API has **no `OTA.SetConfig` method**. Available OTA methods:
+### OTA configuration on Gen2+ — implemented via `Schedule.*`, not `OTA.SetConfig`
+The Shelly Gen2 API has **no `OTA.SetConfig` / `Sys.SetAutoUpdate` / dedicated OTA-config method**. The `OTA.*` methods that DO exist (`OTA.Start/Write/Data/Abort/Commit/Revert`) are byte-level chunked-upload plumbing, not configuration. Direct firmware update lives at:
 - `Shelly.Update` — one-shot firmware update (requires `stage` param: `"stable"` or `"beta"`)
-- `Shelly.CheckForUpdate` — check for available updates
+- `Shelly.CheckForUpdate` — check for available updates (returns BOTH `stable` and `beta` in one response)
 
-The `ota` provisioner section and the `ota_auto_update` compliance rule were **fully removed in v0.0.16** (the v0.0.14 removal was partial — backend validator, `normalizeOTAPayload`, frontend MiscForm OTA panel, and `ota_auto_update` compliance field all lingered). If an OTA section still appears in a user-supplied JSON template, it falls through to the catch-all handler (calls `Ota.SetConfig` → 404 → gracefully skipped).
+**Auto-update is implemented as a Schedule entry.** The device's local web UI ("Enable auto update firmware", added in firmware 1.2.0) does NOT call a dedicated method. Instead it creates a `Schedule.*` job that calls `Shelly.Update` on a recurring timer with `origin: "shelly_service"` as the marker. ShellyAdmin reads/writes auto-update state through this same mechanism (see `internal/core/firmware/autoupdate.go`):
+
+- **Read**: `Schedule.List` → filter for `calls[].origin == "shelly_service"` AND `calls[].method == "Shelly.Update"`. The `params.stage` field tells you `stable` or `beta`. Absent or disabled → `off`.
+- **Set stable/beta**: `Schedule.Create` with `enable: true`, `timespec: "0 0 0 * * 0,1,2,3,4,5,6"` (cron-style; daily at midnight), `calls: [{method: "Shelly.Update", params: {stage: <stable|beta>}, origin: "shelly_service"}]`.
+- **Disable**: `Schedule.Delete` for the matching job id.
+
+Persisted on the Device row as `fw_auto_update` with values `""` (never read) | `off` | `stable` | `beta`. Read during every firmware check job. Bulk-settable via the Firmware page's "Auto → Off / Stable / Beta" buttons (action `set_auto_update`). Surfaced in compliance via the `auto_update_stage` rule.
+
+Historical context: the `ota` provisioner section and an `ota_auto_update` compliance field that called `OTA.SetConfig` were **fully removed in v0.0.16** (the v0.0.14 removal was partial). If an `ota` block still appears in a user-supplied JSON template, it falls through to the catch-all handler (calls `Ota.SetConfig` → 404 → gracefully skipped).
 
 ### mqtt.ssl_ca valid values
 The `mqtt.ssl_ca` field only accepts exactly four values:

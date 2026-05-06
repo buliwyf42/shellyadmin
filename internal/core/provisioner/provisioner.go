@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"shellyadmin/internal/core/firmware"
 	"shellyadmin/internal/core/shellyclient"
 	"shellyadmin/internal/util"
 )
@@ -182,6 +183,28 @@ func applySection(ctx context.Context, client *shellyclient.Client, ip string, g
 		// FW 2.0.0-beta1 Local Network Messaging. Method name is LNM.SetConfig
 		// (all-caps), which the catch-all's title-case mapping wouldn't produce.
 		return rpcConfigSection(ctx, client, ip, "LNM.SetConfig", payload, section)
+	case "auto_update":
+		// Synthesizes a Schedule.* job rather than calling a SetConfig method —
+		// see internal/core/firmware/autoupdate.go for why.
+		mode := ""
+		switch v := raw.(type) {
+		case string:
+			mode = v
+		case map[string]interface{}:
+			if s, ok := v["stage"].(string); ok {
+				mode = s
+			} else if s, ok := v["mode"].(string); ok {
+				mode = s
+			} else {
+				return SectionResult{Section: section, Status: "failed", Detail: "auto_update payload must include stage"}
+			}
+		default:
+			return SectionResult{Section: section, Status: "failed", Detail: "auto_update payload must be \"off|stable|beta\" or {stage:...}"}
+		}
+		if err := firmware.SetAutoUpdateOnClient(ctx, client, ip, mode); err != nil {
+			return SectionResult{Section: section, Status: "failed", Detail: err.Error()}
+		}
+		return SectionResult{Section: section, Status: "ok", Detail: "auto-update set to " + strings.ToLower(strings.TrimSpace(mode))}
 	case "webhooks":
 		// FW 2.0.0-beta1 webhook configuration. Webhooks aren't a typical
 		// SetConfig surface — they're managed via Webhook.Create/Update/Delete

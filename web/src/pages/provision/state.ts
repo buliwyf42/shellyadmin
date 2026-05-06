@@ -1,5 +1,6 @@
 import type {
   AuthState,
+  AutoUpdateState,
   BleState,
   CloudState,
   EthState,
@@ -578,6 +579,38 @@ export function hydrateBle(record: Record<string, unknown>): HydrateResult<BleSt
     state.observerEnabled = observerValue;
   }
   return { ok: true, state };
+}
+
+// --- auto_update ---
+//
+// The Shelly device firmware does not expose a dedicated auto-update RPC.
+// Instead, the provisioner backend synthesizes a `Schedule.*` job that runs
+// `Shelly.Update` nightly with origin="shelly_service". The template carries a
+// simple "auto_update": "off"|"stable"|"beta" string (a wrapper object with
+// `stage` is also accepted on the way in).
+
+export function createAutoUpdateState(): AutoUpdateState {
+  return { enabled: false, mode: 'stable', open: false };
+}
+
+export function buildAutoUpdate(s: AutoUpdateState): string | null {
+  if (!s.enabled) return null;
+  return s.mode;
+}
+
+export function hydrateAutoUpdate(raw: unknown): HydrateResult<AutoUpdateState> {
+  let mode: 'off' | 'stable' | 'beta' | null = null;
+  if (typeof raw === 'string') {
+    if (raw === 'off' || raw === 'stable' || raw === 'beta') mode = raw;
+  } else if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    const record = raw as Record<string, unknown>;
+    const stage = stringField(record, 'stage') ?? stringField(record, 'mode');
+    if (stage === 'off' || stage === 'stable' || stage === 'beta') mode = stage;
+  }
+  if (mode === null) {
+    return { ok: false, reason: 'auto_update must be "off", "stable", or "beta".' };
+  }
+  return { ok: true, state: { enabled: true, mode, open: true } };
 }
 
 // --- matter ---

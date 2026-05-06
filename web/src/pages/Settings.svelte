@@ -11,8 +11,21 @@
     scan_concurrency: 64,
     enable_mdns: false,
     advanced_mode_enabled: false,
+    gen2_badge_class: 'bg-warning text-dark',
+    gen3_badge_class: 'bg-success',
+    gen4_badge_class: 'bg-info text-dark',
     compliance: {},
   };
+
+  const badgeColorOptions: { value: string; label: string }[] = [
+    { value: 'bg-success', label: 'Green (success)' },
+    { value: 'bg-info text-dark', label: 'Cyan (info)' },
+    { value: 'bg-primary', label: 'Blue (primary)' },
+    { value: 'bg-warning text-dark', label: 'Amber (warning)' },
+    { value: 'bg-danger', label: 'Red (danger)' },
+    { value: 'bg-secondary', label: 'Grey (secondary)' },
+    { value: 'bg-dark border border-light', label: 'Dark (outlined)' },
+  ];
   let credentials: Credential[] = [];
   let error = '';
   let errorDetails = '';
@@ -195,10 +208,58 @@
           />
           <span>Enable advanced mode</span>
         </label>
-        <p class="text-secondary mt-2 mb-0">
+        <p class="text-secondary mt-2 mb-3">
           When enabled, power-user surfaces such as the raw JSON template editor on the Provision
           page are shown. Off by default so the guided form is the only entry point.
         </p>
+
+        <h3 class="h6 mt-4">Generation badge colors</h3>
+        <p class="text-secondary small mb-2">
+          Used on the Devices and Firmware pages. Live preview:
+          <span class={`badge ${settings.gen2_badge_class || 'bg-warning text-dark'}`}>Gen 2.x</span
+          >
+          <span class={`badge ${settings.gen3_badge_class || 'bg-success'}`}>Gen 3.x</span>
+          <span class={`badge ${settings.gen4_badge_class || 'bg-info text-dark'}`}>Gen 4.x</span>
+        </p>
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label" for="settings-gen2-badge">Gen 2.x</label>
+            <select
+              id="settings-gen2-badge"
+              class="form-select"
+              bind:value={settings.gen2_badge_class}
+            >
+              {#each badgeColorOptions as opt (opt.value)}
+                <option value={opt.value}>{opt.label}</option>
+              {/each}
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="settings-gen3-badge">Gen 3.x</label>
+            <select
+              id="settings-gen3-badge"
+              class="form-select"
+              bind:value={settings.gen3_badge_class}
+            >
+              {#each badgeColorOptions as opt (opt.value)}
+                <option value={opt.value}>{opt.label}</option>
+              {/each}
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="settings-gen4-badge">Gen 4.x</label>
+            <select
+              id="settings-gen4-badge"
+              class="form-select"
+              bind:value={settings.gen4_badge_class}
+            >
+              {#each badgeColorOptions as opt (opt.value)}
+                <option value={opt.value}>{opt.label}</option>
+              {/each}
+            </select>
+          </div>
+        </div>
+
         <button class="btn btn-warning text-dark mt-3" on:click={saveSettings}>Save Settings</button
         >
       </div>

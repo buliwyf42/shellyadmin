@@ -3,6 +3,7 @@ package firmware
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"shellyadmin/internal/core/shellyclient"
@@ -62,10 +63,11 @@ func CheckOne(ctx context.Context, d models.Device, timeout time.Duration) Resul
 	return CheckOneWithOptions(ctx, d, Options{Timeout: timeout})
 }
 
-// CheckOneWithOptions issues Shelly.CheckForUpdate via shellyclient so digest
-// auth and lockout signalling are honoured. Returns BOTH stable and beta
-// versions from the single device response — Shelly.CheckForUpdate always
-// returns both sections when available. Gen1 devices are unsupported.
+// CheckOneWithOptions issues Shelly.GetDeviceInfo to capture the running
+// firmware version, then Shelly.CheckForUpdate to read the per-channel
+// availability. Returning the running version here is what makes the page
+// resilient to out-of-band upgrades (user flashed via the device's own web UI
+// — Device.FW would otherwise stay stale). Gen1 devices are unsupported.
 func CheckOneWithOptions(ctx context.Context, d models.Device, opts Options) Result {
 	checkedAt := time.Now().UTC().Format(time.RFC3339)
 	res := Result{IP: d.IP, MAC: d.MAC, CurrentVer: d.FW, Status: "na", CheckedAt: checkedAt}
@@ -74,10 +76,22 @@ func CheckOneWithOptions(ctx context.Context, d models.Device, opts Options) Res
 		return res
 	}
 	client := shellyclient.New(opts.toClientOptions())
+
+	// Best-effort: refresh the running version so out-of-band updates are
+	// caught. A failure here is not fatal — we keep the persisted value and
+	// continue with CheckForUpdate, which is the primary signal.
+	if info, err := client.RPC(ctx, d.IP, "Shelly.GetDeviceInfo", nil); err == nil {
+		if running := stringValue(info["ver"]); running != "" {
+			res.CurrentVer = running
+		} else if running := stringValue(info["fw"]); running != "" {
+			res.CurrentVer = running
+		}
+	}
+
 	payload, err := client.RPC(ctx, d.IP, "Shelly.CheckForUpdate", nil)
 	if err != nil {
 		res.Status = "error"
-		res.Note = err.Error()
+		res.Note = friendlyRPCError(err)
 		return res
 	}
 	if stable, ok := payload["stable"].(map[string]any); ok {
@@ -86,8 +100,8 @@ func CheckOneWithOptions(ctx context.Context, d models.Device, opts Options) Res
 	if beta, ok := payload["beta"].(map[string]any); ok {
 		res.BetaVer = stringValue(beta["version"])
 	}
-	res.StableUpdate = res.StableVer != "" && res.StableVer != d.FW
-	res.BetaUpdate = res.BetaVer != "" && res.BetaVer != d.FW
+	res.StableUpdate = res.StableVer != "" && res.StableVer != res.CurrentVer
+	res.BetaUpdate = res.BetaVer != "" && res.BetaVer != res.CurrentVer
 	res.Status = "ok"
 	return res
 }
@@ -139,4 +153,38 @@ func stringValue(v any) string {
 		return s
 	}
 	return ""
+}
+
+// friendlyRPCError condenses the raw network/RPC error into a short phrase
+// suitable for display in the Status column. The raw error often includes the
+// full URL and Go-internal jargon ("context deadline exceeded ...") which is
+// noisy and redundant — the IP is already shown in the row.
+func friendlyRPCError(err error) string {
+	if err == nil {
+		return ""
+	}
+	if errors.Is(err, shellyclient.ErrAuthRequired) {
+		return "authentication required"
+	}
+	if errors.Is(err, shellyclient.ErrAuthLockout) {
+		return "device locked (brute-force protection)"
+	}
+	msg := err.Error()
+	low := strings.ToLower(msg)
+	switch {
+	case strings.Contains(low, "context deadline exceeded"),
+		strings.Contains(low, "client.timeout"),
+		strings.Contains(low, "i/o timeout"):
+		return "device did not respond in time"
+	case strings.Contains(low, "connection refused"):
+		return "connection refused"
+	case strings.Contains(low, "no route to host"):
+		return "no route to host"
+	case strings.Contains(low, "no such host"):
+		return "DNS lookup failed"
+	}
+	if len(msg) > 120 {
+		return msg[:117] + "..."
+	}
+	return msg
 }

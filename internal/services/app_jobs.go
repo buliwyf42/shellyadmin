@@ -157,6 +157,13 @@ func (s *AppService) runRefreshJob(ctx context.Context, jobID int64, done chan<-
 					found.AuthError = ""
 					found.AuthLockedUntil = ""
 					found.TLSAllowInsecure = device.TLSAllowInsecure
+					// Preserve firmware cache (scanner doesn't repopulate
+					// these); refreshFirmwareCache below overwrites on success.
+					found.FWAvailableStable = device.FWAvailableStable
+					found.FWAvailableBeta = device.FWAvailableBeta
+					found.FWCheckedAt = device.FWCheckedAt
+					found.FWAutoUpdate = device.FWAutoUpdate
+					s.refreshFirmwareCache(ctx, found)
 					updated = *found
 				} else if found != nil && found.AuthRequired {
 					updated.LastRefreshAttempt = attemptedAt
@@ -438,14 +445,22 @@ func (s *AppService) runFirmwareJob(jobID int64, devices []models.Device) {
 			}
 			return
 		}
-		result := firmware.CheckOneWithOptions(s.ctx, device, s.firmwareOptions(device, 5*time.Second))
+		result := firmware.CheckOneWithOptions(s.ctx, device, s.firmwareOptions(device, 10*time.Second))
 		results = append(results, result)
 		// Persist the per-channel cache so the channel selector on the Update
 		// page is purely a display filter and other pages (Devices, etc.) can
-		// surface availability without a fresh check.
+		// surface availability without a fresh check. Also write back the
+		// running version (from GetDeviceInfo) so out-of-band upgrades stop
+		// leaving Device.FW stale.
+		if result.CurrentVer != "" {
+			device.FW = result.CurrentVer
+		}
 		device.FWAvailableStable = result.StableVer
 		device.FWAvailableBeta = result.BetaVer
 		device.FWCheckedAt = result.CheckedAt
+		if mode, autoErr := firmware.ReadAutoUpdate(s.ctx, device.IP, device.Gen, s.firmwareOptions(device, 5*time.Second)); autoErr == nil {
+			device.FWAutoUpdate = mode
+		}
 		if uerr := s.db.UpsertDevice(device); uerr != nil {
 			s.Log("error", fmt.Sprintf("firmware job %d: persist fw cache for %s: %v", jobID, device.MAC, uerr))
 		}
@@ -748,7 +763,11 @@ func (s *AppService) installOne(jobID int64, idx int, mac, stage string, device 
 		if time.Now().After(deadline) {
 			setResult(idx, func(r *FirmwareInstallResult) {
 				r.Status = "unknown"
-				r.Detail = "did not come back in time"
+				if expected != "" {
+					r.Detail = fmt.Sprintf("device still on %s after 5 min (expected %s)", initialVer, expected)
+				} else {
+					r.Detail = "no version change detected after 5 min"
+				}
 			})
 			persistProgress()
 			return

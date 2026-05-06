@@ -109,6 +109,7 @@
   let matterOpen = false;
   let modbusOpen = false;
   let zigbeeOpen = false;
+  let autoUpdateOpen = false;
   let fw2Open = false;
   let customOpen = false;
 
@@ -148,6 +149,9 @@
     wifiHostnameEnabled ||
     blePairedField ||
     webhooksConfiguredField;
+  $: autoUpdateExpanded =
+    settings.compliance.auto_update_stage !== '' &&
+    settings.compliance.auto_update_stage !== undefined;
   $: customExpanded = (settings.compliance.custom_rules || []).length > 0;
 
   function captureError(err: unknown) {
@@ -207,6 +211,8 @@
     if (settings.compliance.ble_paired === undefined) settings.compliance.ble_paired = null;
     if (settings.compliance.webhooks_configured === undefined)
       settings.compliance.webhooks_configured = null;
+    if (settings.compliance.auto_update_stage === undefined)
+      settings.compliance.auto_update_stage = '';
   }
 
   function initToggles() {
@@ -907,6 +913,35 @@
                     label={settings.compliance.zigbee_enabled ? 'On' : 'Off'}
                   />
                 </FieldRow>
+              </div>
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            tag="auto-update"
+            title="Auto-Update Schedule (Gen 2+, FW 1.2.0+)"
+            bind:open={autoUpdateOpen}
+            forceOpen={autoUpdateExpanded}
+          >
+            <p class="text-secondary mb-2" style="font-size: 0.82rem;">
+              Synthesised from <code>Schedule.List</code> on each device. Skipped on devices that haven't
+              been firmware-checked yet (so mixed fleets don't false-positive).
+            </p>
+            <div class="sa-form-grid">
+              <div data-span="4">
+                <label class="form-label" for="compliance-auto-update-stage">Required setting</label
+                >
+                <select
+                  id="compliance-auto-update-stage"
+                  class="form-select"
+                  bind:value={settings.compliance.auto_update_stage}
+                  title="Required value for the device's local auto-update schedule. (don't check) skips this rule."
+                >
+                  <option value="">(don't check)</option>
+                  <option value="off">Off (no schedule)</option>
+                  <option value="stable">Stable</option>
+                  <option value="beta">Beta</option>
+                </select>
               </div>
             </div>
           </SectionCard>
