@@ -403,12 +403,13 @@ func (s *AppService) ConfirmScan(macs []string) (int, error) {
 	return len(selected), nil
 }
 
-// --- Firmware ---
+// --- Firmware check ---
 
-func (s *AppService) StartFirmwareCheck(stage string) (int, error) {
-	if stage == "" {
-		stage = "stable"
-	}
+const firmwareInstallTimeout = 5 * time.Minute
+const firmwareInstallPollInterval = 5 * time.Second
+const firmwareInstallConcurrency = 5
+
+func (s *AppService) StartFirmwareCheck() (int, error) {
 	if latest, err := s.db.GetLatestJob("firmware_check"); err == nil && latest.Status == "running" {
 		return latest.Total, errors.New("firmware check already running")
 	}
@@ -416,20 +417,19 @@ func (s *AppService) StartFirmwareCheck(stage string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	payload, _ := json.Marshal(map[string]string{"stage": stage})
-	jobID, err := s.db.CreateJob("firmware_check", "auto", string(payload), len(devices))
+	jobID, err := s.db.CreateJob("firmware_check", "auto", "{}", len(devices))
 	if err != nil {
 		return 0, err
 	}
 	s.bgJobs.Add(1)
 	go func() {
 		defer s.bgJobs.Done()
-		s.runFirmwareJob(jobID, devices, stage)
+		s.runFirmwareJob(jobID, devices)
 	}()
 	return len(devices), nil
 }
 
-func (s *AppService) runFirmwareJob(jobID int64, devices []models.Device, stage string) {
+func (s *AppService) runFirmwareJob(jobID int64, devices []models.Device) {
 	results := make([]firmware.Result, 0, len(devices))
 	for _, device := range devices {
 		if s.ctx.Err() != nil {
@@ -438,8 +438,17 @@ func (s *AppService) runFirmwareJob(jobID int64, devices []models.Device, stage 
 			}
 			return
 		}
-		result := firmware.CheckOneWithOptions(s.ctx, device, stage, s.firmwareOptions(device, 5*time.Second))
+		result := firmware.CheckOneWithOptions(s.ctx, device, s.firmwareOptions(device, 5*time.Second))
 		results = append(results, result)
+		// Persist the per-channel cache so the channel selector on the Update
+		// page is purely a display filter and other pages (Devices, etc.) can
+		// surface availability without a fresh check.
+		device.FWAvailableStable = result.StableVer
+		device.FWAvailableBeta = result.BetaVer
+		device.FWCheckedAt = result.CheckedAt
+		if uerr := s.db.UpsertDevice(device); uerr != nil {
+			s.Log("error", fmt.Sprintf("firmware job %d: persist fw cache for %s: %v", jobID, device.MAC, uerr))
+		}
 		body, merr := json.Marshal(FirmwareJobResult{Results: results})
 		if merr != nil {
 			s.Log("error", fmt.Sprintf("firmware job %d: marshal progress body failed: %v", jobID, merr))
@@ -472,6 +481,9 @@ func (s *AppService) FirmwareStatus() (FirmwareStatus, error) {
 	}, nil
 }
 
+// FirmwareUpdate triggers a one-shot firmware update for the given MACs and
+// returns synchronously. Used by the per-device "firmware_update" action; the
+// bulk Update page goes through StartFirmwareInstall instead.
 func (s *AppService) FirmwareUpdate(ctx context.Context, macs []string, stage string) ([]firmware.UpdateResult, error) {
 	if stage == "" {
 		stage = "stable"
@@ -504,6 +516,7 @@ func (s *AppService) FirmwareUpdate(ctx context.Context, macs []string, stage st
 		if device, ok := index[mac]; ok {
 			results = append(results, firmware.UpdateResult{
 				IP:     device.IP,
+				MAC:    mac,
 				Status: "skipped",
 				Detail: "device busy with provisioning",
 			})
@@ -514,10 +527,311 @@ func (s *AppService) FirmwareUpdate(ctx context.Context, macs []string, stage st
 			if !allowedSet["mac:"+mac] {
 				continue
 			}
-			results = append(results, firmware.TriggerUpdateWithOptions(ctx, device.IP, device.Gen, stage, s.firmwareOptions(device, 10*time.Second)))
+			r := firmware.TriggerUpdateWithOptions(ctx, device.IP, device.Gen, stage, s.firmwareOptions(device, 10*time.Second))
+			r.MAC = mac
+			results = append(results, r)
 		}
 	}
 	return results, nil
+}
+
+// --- Firmware install (bulk) ---
+
+// FirmwareInstallResult is the per-device row tracked inside a firmware_install
+// job. Status flows triggered → updating → current/error/unknown.
+type FirmwareInstallResult struct {
+	IP      string `json:"ip"`
+	MAC     string `json:"mac"`
+	Stage   string `json:"stage"`
+	FromVer string `json:"from_ver"`
+	ToVer   string `json:"to_ver"`
+	Status  string `json:"status"`
+	Detail  string `json:"detail"`
+}
+
+type FirmwareInstallJobPayload struct {
+	MACs  []string `json:"macs"`
+	Stage string   `json:"stage"`
+}
+
+type FirmwareInstallJobResult struct {
+	Results []FirmwareInstallResult `json:"results"`
+}
+
+type FirmwareInstallStatus struct {
+	Running bool                    `json:"running"`
+	Done    int                     `json:"done"`
+	Total   int                     `json:"total"`
+	Results []FirmwareInstallResult `json:"results"`
+}
+
+// StartFirmwareInstall is the entry point used by the bulk Update page. It
+// reserves each MAC, spawns a single background job that runs Shelly.Update
+// with bounded concurrency, then polls each device's Shelly.GetDeviceInfo
+// every firmwareInstallPollInterval until the reported version changes (or
+// matches the per-channel target captured by the latest firmware_check),
+// timing out at firmwareInstallTimeout.
+func (s *AppService) StartFirmwareInstall(macs []string, stage string) (int64, int, error) {
+	if stage == "" {
+		stage = "stable"
+	}
+	if stage != "stable" && stage != "beta" {
+		return 0, 0, fmt.Errorf("invalid stage %q", stage)
+	}
+	if latest, err := s.db.GetLatestJob("firmware_install"); err == nil && latest.Status == "running" {
+		return latest.ID, latest.Total, errors.New("firmware install already running")
+	}
+	devices, err := s.db.ListDevices()
+	if err != nil {
+		return 0, 0, err
+	}
+	index := map[string]models.Device{}
+	for _, device := range devices {
+		index[device.MAC] = device
+	}
+	targetMACs := make([]string, 0, len(macs))
+	for _, mac := range macs {
+		if _, ok := index[mac]; ok {
+			targetMACs = append(targetMACs, mac)
+		}
+	}
+	if len(targetMACs) == 0 {
+		return 0, 0, errors.New("no valid devices for install")
+	}
+	payload, err := json.Marshal(FirmwareInstallJobPayload{MACs: targetMACs, Stage: stage})
+	if err != nil {
+		return 0, 0, err
+	}
+	jobID, err := s.db.CreateJob("firmware_install", "manual", string(payload), len(targetMACs))
+	if err != nil {
+		return 0, 0, err
+	}
+	s.bgJobs.Add(1)
+	go func() {
+		defer s.bgJobs.Done()
+		s.runFirmwareInstallJob(jobID, targetMACs, stage, index)
+	}()
+	return jobID, len(targetMACs), nil
+}
+
+func (s *AppService) runFirmwareInstallJob(jobID int64, macs []string, stage string, index map[string]models.Device) {
+	requested := make([]string, 0, len(macs))
+	for _, mac := range macs {
+		requested = append(requested, "mac:"+mac)
+	}
+	allowed, _ := s.reserveFirmwareTargets(requested)
+	defer s.releaseFirmwareTargets(allowed)
+
+	allowedSet := make(map[string]bool, len(allowed))
+	for _, key := range allowed {
+		allowedSet[key] = true
+	}
+
+	results := make([]FirmwareInstallResult, len(macs))
+	for i, mac := range macs {
+		device := index[mac]
+		results[i] = FirmwareInstallResult{
+			IP:      device.IP,
+			MAC:     mac,
+			Stage:   stage,
+			FromVer: device.FW,
+			ToVer:   targetVersion(device, stage),
+			Status:  "pending",
+		}
+	}
+
+	var resMu sync.Mutex
+	persistProgress := func() {
+		resMu.Lock()
+		snapshot := make([]FirmwareInstallResult, len(results))
+		copy(snapshot, results)
+		done := 0
+		for _, r := range snapshot {
+			if isInstallTerminal(r.Status) {
+				done++
+			}
+		}
+		resMu.Unlock()
+		body, merr := json.Marshal(FirmwareInstallJobResult{Results: snapshot})
+		if merr != nil {
+			s.Log("error", fmt.Sprintf("firmware install job %d: marshal progress: %v", jobID, merr))
+			return
+		}
+		if perr := s.db.UpdateJobProgress(jobID, done, len(snapshot), string(body)); perr != nil {
+			s.Log("error", fmt.Sprintf("firmware install job %d: update progress: %v", jobID, perr))
+		}
+	}
+	setResult := func(i int, mut func(*FirmwareInstallResult)) {
+		resMu.Lock()
+		mut(&results[i])
+		resMu.Unlock()
+	}
+
+	for i := range macs {
+		if !allowedSet["mac:"+macs[i]] {
+			setResult(i, func(r *FirmwareInstallResult) {
+				r.Status = "skipped"
+				r.Detail = "device busy with provisioning"
+			})
+		}
+	}
+	persistProgress()
+
+	sem := make(chan struct{}, firmwareInstallConcurrency)
+	var wg sync.WaitGroup
+	for i, mac := range macs {
+		if !allowedSet["mac:"+mac] {
+			continue
+		}
+		i, mac := i, mac
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			s.installOne(jobID, i, mac, stage, index[mac], setResult, persistProgress)
+		}()
+	}
+	wg.Wait()
+
+	resMu.Lock()
+	final := make([]FirmwareInstallResult, len(results))
+	copy(final, results)
+	resMu.Unlock()
+	body, _ := json.Marshal(FirmwareInstallJobResult{Results: final})
+	if cerr := s.db.CompleteJob(jobID, "completed", string(body), "", len(final), len(final)); cerr != nil {
+		s.Log("error", fmt.Sprintf("firmware install job %d: complete write failed: %v", jobID, cerr))
+	}
+}
+
+func (s *AppService) installOne(jobID int64, idx int, mac, stage string, device models.Device, setResult func(int, func(*FirmwareInstallResult)), persistProgress func()) {
+	if s.ctx.Err() != nil {
+		setResult(idx, func(r *FirmwareInstallResult) {
+			r.Status = "unknown"
+			r.Detail = "service shutting down"
+		})
+		persistProgress()
+		return
+	}
+
+	triggerCtx, triggerCancel := context.WithTimeout(s.ctx, 15*time.Second)
+	trigger := firmware.TriggerUpdateWithOptions(triggerCtx, device.IP, device.Gen, stage, s.firmwareOptions(device, 10*time.Second))
+	triggerCancel()
+	if trigger.Status != "triggered" {
+		setResult(idx, func(r *FirmwareInstallResult) {
+			r.Status = "error"
+			r.Detail = trigger.Detail
+		})
+		persistProgress()
+		s.Log("warn", fmt.Sprintf("firmware install job %d: trigger %s failed: %s", jobID, mac, trigger.Detail))
+		return
+	}
+
+	setResult(idx, func(r *FirmwareInstallResult) {
+		r.Status = "updating"
+		r.Detail = trigger.Detail
+	})
+	persistProgress()
+
+	deadline := time.Now().Add(firmwareInstallTimeout)
+	initialVer := device.FW
+	expected := targetVersion(device, stage)
+	for {
+		if s.ctx.Err() != nil {
+			setResult(idx, func(r *FirmwareInstallResult) {
+				r.Status = "unknown"
+				r.Detail = "service shutting down"
+			})
+			persistProgress()
+			return
+		}
+		if time.Now().After(deadline) {
+			setResult(idx, func(r *FirmwareInstallResult) {
+				r.Status = "unknown"
+				r.Detail = "did not come back in time"
+			})
+			persistProgress()
+			return
+		}
+		select {
+		case <-s.ctx.Done():
+			continue
+		case <-time.After(firmwareInstallPollInterval):
+		}
+		probeCtx, probeCancel := context.WithTimeout(s.ctx, 8*time.Second)
+		ver, err := firmware.GetDeviceFirmware(probeCtx, device.IP, device.Gen, s.firmwareOptions(device, 8*time.Second))
+		probeCancel()
+		if err != nil || ver == "" {
+			continue
+		}
+		// Success criteria: version matches the expected target (when known)
+		// OR the version simply moved off the original.
+		matched := (expected != "" && ver == expected) || (expected == "" && ver != initialVer)
+		if !matched {
+			continue
+		}
+		// Persist the new firmware on the device row and clear the channel's
+		// available_ver since it's now installed.
+		fresh, err := s.db.ListDevices()
+		if err == nil {
+			for _, d := range fresh {
+				if d.MAC == mac {
+					d.FW = ver
+					if stage == "beta" && d.FWAvailableBeta == ver {
+						d.FWAvailableBeta = ""
+					}
+					if stage == "stable" && d.FWAvailableStable == ver {
+						d.FWAvailableStable = ""
+					}
+					d.FWCheckedAt = time.Now().UTC().Format(time.RFC3339)
+					_ = s.db.UpsertDevice(d)
+					break
+				}
+			}
+		}
+		setResult(idx, func(r *FirmwareInstallResult) {
+			r.Status = "current"
+			r.ToVer = ver
+			r.Detail = "update completed"
+		})
+		persistProgress()
+		return
+	}
+}
+
+func (s *AppService) FirmwareInstallStatus() (FirmwareInstallStatus, error) {
+	job, err := s.db.GetLatestJob("firmware_install")
+	if err != nil {
+		return FirmwareInstallStatus{Results: []FirmwareInstallResult{}}, nil
+	}
+	var result FirmwareInstallJobResult
+	if job.Result != "" {
+		_ = json.Unmarshal([]byte(job.Result), &result)
+	}
+	if result.Results == nil {
+		result.Results = []FirmwareInstallResult{}
+	}
+	return FirmwareInstallStatus{
+		Running: job.Status == "running",
+		Done:    job.Done,
+		Total:   job.Total,
+		Results: result.Results,
+	}, nil
+}
+
+func targetVersion(d models.Device, stage string) string {
+	if stage == "beta" {
+		return d.FWAvailableBeta
+	}
+	return d.FWAvailableStable
+}
+
+func isInstallTerminal(status string) bool {
+	switch status {
+	case "current", "error", "unknown", "skipped":
+		return true
+	}
+	return false
 }
 
 // --- Recovery ---
@@ -552,24 +866,19 @@ func (s *AppService) RecoverInterruptedJobs() error {
 			// user's manual refresh), simply leave them as interrupted and let
 			// the user trigger a fresh refresh when ready.
 		case "firmware_check":
-			var stagePayload map[string]string
-			if uerr := json.Unmarshal([]byte(job.Payload), &stagePayload); uerr != nil {
-				s.Log("warn", fmt.Sprintf("restart firmware_check job %d: parse stage payload: %v", job.ID, uerr))
-			}
-			stage := stagePayload["stage"]
 			devices, err := s.db.ListDevices()
 			if err != nil {
 				continue
 			}
-			newJobID, err := s.db.CreateJob("firmware_check", "auto", job.Payload, len(devices))
+			newJobID, err := s.db.CreateJob("firmware_check", "auto", "{}", len(devices))
 			if err != nil {
 				continue
 			}
 			s.bgJobs.Add(1)
-			go func(id int64, devs []models.Device, st string) {
+			go func(id int64, devs []models.Device) {
 				defer s.bgJobs.Done()
-				s.runFirmwareJob(id, devs, st)
-			}(newJobID, devices, stage)
+				s.runFirmwareJob(id, devs)
+			}(newJobID, devices)
 			s.Log("INFO", fmt.Sprintf("auto-restarted interrupted job firmware_check:%d as job:%d", job.ID, newJobID))
 		}
 	}

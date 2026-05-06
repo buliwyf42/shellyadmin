@@ -288,14 +288,14 @@ func (h *Handler) ScanConfirm(c *gin.Context) {
 }
 
 func (h *Handler) FirmwareCheck(c *gin.Context) {
-	var req struct {
-		Stage string `json:"stage"`
+	// Body is accepted for backwards compat but ignored — Shelly.CheckForUpdate
+	// returns both stable and beta in a single call, so the channel selector
+	// is purely a frontend display filter.
+	if c.Request.ContentLength > 0 {
+		var ignored map[string]any
+		_ = decodeJSON(c, &ignored, 4*1024)
 	}
-	if err := decodeJSON(c, &req, 4*1024); err != nil && !errors.Is(err, io.EOF) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
-		return
-	}
-	total, err := h.service.StartFirmwareCheck(req.Stage)
+	total, err := h.service.StartFirmwareCheck()
 	if err != nil && err.Error() != "firmware check already running" {
 		h.respondUserError(c, http.StatusBadRequest, err)
 		return
@@ -321,12 +321,25 @@ func (h *Handler) FirmwareUpdate(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "macs required"})
 		return
 	}
-	results, err := h.service.FirmwareUpdate(c.Request.Context(), req.MACs, req.Stage)
+	jobID, total, err := h.service.StartFirmwareInstall(req.MACs, req.Stage)
+	if err != nil {
+		if err.Error() == "firmware install already running" {
+			c.JSON(http.StatusOK, gin.H{"status": "running", "job_id": jobID, "total": total})
+			return
+		}
+		h.respondUserError(c, http.StatusBadRequest, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "started", "job_id": jobID, "total": total})
+}
+
+func (h *Handler) FirmwareInstallStatus(c *gin.Context) {
+	status, err := h.service.FirmwareInstallStatus()
 	if err != nil {
 		h.respondError(c, http.StatusInternalServerError, "internal error", err)
 		return
 	}
-	c.JSON(http.StatusOK, results)
+	c.JSON(http.StatusOK, status)
 }
 
 func (h *Handler) Provision(c *gin.Context) {

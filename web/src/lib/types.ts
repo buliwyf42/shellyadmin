@@ -46,8 +46,9 @@ export interface Device {
   power_w?: number | null;
   voltage_v?: number | null;
   current_a?: number | null;
-  fw_status: string;
-  fw_available_ver: string;
+  fw_available_stable: string;
+  fw_available_beta: string;
+  fw_checked_at: string;
   serial: string;
   is_new?: boolean;
   compliant: boolean;
@@ -123,11 +124,13 @@ export interface FWResult {
   ip: string;
   mac: string;
   current_ver: string;
-  available_ver: string;
-  update_available: boolean;
-  status: string;
+  stable_ver: string;
+  beta_ver: string;
+  stable_update: boolean;
+  beta_update: boolean;
+  status: string; // "ok" | "error" | "na"
   note: string;
-  stage: string;
+  checked_at: string;
 }
 
 export interface FirmwareStatus {
@@ -135,6 +138,23 @@ export interface FirmwareStatus {
   done: number;
   total: number;
   results: FWResult[];
+}
+
+export interface FirmwareInstallResult {
+  ip: string;
+  mac: string;
+  stage: string;
+  from_ver: string;
+  to_ver: string;
+  status: string; // "pending" | "updating" | "current" | "error" | "unknown" | "skipped"
+  detail: string;
+}
+
+export interface FirmwareInstallStatus {
+  running: boolean;
+  done: number;
+  total: number;
+  results: FirmwareInstallResult[];
 }
 
 export interface ScanStatus {
@@ -224,6 +244,7 @@ export interface ProvisionResult {
 /** Mirrors internal/core/firmware/firmware.go:UpdateResult. */
 export interface FirmwareUpdateResult {
   ip: string;
+  mac: string;
   status: string;
   detail: string;
 }

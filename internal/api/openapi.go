@@ -204,6 +204,15 @@ func documentedAPIRoutes() []apiRouteDoc {
 			},
 		},
 		{
+			Method:  http.MethodGet,
+			Path:    "/api/firmware/install/status",
+			Summary: "Read fleet firmware install status",
+			Auth:    true,
+			Register: func(routes gin.IRoutes, h *Handler) {
+				routes.GET("/api/firmware/install/status", h.FirmwareInstallStatus)
+			},
+		},
+		{
 			Method:  http.MethodPost,
 			Path:    "/api/provision",
 			Summary: "Provision selected IP targets",

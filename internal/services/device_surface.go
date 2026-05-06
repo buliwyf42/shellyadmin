@@ -208,9 +208,16 @@ func (s *AppService) ExecuteDeviceAction(ctx context.Context, target, action str
 		s.LogCtx(ctx, "INFO", fmt.Sprintf("device action refresh target=%s", target))
 		return DeviceActionResult{Action: action, Status: "ok", Detail: "device refreshed"}, nil
 	case "firmware_check":
-		stage := util.FirstNonEmpty(req.Stage, "stable")
-		result := firmware.CheckOneWithOptions(ctx, detail.Device, stage, s.firmwareOptions(detail.Device, 5*time.Second))
-		s.LogCtx(ctx, "INFO", fmt.Sprintf("device action firmware_check target=%s stage=%s status=%s", target, stage, result.Status))
+		result := firmware.CheckOneWithOptions(ctx, detail.Device, s.firmwareOptions(detail.Device, 5*time.Second))
+		// Persist per-channel cache so the rest of the app can read it.
+		updated := detail.Device
+		updated.FWAvailableStable = result.StableVer
+		updated.FWAvailableBeta = result.BetaVer
+		updated.FWCheckedAt = result.CheckedAt
+		if uerr := s.db.UpsertDevice(updated); uerr != nil {
+			s.LogCtx(ctx, "warn", fmt.Sprintf("device action firmware_check persist target=%s err=%v", target, uerr))
+		}
+		s.LogCtx(ctx, "INFO", fmt.Sprintf("device action firmware_check target=%s status=%s", target, result.Status))
 		return DeviceActionResult{Action: action, Status: "ok", Detail: "firmware check completed", Result: result}, nil
 	case "firmware_update":
 		stage := util.FirstNonEmpty(req.Stage, "stable")

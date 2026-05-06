@@ -11,8 +11,8 @@ import type {
   DeviceActionResult,
   DeviceDetail,
   DeviceExport,
+  FirmwareInstallStatus,
   FirmwareStatus,
-  FirmwareUpdateResult,
   ImportReport,
   LogEntry,
   ProvisionResult,
@@ -209,11 +209,14 @@ export const api = {
   getVersion: () => req<VersionInfo>('GET', '/api/version'),
   scanConfirm: (macs?: string[]) =>
     req<{ ok: true; count: number }>('POST', '/api/scan/confirm', macs ? { macs } : {}),
-  firmwareCheck: (stage: string) =>
-    req<{ status: string; total: number }>('POST', '/api/firmware/check', { stage }),
+  firmwareCheck: () => req<{ status: string; total: number }>('POST', '/api/firmware/check', {}),
   firmwareStatus: () => req<FirmwareStatus>('GET', '/api/firmware/status'),
   firmwareUpdate: (macs: string[], stage: string) =>
-    req<FirmwareUpdateResult[]>('POST', '/api/firmware/update', { macs, stage }),
+    req<{ status: string; job_id: number; total: number }>('POST', '/api/firmware/update', {
+      macs,
+      stage,
+    }),
+  firmwareInstallStatus: () => req<FirmwareInstallStatus>('GET', '/api/firmware/install/status'),
   provision: (ips: string[], template: Record<string, unknown>, credentialRef = '') =>
     req<ProvisionResult[]>('POST', '/api/provision', {
       ips,

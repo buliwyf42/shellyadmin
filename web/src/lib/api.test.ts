@@ -75,9 +75,7 @@ describe('api client', () => {
 
   it('throws APIError with status + detail on non-ok responses', async () => {
     await expect(
-      () =>
-        // @ts-expect-error - exercising error path with arbitrary path
-        (api as unknown as { _req: (m: string, p: string) => Promise<unknown> })._req,
+      () => (api as unknown as { _req: (m: string, p: string) => Promise<unknown> })._req,
     ).toBeDefined();
 
     // Use a real call that maps to /api/missing via a known endpoint signature.

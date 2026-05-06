@@ -140,7 +140,6 @@ func ProbeDeviceWithOptions(ctx context.Context, ip string, opts ProbeOptions, l
 		Serial:   stringField(base, "id"),
 		Online:   true,
 		LastSeen: time.Now().UTC().Format(time.RFC3339),
-		FWStatus: "unknown",
 		Scheme:   client.Scheme(),
 	}
 	if dev.Gen == 0 {
