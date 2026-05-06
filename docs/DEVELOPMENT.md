@@ -5,6 +5,9 @@
 Backend:
 
 - Go 1.24+
+- `golangci-lint` v2.6+ (the v1 → v2 migration landed in v0.1.6; older
+  binaries fail to load `.golangci.yml` because the schema changed).
+  Install: `go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.6.0`.
 
 Frontend:
 
@@ -77,6 +80,7 @@ make frontend-sync
 ```bash
 go test ./...
 go vet ./...
+golangci-lint run ./...
 ```
 
 Services that orchestrate background jobs (`internal/services/app_jobs.go`,

@@ -38,10 +38,11 @@ The current accepted decision set includes:
 - `internal/api`: HTTP endpoints and session handling
 - `internal/services`: workflows and job orchestration, split by topic:
   - `app.go` — service struct, lifecycle, settings, templates, logs, shared helpers
-  - `app_jobs.go` — refresh/scan/firmware job orchestration and lifecycle
+  - `app_jobs.go` — refresh / scan / firmware-check / firmware-install job orchestration and lifecycle
+  - `app_clients.go` — per-device option builders (scanner / setter / firmware / provisioner) and the cross-cutting `refreshFirmwareCache` helper
   - `app_backup.go` — backup export/import and dry-run impact reporting
   - `app_credentials.go` — credential and credential-group CRUD
-- `internal/core`: Shelly protocol logic
+- `internal/core`: Shelly protocol logic. `internal/core/firmware/autoupdate.go` reads/writes the per-device auto-update mode by manipulating `Schedule.*` jobs (Shelly Gen2+ has no dedicated OTA-config method)
 - `internal/db`: persistence and migrations
 - `web`: embedded Svelte UI
 
@@ -71,11 +72,11 @@ Auto-restart after container restart:
 
 - scan
 - refresh
-- firmware check
+- firmware check (re-issues `Shelly.CheckForUpdate` + `Schedule.List` per device)
 
 Do not auto-restart:
 
-- firmware update
+- firmware install (`firmware_install` job — bulk `Shelly.Update` + per-device version polling)
 - provision
 
 ## Provisioning
@@ -145,5 +146,8 @@ Optional:
   - load, edit, save, delete, and rename templates in-context
   - Settings no longer exposes a Templates section
 - Provision and Compliance share a common section and field ordering policy (see ADR-0008):
-  - section order: sys → mqtt → cloud → ws → ble → wifi → ota
+  - section order: sys → mqtt → cloud → ws → ble → wifi → auto_update → matter → modbus → zigbee
   - sys field order: name (provision only) → tz → sntp → debug_ws → debug_udp → rpc_udp → lat → lon → eco → discoverable
+  - the legacy `ota` section is no longer rendered; auto-update lives under its own `auto_update` section, implemented via `Schedule.*` rather than a (non-existent) `OTA.SetConfig` method
+- Firmware page shares the Stable/Beta channel selector with the Devices page via a localStorage-backed Svelte store (`firmwareChannel`). Toggling on either page propagates immediately.
+- Generation badge colors (Gen 2 / 3 / 4) are operator-configurable via Settings → UI Preferences and shared between the Devices and Firmware pages.

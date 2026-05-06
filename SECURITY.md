@@ -10,13 +10,14 @@ Security fixes are best-effort while the project is in active early development.
 
 | Version | Supported |
 | --- | --- |
-| `v0.1.4` | Yes |
-| `v0.1.3` | Best effort |
+| `v0.1.6` | Yes |
+| `v0.1.5` | Best effort |
+| `v0.1.4` | Best effort |
+| `v0.1.3` | No (older firmware-page bugs — upgrade) |
 | `v0.1.2` | No (scanner false-positive bug — upgrade) |
 | `v0.1.1` | No (scanner false-positive bug — upgrade) |
 | `v0.1.0` | No (scanner false-positive bug — upgrade) |
-| `v0.0.16` | Best effort |
-| Older versions | No |
+| `v0.0.16` and older | No |
 
 ## Reporting a Vulnerability
 
