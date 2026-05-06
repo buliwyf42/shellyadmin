@@ -19,3 +19,4 @@ Status key:
 - [ADR-0006 Backup, Export/Import, and Secret Handling](./0006-backup-export-import-and-secrets.md) (`Accepted`)
 - [ADR-0007 UI Time and Error Presentation Policy](./0007-ui-time-and-error-presentation.md) (`Accepted`)
 - [ADR-0008 Provision/Compliance UI Alignment and Template Management Consolidation](./0008-provision-compliance-ui-alignment.md) (`Accepted`)
+- [ADR-0009 Firmware Auto-Update via `Schedule.*` Synthesis](./0009-firmware-auto-update-via-schedule.md) (`Accepted`)
