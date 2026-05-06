@@ -1,35 +1,50 @@
+version: "2"
 run:
   go: "1.24"
-  timeout: 5m
   tests: true
-
 linters:
-  disable-all: true
+  default: none
   enable:
     - errcheck
-    - gofmt
-    - goimports
     - govet
     - ineffassign
     - misspell
     - staticcheck
     - unconvert
     - unused
-
-linters-settings:
-  errcheck:
-    check-type-assertions: false
-    check-blank: false
-  goimports:
-    local-prefixes: shellyadmin
-
+  settings:
+    errcheck:
+      check-type-assertions: false
+      check-blank: false
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - errcheck
+        path: _test\.go
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
 issues:
-  exclude-rules:
-    # Tests routinely ignore errors from fixture/teardown calls where the
-    # failure mode is obvious from the surrounding assertions. Keeping
-    # errcheck on non-test code still covers the interesting cases.
-    - path: _test\.go
-      linters:
-        - errcheck
   max-issues-per-linter: 0
   max-same-issues: 0
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - shellyadmin
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
