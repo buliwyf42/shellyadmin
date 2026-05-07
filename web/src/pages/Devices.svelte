@@ -278,7 +278,10 @@
       case 'gen':
         return a.gen - b.gen;
       case 'model':
-        return (a.model || '').localeCompare(b.model || '');
+        // Sort on the displayed text (app code first, model SKU
+        // fallback) so the column header click matches what the eye
+        // sees in the cells.
+        return (a.app || a.model || '').localeCompare(b.app || b.model || '');
       case 'fw':
         return (a.fw || '').localeCompare(b.fw || '');
       case 'online':

@@ -41,6 +41,10 @@ func (s *AppService) ExportDevice(target string) (DeviceExport, error) {
 const maxLogsForExport = 100000
 
 func (s *AppService) ExportLogs(level, search, format string) (body []byte, filename, contentType string, err error) {
+	return s.ExportLogsFiltered(level, search, "", format)
+}
+
+func (s *AppService) ExportLogsFiltered(level, search, risk, format string) (body []byte, filename, contentType string, err error) {
 	format = strings.ToLower(strings.TrimSpace(format))
 	if format == "" {
 		format = "csv"
@@ -48,7 +52,7 @@ func (s *AppService) ExportLogs(level, search, format string) (body []byte, file
 	if format != "csv" && format != "ndjson" {
 		return nil, "", "", errors.New("format must be csv or ndjson")
 	}
-	entries, err := s.db.GetLogsForExport(level, search, maxLogsForExport)
+	entries, err := s.db.GetLogsForExportFiltered(level, search, risk, maxLogsForExport)
 	if err != nil {
 		return nil, "", "", err
 	}

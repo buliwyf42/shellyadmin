@@ -458,7 +458,7 @@ func (h *Handler) DeleteTemplate(c *gin.Context) {
 }
 
 func (h *Handler) GetLogs(c *gin.Context) {
-	entries, err := h.service.GetLogs(c.Query("level"), c.Query("search"))
+	entries, err := h.service.GetLogsFiltered(c.Query("level"), c.Query("search"), c.Query("risk"))
 	if err != nil {
 		h.respondError(c, http.StatusInternalServerError, "internal error", err)
 		return
@@ -581,7 +581,7 @@ func (h *Handler) ExportDevice(c *gin.Context) {
 }
 
 func (h *Handler) ExportLogs(c *gin.Context) {
-	body, filename, contentType, err := h.service.ExportLogs(c.Query("level"), c.Query("search"), c.Query("format"))
+	body, filename, contentType, err := h.service.ExportLogsFiltered(c.Query("level"), c.Query("search"), c.Query("risk"), c.Query("format"))
 	if err != nil {
 		h.respondUserError(c, http.StatusBadRequest, err)
 		return

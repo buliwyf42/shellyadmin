@@ -455,6 +455,12 @@ func (s *AppService) runFirmwareJob(jobID int64, devices []models.Device) {
 		if result.CurrentVer != "" {
 			device.FW = result.CurrentVer
 		}
+		if result.Batch != "" {
+			device.Batch = result.Batch
+		}
+		if result.FWID != "" {
+			device.FWID = result.FWID
+		}
 		device.FWAvailableStable = result.StableVer
 		device.FWAvailableBeta = result.BetaVer
 		device.FWCheckedAt = result.CheckedAt

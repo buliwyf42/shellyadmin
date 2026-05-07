@@ -98,7 +98,13 @@ func (f *fakeStore) ReplaceDeviceCredentialGroupAssignments(map[string]string) e
 func (f *fakeStore) GetLogs(string, string) ([]db.LogEntry, error) {
 	return nil, errUnimplemented
 }
+func (f *fakeStore) GetLogsFiltered(string, string, string) ([]db.LogEntry, error) {
+	return nil, errUnimplemented
+}
 func (f *fakeStore) GetLogsForExport(string, string, int) ([]db.LogEntry, error) {
+	return nil, errUnimplemented
+}
+func (f *fakeStore) GetLogsForExportFiltered(string, string, string, int) ([]db.LogEntry, error) {
 	return nil, errUnimplemented
 }
 func (f *fakeStore) ClearLogs() (int64, error) { return 0, errUnimplemented }

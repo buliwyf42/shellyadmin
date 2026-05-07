@@ -169,13 +169,26 @@
               >
             </div>
             <div>
-              <span class="text-secondary">Firmware</span><strong
+              <span class="text-secondary">Firmware</span><strong title={detail.device.fw_id || ''}
                 >{detail.device.fw || 'n/a'}</strong
               >
             </div>
+            {#if detail.device.fw_id}
+              <div>
+                <span class="text-secondary">Firmware ID</span>
+                <strong class="font-monospace small" title={detail.device.fw_id}
+                  >{detail.device.fw_id}</strong
+                >
+              </div>
+            {/if}
             <div>
               <span class="text-secondary">Generation</span><strong>Gen {detail.device.gen}</strong>
             </div>
+            {#if detail.device.batch}
+              <div>
+                <span class="text-secondary">Batch</span><strong>{detail.device.batch}</strong>
+              </div>
+            {/if}
             {#if detail.device.switch_count || detail.device.cover_count || detail.device.light_count}
               <div>
                 <span class="text-secondary">Components</span><strong>

@@ -5,6 +5,7 @@
 
   let level = '';
   let search = '';
+  let risk = '';
   let logs: LogEntry[] = [];
   let busy = false;
   let notice = '';
@@ -12,13 +13,13 @@
 
   async function load() {
     error = '';
-    logs = await api.getLogs(level, search);
+    logs = await api.getLogs(level, search, risk);
   }
 
   async function exportLogs(format: 'csv' | 'ndjson') {
     error = '';
     try {
-      const blob = await api.exportLogs(level, search, format);
+      const blob = await api.exportLogs(level, search, risk, format);
       const stamp = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
       triggerDownload(`shellyadmin-logs-${stamp}.${format}`, blob);
     } catch (err) {
@@ -57,6 +58,16 @@
       <option value="INFO">INFO</option>
       <option value="WARN">WARN</option>
       <option value="ERROR">ERROR</option>
+    </select>
+    <select
+      class="form-select toolbar-select-md"
+      bind:value={risk}
+      title="Filter by catalog risk level on action-execution rows"
+    >
+      <option value="">All Risks</option>
+      <option value="low">Low</option>
+      <option value="medium">Medium</option>
+      <option value="high">High</option>
     </select>
     <input class="form-control toolbar-input-lg" placeholder="Search logs" bind:value={search} />
     <button class="btn btn-warning text-dark" on:click={load}>Load</button>

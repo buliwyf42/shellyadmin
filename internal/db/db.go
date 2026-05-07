@@ -133,7 +133,7 @@ func (db *DB) migrate() error {
 }
 
 func (db *DB) ListDevices() ([]models.Device, error) {
-	rows, err := db.sql.Query(`SELECT mac, ip, name, model, app, fw, gen, online, last_seen, first_seen, device_num,
+	rows, err := db.sql.Query(`SELECT mac, ip, name, model, app, batch, fw_id, fw, gen, online, last_seen, first_seen, device_num,
 		last_refresh_attempt, last_refresh_ok, last_refresh_error,
 		consecutive_misses, mqtt_enabled, mqtt_server, mqtt_client_id, mqtt_topic_prefix, mqtt_flags_na,
 		lat, lon, tz, ws_enabled, ws_server, ble_gw_enabled, wifi_ssid,
@@ -152,7 +152,7 @@ func (db *DB) ListDevices() ([]models.Device, error) {
 		var d models.Device
 		var online, refreshOK, cloudConnected, wsConnected, authRequired int
 		var supportedMethodsRaw string
-		if err := rows.Scan(&d.MAC, &d.IP, &d.Name, &d.Model, &d.App, &d.FW, &d.Gen, &online, &d.LastSeen, &d.FirstSeen, &d.DeviceNum,
+		if err := rows.Scan(&d.MAC, &d.IP, &d.Name, &d.Model, &d.App, &d.Batch, &d.FWID, &d.FW, &d.Gen, &online, &d.LastSeen, &d.FirstSeen, &d.DeviceNum,
 			&d.LastRefreshAttempt, &refreshOK, &d.LastRefreshError,
 			&d.ConsecutiveMisses, &d.MQTTEnabled, &d.MQTTServer, &d.MQTTClientID, &d.MQTTTopicPrefix, &d.MQTTFlagsNA,
 			&d.Lat, &d.Lon, &d.TZ, &d.WSEnabled, &d.WSServer, &d.BLEGWEnabled, &d.WiFiSSID,
@@ -244,7 +244,7 @@ func upsertDeviceRow(ex dbExec, d models.Device) error {
 		d.Scheme = "http"
 	}
 	_, err := ex.Exec(`INSERT INTO devices (
-		mac, ip, name, model, app, fw, gen, online, last_seen, first_seen, device_num, consecutive_misses,
+		mac, ip, name, model, app, batch, fw_id, fw, gen, online, last_seen, first_seen, device_num, consecutive_misses,
 		last_refresh_attempt, last_refresh_ok, last_refresh_error,
 		mqtt_enabled, mqtt_server, mqtt_client_id, mqtt_topic_prefix, mqtt_flags_na, lat, lon, tz,
 		ws_enabled, ws_server, ble_gw_enabled, wifi_ssid,
@@ -253,9 +253,9 @@ func upsertDeviceRow(ex dbExec, d models.Device) error {
 		cloud_connected, ws_connected, matter_enabled, sntp_server, serial, eco_mode, discoverable, raw_config, raw_status,
 		scheme, enhanced_security, tls_cert_valid, tls_allow_insecure, auth_locked_until, wifi_hostname, wifi_channel,
 		power_w, voltage_v, current_a
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	ON CONFLICT(mac) DO UPDATE SET
-		ip=excluded.ip, name=excluded.name, model=excluded.model, app=excluded.app, fw=excluded.fw, gen=excluded.gen,
+		ip=excluded.ip, name=excluded.name, model=excluded.model, app=excluded.app, batch=excluded.batch, fw_id=excluded.fw_id, fw=excluded.fw, gen=excluded.gen,
 		online=excluded.online, last_seen=excluded.last_seen, first_seen=excluded.first_seen,
 		device_num=excluded.device_num, consecutive_misses=excluded.consecutive_misses,
 		last_refresh_attempt=excluded.last_refresh_attempt, last_refresh_ok=excluded.last_refresh_ok, last_refresh_error=excluded.last_refresh_error,
@@ -280,7 +280,7 @@ func upsertDeviceRow(ex dbExec, d models.Device) error {
 		auth_locked_until=excluded.auth_locked_until,
 		wifi_hostname=excluded.wifi_hostname, wifi_channel=excluded.wifi_channel,
 		power_w=excluded.power_w, voltage_v=excluded.voltage_v, current_a=excluded.current_a`,
-		d.MAC, d.IP, d.Name, d.Model, d.App, d.FW, d.Gen, boolToInt(d.Online), d.LastSeen, d.FirstSeen, d.DeviceNum, d.ConsecutiveMisses,
+		d.MAC, d.IP, d.Name, d.Model, d.App, d.Batch, d.FWID, d.FW, d.Gen, boolToInt(d.Online), d.LastSeen, d.FirstSeen, d.DeviceNum, d.ConsecutiveMisses,
 		d.LastRefreshAttempt, boolToInt(d.LastRefreshOK), d.LastRefreshError,
 		d.MQTTEnabled, d.MQTTServer, d.MQTTClientID, d.MQTTTopicPrefix, d.MQTTFlagsNA, d.Lat, d.Lon, d.TZ,
 		d.WSEnabled, d.WSServer, d.BLEGWEnabled, d.WiFiSSID,
@@ -687,6 +687,14 @@ func (db *DB) AddLogWithAttrs(level, message, requestID, riskLevel string) error
 }
 
 func (db *DB) GetLogs(level, search string) ([]LogEntry, error) {
+	return db.GetLogsFiltered(level, search, "")
+}
+
+// GetLogsFiltered extends GetLogs with the v0.1.10 risk_level column. Empty
+// risk filters keep the prior behaviour. Recognised values: "low",
+// "medium", "high"; anything else is ignored so a stale frontend bookmark
+// with an unknown value doesn't break the query.
+func (db *DB) GetLogsFiltered(level, search, risk string) ([]LogEntry, error) {
 	query := `SELECT id, ts, level, message, request_id, risk_level FROM audit_log WHERE 1=1`
 	args := []any{}
 	if level != "" {
@@ -696,6 +704,11 @@ func (db *DB) GetLogs(level, search string) ([]LogEntry, error) {
 	if search != "" {
 		query += ` AND message LIKE ?`
 		args = append(args, "%"+search+"%")
+	}
+	switch strings.ToLower(strings.TrimSpace(risk)) {
+	case "low", "medium", "high":
+		query += ` AND risk_level = ?`
+		args = append(args, strings.ToLower(risk))
 	}
 	query += ` ORDER BY id DESC LIMIT 500`
 	rows, err := db.sql.Query(query, args...)
@@ -715,6 +728,10 @@ func (db *DB) GetLogs(level, search string) ([]LogEntry, error) {
 }
 
 func (db *DB) GetLogsForExport(level, search string, limit int) ([]LogEntry, error) {
+	return db.GetLogsForExportFiltered(level, search, "", limit)
+}
+
+func (db *DB) GetLogsForExportFiltered(level, search, risk string, limit int) ([]LogEntry, error) {
 	if limit <= 0 {
 		limit = 100000
 	}
@@ -727,6 +744,11 @@ func (db *DB) GetLogsForExport(level, search string, limit int) ([]LogEntry, err
 	if search != "" {
 		query += ` AND message LIKE ?`
 		args = append(args, "%"+search+"%")
+	}
+	switch strings.ToLower(strings.TrimSpace(risk)) {
+	case "low", "medium", "high":
+		query += ` AND risk_level = ?`
+		args = append(args, strings.ToLower(risk))
 	}
 	query += ` ORDER BY id DESC LIMIT ?`
 	args = append(args, limit)

@@ -562,6 +562,10 @@ func (s *AppService) GetLogs(level, search string) ([]db.LogEntry, error) {
 	return s.db.GetLogs(level, search)
 }
 
+func (s *AppService) GetLogsFiltered(level, search, risk string) ([]db.LogEntry, error) {
+	return s.db.GetLogsFiltered(level, search, risk)
+}
+
 func (s *AppService) ClearLogs() (int64, error) {
 	return s.db.ClearLogs()
 }

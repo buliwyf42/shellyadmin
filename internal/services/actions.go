@@ -107,6 +107,12 @@ var actionCatalog = []actionDef{
 			if result.CurrentVer != "" {
 				updated.FW = result.CurrentVer
 			}
+			if result.Batch != "" {
+				updated.Batch = result.Batch
+			}
+			if result.FWID != "" {
+				updated.FWID = result.FWID
+			}
 			updated.FWAvailableStable = result.StableVer
 			updated.FWAvailableBeta = result.BetaVer
 			updated.FWCheckedAt = result.CheckedAt

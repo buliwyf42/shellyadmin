@@ -8,6 +8,13 @@ export interface Device {
    * primary "what is this device" label, with `model` demoted to the
    * tooltip. Empty until a scan / refresh has run on v0.1.11+. */
   app?: string;
+  /** Production batch from Shelly.GetDeviceInfo (e.g. "2430-Broadwell").
+   * Useful for warranty / hardware-quirk diagnostics. */
+  batch?: string;
+  /** Long firmware identifier with build hash (e.g.
+   * "20260423-102547/2.0.0-beta1-g8c7700a"). Distinct from `fw` which
+   * is the user-friendly version string. */
+  fw_id?: string;
   fw: string;
   gen: number;
   online: boolean;

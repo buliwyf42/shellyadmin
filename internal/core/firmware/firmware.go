@@ -24,6 +24,12 @@ type Result struct {
 	Status       string `json:"status"` // "ok", "error", "na"
 	Note         string `json:"note"`
 	CheckedAt    string `json:"checked_at"`
+	// Identifying metadata captured opportunistically from Shelly.GetDeviceInfo
+	// during the check. Empty when the GetDeviceInfo call fails or doesn't
+	// return the field (older firmware). The service layer persists these
+	// onto the Device row alongside the per-channel firmware cache.
+	Batch string `json:"batch,omitempty"`
+	FWID  string `json:"fw_id,omitempty"`
 }
 
 type UpdateResult struct {
@@ -86,6 +92,8 @@ func CheckOneWithOptions(ctx context.Context, d models.Device, opts Options) Res
 		} else if running := stringValue(info["fw"]); running != "" {
 			res.CurrentVer = running
 		}
+		res.Batch = stringValue(info["batch"])
+		res.FWID = stringValue(info["fw_id"])
 	}
 
 	payload, err := client.RPC(ctx, d.IP, "Shelly.CheckForUpdate", nil)
