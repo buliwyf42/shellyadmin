@@ -505,6 +505,9 @@
             {sortDir}
             onSort={setSort}
           />{/if}
+        {#if $colVis.capabilities}<th title="Component instance counts (switch / cover / light)"
+            >Capabilities</th
+          >{/if}
         {#if $colVis.online}<SortHeader
             label="Online"
             column="online"
@@ -744,6 +747,27 @@
                   >unknown</span
                 >
               {/if}
+            </td>
+          {/if}
+          {#if $colVis.capabilities}
+            <td>
+              <div class="d-flex gap-1 flex-wrap">
+                {#if device.switch_count}<span
+                    class="badge bg-secondary"
+                    title="{device.switch_count} switch component(s)">⚡ {device.switch_count}</span
+                  >{/if}
+                {#if device.cover_count}<span
+                    class="badge bg-secondary"
+                    title="{device.cover_count} cover component(s)">⇅ {device.cover_count}</span
+                  >{/if}
+                {#if device.light_count}<span
+                    class="badge bg-secondary"
+                    title="{device.light_count} light component(s)">💡 {device.light_count}</span
+                  >{/if}
+                {#if !device.switch_count && !device.cover_count && !device.light_count}
+                  <span class="text-secondary">—</span>
+                {/if}
+              </div>
             </td>
           {/if}
           {#if $colVis.online}

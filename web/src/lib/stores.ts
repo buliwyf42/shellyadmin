@@ -12,6 +12,7 @@ export const deviceColumns = [
   { key: 'model', label: 'Model' },
   { key: 'fw', label: 'Firmware' },
   { key: 'fw_auto_update', label: 'Auto-Update' },
+  { key: 'capabilities', label: 'Capabilities' },
   { key: 'online', label: 'Online' },
   { key: 'wifi_ssid', label: 'WiFi' },
   { key: 'mqtt_enabled', label: 'MQTT' },

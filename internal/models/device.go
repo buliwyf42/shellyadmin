@@ -64,6 +64,13 @@ type Device struct {
 	Serial           string   `json:"serial"`
 	Compliant        bool     `json:"compliant"`
 	ComplianceIssues []string `json:"compliance_issues"`
-	RawConfig        string   `json:"-"`
-	RawStatus        string   `json:"-"`
+	// Component instance counts derived from RawStatus at GetDevices time
+	// (not persisted). Used by the Devices-page Capabilities column to
+	// show at-a-glance how many switch/cover/light instances each device
+	// exposes. 0 = device doesn't expose this component type.
+	SwitchCount int    `json:"switch_count"`
+	CoverCount  int    `json:"cover_count"`
+	LightCount  int    `json:"light_count"`
+	RawConfig   string `json:"-"`
+	RawStatus   string `json:"-"`
 }
