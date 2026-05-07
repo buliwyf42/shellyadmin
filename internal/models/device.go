@@ -1,10 +1,16 @@
 package models
 
 type Device struct {
-	MAC                string   `json:"mac"`
-	IP                 string   `json:"ip"`
-	Name               string   `json:"name"`
-	Model              string   `json:"model"`
+	MAC   string `json:"mac"`
+	IP    string `json:"ip"`
+	Name  string `json:"name"`
+	Model string `json:"model"`
+	// App is the device's short application code (e.g. "PlugSG3",
+	// "Pro4PM"). Returned by Shelly under the "app" key on both GET
+	// /shelly and Shelly.GetDeviceInfo. Friendlier than `Model` (which
+	// is the canonical SKU) — the Devices/Firmware pages use it as the
+	// primary "what is this" label and demote the SKU to the tooltip.
+	App                string   `json:"app"`
 	FW                 string   `json:"fw"`
 	Gen                int      `json:"gen"`
 	Online             bool     `json:"online"`
@@ -58,8 +64,7 @@ type Device struct {
 	FWAutoUpdate      string   `json:"fw_auto_update"`
 	// SupportedMethods is the device's Shelly.ListMethods output, cached
 	// at firmware-check / refresh time. Drives the per-device action
-	// catalog filter — see docs/plans/broader-action-discovery.md. nil =
-	// "not yet probed".
+	// catalog filter — see ADR-0010. nil = "not yet probed".
 	SupportedMethods []string `json:"supported_methods"`
 	Serial           string   `json:"serial"`
 	Compliant        bool     `json:"compliant"`

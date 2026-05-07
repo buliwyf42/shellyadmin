@@ -3,6 +3,11 @@ export interface Device {
   ip: string;
   name: string;
   model: string;
+  /** Short app code from Shelly's /shelly endpoint (e.g. "PlugSG3",
+   * "Pro4PM"). Friendlier than the canonical SKU `model`; used as the
+   * primary "what is this device" label, with `model` demoted to the
+   * tooltip. Empty until a scan / refresh has run on v0.1.11+. */
+  app?: string;
   fw: string;
   gen: number;
   online: boolean;

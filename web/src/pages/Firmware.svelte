@@ -233,7 +233,11 @@
         ip: d.ip,
         name: d.name,
         model: d.model,
+        app: d.app,
         gen: d.gen,
+        switchCount: d.switch_count,
+        coverCount: d.cover_count,
+        lightCount: d.light_count,
         currentVer: d.fw,
         stableVer,
         betaVer,
@@ -254,7 +258,7 @@
       case 'gen':
         return row.gen;
       case 'model':
-        return (row.model || '').toLowerCase();
+        return (row.app || row.model || '').toLowerCase();
       case 'ip': {
         // Numeric octet sort so 192.168.211.9 < 192.168.211.10.
         const parts = (row.ip || '').split('.');
@@ -534,7 +538,30 @@
             >{genLabel(row.gen)}</span
           >
         </td>
-        <td>{row.model || '-'}</td>
+        <td>
+          {#if row.app || row.model}
+            {@const tip = [
+              row.app ? `App: ${row.app}` : '',
+              row.model ? `Model: ${row.model}` : '',
+              `Gen ${row.gen}`,
+              row.switchCount ? `Switch: ${row.switchCount}` : '',
+              row.coverCount ? `Cover: ${row.coverCount}` : '',
+              row.lightCount ? `Light: ${row.lightCount}` : '',
+            ]
+              .filter(Boolean)
+              .join('\n')}
+            <div title={tip}>
+              {#if row.app}
+                {row.app}
+                {#if row.model}<div class="small text-secondary">{row.model}</div>{/if}
+              {:else}
+                {row.model}
+              {/if}
+            </div>
+          {:else}
+            -
+          {/if}
+        </td>
         <td><a href={`http://${row.ip}/`} target="_blank" rel="noreferrer noopener">{row.ip}</a></td
         >
         <td>{row.currentVer || '-'}</td>

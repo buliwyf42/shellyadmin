@@ -134,6 +134,7 @@ func ProbeDeviceWithOptions(ctx context.Context, ip string, opts ProbeOptions, l
 		IP:       ip,
 		MAC:      mac,
 		Model:    firstString(base["model"], base["type"]),
+		App:      stringField(base, "app"),
 		FW:       firstString(base["ver"], base["fw"]),
 		Gen:      gen,
 		Name:     stringField(base, "name"),
