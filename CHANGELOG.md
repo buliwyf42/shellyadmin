@@ -10,7 +10,7 @@ Replaces the hand-rolled five-action surface with a declarative catalog
 filtered against each device's `Shelly.ListMethods` output. Adds four new
 actions (Wi-Fi scan, Ethernet status read, "reset Wi-Fi & cloud", full
 factory reset) and a typed-name confirm modal for the two unrecoverable
-ones. See [docs/plans/broader-action-discovery.md](docs/plans/broader-action-discovery.md)
+ones. See [ADR-0010](docs/adr/0010-per-device-action-discovery-via-listmethods.md)
 for the design. Includes migration `021_device_supported_methods.sql`.
 
 ### Added
