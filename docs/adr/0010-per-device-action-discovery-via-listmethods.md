@@ -1,7 +1,10 @@
-# Plan: Broader Per-Device Action Discovery
+# ADR-0010: Per-Device Action Discovery via `Shelly.ListMethods`
 
-- Status: `Proposed` (not yet implemented)
-- Drafted: 2026-05-07
+- Status: `Accepted`
+- Date: 2026-05-07
+- Implements: v0.1.8 first wave (catalog + 4 fleet-wide actions);
+  follow-up wave adds per-component fan-out and `ota_revert` per the
+  rollout plan below.
 - Roadmap link: [docs/roadmap.md](../roadmap.md) → "Broader action discovery"
 
 ## Context

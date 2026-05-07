@@ -16,8 +16,7 @@ import (
 // The catalog (see actionCatalog below) is filtered against each device's
 // SupportedMethods cache so unsupported actions are simply not rendered,
 // rather than rendered with `Supported: false` or surfaced as runtime
-// failures. See docs/plans/broader-action-discovery.md (ADR-pending) for
-// the why.
+// failures. See ADR-0010 for the underlying decision.
 type actionDef struct {
 	id              string
 	label           string
@@ -67,7 +66,7 @@ func methodsCovered(supported map[string]bool, required []string, probed bool) b
 // Adding an action: append a new actionDef with the methods it requires
 // and an apply() that returns a DeviceActionResult. Per-component fan-out
 // (switch:N, cover:N, ...) is intentionally deferred to a follow-up — see
-// docs/plans/broader-action-discovery.md "Rollout plan".
+// ADR-0010 "Rollout plan".
 var actionCatalog = []actionDef{
 	{
 		id:             "refresh",
