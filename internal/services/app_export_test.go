@@ -36,12 +36,15 @@ func TestExportLogsCSVShape(t *testing.T) {
 	if len(records) < 3 {
 		t.Fatalf("records = %d, want >= 3 (header + 2 rows)", len(records))
 	}
-	if records[0][0] != "id" || records[0][3] != "request_id" || records[0][4] != "message" {
-		t.Fatalf("header = %v, want id..request_id..message", records[0])
+	// Header order: id, ts, level, risk_level, request_id, message.
+	// risk_level inserted in v0.1.10 between level and request_id; CSV
+	// consumers see an extra column, name change is forward-compat.
+	if records[0][0] != "id" || records[0][3] != "risk_level" || records[0][4] != "request_id" || records[0][5] != "message" {
+		t.Fatalf("header = %v, want id..risk_level..request_id..message", records[0])
 	}
 	// Newest row is first after header.
-	if records[1][2] != "ERROR" || records[1][4] != "two, with comma" {
-		t.Fatalf("row 1 = %v, want ERROR/comma-safe quoting", records[1])
+	if records[1][2] != "ERROR" || records[1][5] != "two, with comma" {
+		t.Fatalf("row 1 = %v, want ERROR/comma-safe quoting in message column", records[1])
 	}
 }
 
@@ -109,8 +112,8 @@ func TestExportLogsFiltersByLevel(t *testing.T) {
 	if len(records) != 2 {
 		t.Fatalf("records = %d, want 2 (header + 1 kept)", len(records))
 	}
-	if records[1][4] != "kept" {
-		t.Fatalf("row = %v, want ERROR row only", records[1])
+	if records[1][5] != "kept" {
+		t.Fatalf("row = %v, want ERROR row only (message in column 5 after risk_level shifted layout)", records[1])
 	}
 }
 

@@ -4,6 +4,41 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.10] - 2026-05-07 — Capabilities column + structured risk_level on audit log
+
+Two small operator-facing improvements that together close out the
+ADR-0010 first wave: a Capabilities column on the Devices list, and a
+structured risk_level attribute on every audit row written for an action
+execution. Includes migration `022_audit_log_risk_level.sql`.
+
+### Added
+- **Capabilities column** on the Devices page (toggleable via Columns,
+  off by default). Per-row badges show switch / cover / light component
+  counts derived server-side from `RawStatus` in `GetDevices()`. Lets
+  operators spot at-a-glance which devices expose which component types
+  without opening the device-detail page.
+- **`risk_level` on audit rows.** New TEXT column populated only for
+  action-execution rows (`low` / `medium` / `high`, sourced from the
+  catalog risk in `actions.go`). Empty on every other audit row.
+  Threaded via a context-bound helper (`services.WithRisk`) so adding
+  the field didn't cascade through every call site that uses
+  `LogCtx`. Backed by a new `db.AddLogWithAttrs` write surface; the
+  legacy `AddLog` / `AddLogWithRequestID` are unchanged thin wrappers.
+- **Logs page Risk column** — small badge rendering of `risk_level`
+  alongside the existing Level / Request / Message columns. Empty for
+  non-action rows so the visual noise stays minimal.
+- **CSV log export gains a `risk_level` column** between `level` and
+  `request_id`. NDJSON export already round-trips the field naturally
+  via the `LogEntry` JSON tags.
+- The structured `risk_level` attribute also lands in the slog JSON
+  mirror (visible in container logs via `docker logs`), so an operator
+  grepping container output can filter the same way SQLite queries do.
+
+### Migration notes
+- Migration `022_audit_log_risk_level.sql` adds a single
+  `risk_level TEXT NOT NULL DEFAULT ''` column to `audit_log`. Existing
+  rows get empty values; no backfill needed.
+
 ## [0.1.9] - 2026-05-07 — Per-component action fan-out (cover/switch/light) + OTA revert
 
 Completes the v2 wave of [ADR-0010](docs/adr/0010-per-device-action-discovery-via-listmethods.md):

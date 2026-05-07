@@ -80,7 +80,13 @@
 {/if}
 
 <table class="table table-dark table-striped">
-  <thead><tr><th>Timestamp</th><th>Level</th><th>Request</th><th>Message</th></tr></thead>
+  <thead
+    ><tr
+      ><th>Timestamp</th><th>Level</th><th title="Catalog risk level on action-execution rows"
+        >Risk</th
+      ><th>Request</th><th>Message</th></tr
+    ></thead
+  >
   <tbody>
     {#each logs as log}
       <tr>
@@ -91,6 +97,17 @@
             >{log.level}</span
           ></td
         >
+        <td>
+          {#if log.risk_level === 'high'}<span class="badge bg-danger" title="high-risk action"
+              >high</span
+            >{:else if log.risk_level === 'medium'}<span
+              class="badge bg-warning text-dark"
+              title="medium-risk action">medium</span
+            >{:else if log.risk_level === 'low'}<span
+              class="badge bg-secondary"
+              title="low-risk action">low</span
+            >{:else}<span class="text-muted">—</span>{/if}
+        </td>
         <td class="log-request-id"
           >{#if log.request_id}<code title={log.request_id}>{log.request_id}</code>{:else}<span
               class="text-muted">—</span
