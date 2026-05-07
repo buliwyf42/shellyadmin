@@ -1,0 +1,11 @@
+-- Per-device cache of Shelly.ListMethods output. Powers the per-device
+-- action-discovery surface (see docs/plans/broader-action-discovery.md):
+-- the action catalog filters its candidate entries by what each device
+-- claims to support, instead of running every action on every device and
+-- letting the failures surface at runtime.
+--
+-- Stored as JSON array text (e.g. ["Shelly.GetStatus","Switch.Toggle",...]).
+-- Empty string = "not yet probed"; the action layer falls back to a
+-- conservative hardcoded set so devices remain operable during the rollout
+-- window before their first firmware-check / refresh.
+ALTER TABLE devices ADD COLUMN supported_methods TEXT NOT NULL DEFAULT '';

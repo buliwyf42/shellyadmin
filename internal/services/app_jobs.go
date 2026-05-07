@@ -158,12 +158,12 @@ func (s *AppService) runRefreshJob(ctx context.Context, jobID int64, done chan<-
 					found.AuthLockedUntil = ""
 					found.TLSAllowInsecure = device.TLSAllowInsecure
 					// Preserve firmware cache (scanner doesn't repopulate
-					// these); refreshFirmwareCache below overwrites on success.
+					// these); refreshDeviceCapabilities below overwrites on success.
 					found.FWAvailableStable = device.FWAvailableStable
 					found.FWAvailableBeta = device.FWAvailableBeta
 					found.FWCheckedAt = device.FWCheckedAt
 					found.FWAutoUpdate = device.FWAutoUpdate
-					s.refreshFirmwareCache(ctx, found)
+					s.refreshDeviceCapabilities(ctx, found)
 					updated = *found
 				} else if found != nil && found.AuthRequired {
 					updated.LastRefreshAttempt = attemptedAt
@@ -460,6 +460,9 @@ func (s *AppService) runFirmwareJob(jobID int64, devices []models.Device) {
 		device.FWCheckedAt = result.CheckedAt
 		if mode, autoErr := firmware.ReadAutoUpdate(s.ctx, device.IP, device.Gen, s.firmwareOptions(device, 5*time.Second)); autoErr == nil {
 			device.FWAutoUpdate = mode
+		}
+		if methods, mErr := firmware.ListSupportedMethods(s.ctx, device.IP, device.Gen, s.firmwareOptions(device, 5*time.Second)); mErr == nil {
+			device.SupportedMethods = methods
 		}
 		if uerr := s.db.UpsertDevice(device); uerr != nil {
 			s.Log("error", fmt.Sprintf("firmware job %d: persist fw cache for %s: %v", jobID, device.MAC, uerr))
