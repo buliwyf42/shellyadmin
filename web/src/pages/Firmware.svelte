@@ -551,12 +551,7 @@
               .filter(Boolean)
               .join('\n')}
             <div title={tip}>
-              {#if row.app}
-                {row.app}
-                {#if row.model}<div class="small text-secondary">{row.model}</div>{/if}
-              {:else}
-                {row.model}
-              {/if}
+              {row.app || row.model}
             </div>
           {:else}
             -

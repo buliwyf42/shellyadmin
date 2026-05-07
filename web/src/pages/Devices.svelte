@@ -729,12 +729,7 @@
                   .filter(Boolean)
                   .join('\n')}
                 <div title={tooltip}>
-                  {#if device.app}
-                    {device.app}
-                    {#if device.model}<div class="small text-secondary">{device.model}</div>{/if}
-                  {:else}
-                    {device.model}
-                  {/if}
+                  {device.app || device.model}
                 </div>
               {:else}<span class="text-secondary">n/a</span>{/if}
             </td>{/if}
