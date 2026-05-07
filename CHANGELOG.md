@@ -4,6 +4,36 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.11] - 2026-05-07 — Friendly device labels (app code) + detail-page enrichment
+
+Surfaces Shelly's short application code (`PlugSG3`, `Pro4PM`,
+`Pro3EM`, …) as the primary "what is this device" label across the
+Devices and Firmware pages, with the canonical SKU and component
+counts moved into the hover tooltip. The detail page gains a header
+badge plus Type / Model SKU / Components rows in the Status grid.
+Includes migration `023_device_app.sql`.
+
+### Added
+- **`app` field on the Device row.** Sourced from the `app` key
+  Shelly's `/shelly` endpoint already returns (no extra RPC). Carried
+  through scan and refresh paths automatically. Empty until the next
+  scan / refresh on devices that pre-date this release.
+- **Devices and Firmware page Model columns** show the friendly app
+  code as the cell text. Hover tooltip lists App + Model SKU + Gen +
+  switch / cover / light component counts in one place.
+- **Device detail page**: small grey badge after the device name
+  (with the app code), plus three new rows in the Status grid — Type
+  (friendly app label), Model SKU (canonical code), Components
+  (humanized count: "4 switches, 1 cover").
+- **Firmware page Model-column sort** now keys on the displayed text
+  (app first, model code fallback) so a click on the column header
+  groups devices by their friendly type instead of by SKU.
+
+### Migration notes
+- Migration `023_device_app.sql` adds an `app TEXT NOT NULL DEFAULT ''`
+  column to `devices`. Empty for existing rows; populated on the next
+  scan or refresh.
+
 ## [0.1.10] - 2026-05-07 — Capabilities column + structured risk_level on audit log
 
 Two small operator-facing improvements that together close out the
