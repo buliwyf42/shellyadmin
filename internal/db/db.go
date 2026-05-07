@@ -31,6 +31,10 @@ type LogEntry struct {
 	Level     string `json:"level"`
 	Message   string `json:"message"`
 	RequestID string `json:"request_id,omitempty"`
+	// RiskLevel is set on audit rows that record an action execution
+	// (catalog risk: low/medium/high). Empty on every other audit row,
+	// including HTTP request logs and job lifecycle events.
+	RiskLevel string `json:"risk_level,omitempty"`
 }
 
 func Open(dataDir string) (*DB, error) {
@@ -666,15 +670,24 @@ func (db *DB) AddLog(level, message string) error {
 // AddLogWithRequestID persists an audit entry tagged with the originating
 // HTTP request's correlation ID (empty for jobs triggered outside a request).
 func (db *DB) AddLogWithRequestID(level, message, requestID string) error {
+	return db.AddLogWithAttrs(level, message, requestID, "")
+}
+
+// AddLogWithAttrs is the full audit-write surface, accepting structured
+// attributes the higher layers want preserved alongside the message body.
+// `riskLevel` is empty for non-action rows; action-execution rows pass the
+// catalog risk so a future compliance query can SELECT WHERE risk_level
+// IN (...) without regex-parsing the message body.
+func (db *DB) AddLogWithAttrs(level, message, requestID, riskLevel string) error {
 	_, err := db.sql.Exec(
-		`INSERT INTO audit_log(ts, level, message, request_id) VALUES (?, ?, ?, ?)`,
-		now(), level, message, requestID,
+		`INSERT INTO audit_log(ts, level, message, request_id, risk_level) VALUES (?, ?, ?, ?, ?)`,
+		now(), level, message, requestID, riskLevel,
 	)
 	return err
 }
 
 func (db *DB) GetLogs(level, search string) ([]LogEntry, error) {
-	query := `SELECT id, ts, level, message, request_id FROM audit_log WHERE 1=1`
+	query := `SELECT id, ts, level, message, request_id, risk_level FROM audit_log WHERE 1=1`
 	args := []any{}
 	if level != "" {
 		query += ` AND level = ?`
@@ -693,7 +706,7 @@ func (db *DB) GetLogs(level, search string) ([]LogEntry, error) {
 	var out []LogEntry
 	for rows.Next() {
 		var entry LogEntry
-		if err := rows.Scan(&entry.ID, &entry.TS, &entry.Level, &entry.Message, &entry.RequestID); err != nil {
+		if err := rows.Scan(&entry.ID, &entry.TS, &entry.Level, &entry.Message, &entry.RequestID, &entry.RiskLevel); err != nil {
 			return nil, err
 		}
 		out = append(out, entry)
@@ -705,7 +718,7 @@ func (db *DB) GetLogsForExport(level, search string, limit int) ([]LogEntry, err
 	if limit <= 0 {
 		limit = 100000
 	}
-	query := `SELECT id, ts, level, message, request_id FROM audit_log WHERE 1=1`
+	query := `SELECT id, ts, level, message, request_id, risk_level FROM audit_log WHERE 1=1`
 	args := []any{}
 	if level != "" {
 		query += ` AND level = ?`
@@ -725,7 +738,7 @@ func (db *DB) GetLogsForExport(level, search string, limit int) ([]LogEntry, err
 	var out []LogEntry
 	for rows.Next() {
 		var entry LogEntry
-		if err := rows.Scan(&entry.ID, &entry.TS, &entry.Level, &entry.Message, &entry.RequestID); err != nil {
+		if err := rows.Scan(&entry.ID, &entry.TS, &entry.Level, &entry.Message, &entry.RequestID, &entry.RiskLevel); err != nil {
 			return nil, err
 		}
 		out = append(out, entry)

@@ -31,6 +31,11 @@ type Handler struct {
 	// capture output without standing up SQLite — the production wiring in
 	// NewHandler sanitizes, mirrors to slog, then writes to the DB.
 	auditSink func(level, msg, requestID string)
+	// auditSinkAttrs is the structured variant; takes the catalog risk
+	// level so action-execution rows can be filtered without parsing the
+	// message body. Defaulted from auditSink in NewHandler so tests that
+	// only stub auditSink keep working.
+	auditSinkAttrs func(level, msg, requestID, riskLevel string)
 	// logFn is the context-aware audit helper passed to services-layer
 	// callbacks. When ctx carries a request ID (set by the RequestID
 	// middleware), that ID flows into the audit row and slog line.
@@ -43,12 +48,15 @@ func NewHandler(database *db.DB, cfg Config) *Handler {
 		cfg: cfg,
 	}
 	handler.auditSink = func(level, msg, reqID string) {
+		handler.auditSinkAttrs(level, msg, reqID, "")
+	}
+	handler.auditSinkAttrs = func(level, msg, reqID, riskLevel string) {
 		sanitized := services.SanitizeLogMessage(msg)
-		emitSlog(level, sanitized, reqID)
-		_ = handler.db.AddLogWithRequestID(level, sanitized, reqID)
+		emitSlogWithRisk(level, sanitized, reqID, riskLevel)
+		_ = handler.db.AddLogWithAttrs(level, sanitized, reqID, riskLevel)
 	}
 	handler.logFn = func(ctx context.Context, level, msg string) {
-		handler.auditSink(level, msg, middleware.FromContext(ctx))
+		handler.auditSinkAttrs(level, msg, middleware.FromContext(ctx), services.RiskFromContext(ctx))
 	}
 	handler.service = services.NewAppService(database, cfg.DataDir, handler.logFn)
 	return handler
@@ -61,13 +69,19 @@ func (h *Handler) logReq(c *gin.Context, level, msg string) {
 	h.auditSink(level, msg, middleware.FromGinContext(c))
 }
 
-// emitSlog mirrors audit lines to the stdlib slog logger so operators tailing
-// the container log see structured JSON rather than just the DB-persisted
-// audit trail. Unknown levels fall back to info.
-func emitSlog(level, msg, reqID string) {
+// emitSlogWithRisk mirrors audit lines to the stdlib slog logger so
+// operators tailing the container log see structured JSON rather than just
+// the DB-persisted audit trail. The risk_level attribute is populated on
+// action-execution rows so an operator grepping the container log can
+// filter on it the same way SQLite queries do. Unknown levels fall back
+// to info.
+func emitSlogWithRisk(level, msg, reqID, riskLevel string) {
 	attrs := []any{}
 	if reqID != "" {
 		attrs = append(attrs, slog.String("request_id", reqID))
+	}
+	if riskLevel != "" {
+		attrs = append(attrs, slog.String("risk_level", riskLevel))
 	}
 	switch strings.ToUpper(strings.TrimSpace(level)) {
 	case "DEBUG":

@@ -226,6 +226,11 @@ func (s *AppService) ExecuteDeviceAction(ctx context.Context, target, action str
 	if def == nil {
 		return DeviceActionResult{}, fmt.Errorf("unsupported action: %s", action)
 	}
+	// Thread the catalog risk through to the audit sink so audit_log
+	// rows for action execution carry a structured risk_level alongside
+	// the free-text message body. ADR-0010 carve-out: lets compliance
+	// queries SELECT high-risk events directly.
+	ctx = WithRisk(ctx, def.risk)
 	return def.apply(ctx, s, detail.Device, req)
 }
 

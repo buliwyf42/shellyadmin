@@ -186,6 +186,10 @@ export interface LogEntry {
   level: string;
   message: string;
   request_id?: string;
+  /** Catalog risk level on action-execution rows; empty on every other
+   * audit row. Used by the Logs page to render a small badge so
+   * high-risk events stand out. */
+  risk_level?: string;
 }
 
 export interface VersionInfo {
