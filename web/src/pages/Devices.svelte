@@ -716,10 +716,28 @@
                 >{generationLabel(device)}</span
               ></td
             >{/if}
-          {#if $colVis.model}<td
-              >{#if device.model}{device.model}{:else}<span class="text-secondary">n/a</span
-                >{/if}</td
-            >{/if}
+          {#if $colVis.model}<td>
+              {#if device.app || device.model}
+                {@const tooltip = [
+                  device.app ? `App: ${device.app}` : '',
+                  device.model ? `Model: ${device.model}` : '',
+                  `Gen ${device.gen}`,
+                  device.switch_count ? `Switch: ${device.switch_count}` : '',
+                  device.cover_count ? `Cover: ${device.cover_count}` : '',
+                  device.light_count ? `Light: ${device.light_count}` : '',
+                ]
+                  .filter(Boolean)
+                  .join('\n')}
+                <div title={tooltip}>
+                  {#if device.app}
+                    {device.app}
+                    {#if device.model}<div class="small text-secondary">{device.model}</div>{/if}
+                  {:else}
+                    {device.model}
+                  {/if}
+                </div>
+              {:else}<span class="text-secondary">n/a</span>{/if}
+            </td>{/if}
           {#if $colVis.fw}
             <td>
               {#if device.fw}{device.fw}{:else}<span class="text-secondary">n/a</span>{/if}
