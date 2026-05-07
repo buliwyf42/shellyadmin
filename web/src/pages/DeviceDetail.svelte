@@ -19,7 +19,7 @@
   // fire — see ADR-0002 carve-out documented in
   // docs/plans/broader-action-discovery.md. Reversible high-risk actions
   // like firmware_update keep the existing single-click behaviour.
-  const TYPED_CONFIRM_ACTIONS = new Set(['factory_reset', 'factory_reset_wifi']);
+  const TYPED_CONFIRM_ACTIONS = new Set(['factory_reset', 'factory_reset_wifi', 'ota_revert']);
 
   let confirmAction: { id: string; label: string; description: string } | null = null;
   let confirmTyped = '';

@@ -2,8 +2,12 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"regexp"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"shellyadmin/internal/core/firmware"
@@ -24,7 +28,13 @@ type actionDef struct {
 	risk            string
 	requiresOnline  bool
 	requiredMethods []string
-	apply           func(ctx context.Context, s *AppService, device models.Device, req DeviceActionRequest) (DeviceActionResult, error)
+	// component, when non-empty, makes this catalog entry per-instance:
+	// describeAvailableActions expands one entry into N actions, one per
+	// `<component>:N` key it finds in the device's RawStatus. Action IDs
+	// gain a `:N` suffix; ExecuteDeviceAction parses that off and passes
+	// the integer through DeviceActionRequest.Instance.
+	component string
+	apply     func(ctx context.Context, s *AppService, device models.Device, req DeviceActionRequest) (DeviceActionResult, error)
 }
 
 // methodSet builds a fast lookup from a device's SupportedMethods cache.
@@ -218,6 +228,107 @@ var actionCatalog = []actionDef{
 		},
 	},
 	{
+		id:              "switch_toggle",
+		label:           "Toggle",
+		description:     "Toggle the switch on/off.",
+		risk:            "medium",
+		requiresOnline:  true,
+		requiredMethods: []string{"Switch.Toggle"},
+		component:       "switch",
+		apply: func(ctx context.Context, s *AppService, d models.Device, req DeviceActionRequest) (DeviceActionResult, error) {
+			ok, message := setters.New(s.setterOptions(d, 5*time.Second)).SwitchToggle(ctx, d.IP, req.Instance)
+			if !ok {
+				return DeviceActionResult{Action: fmt.Sprintf("switch_toggle:%d", req.Instance), Status: "failed", Detail: message}, nil
+			}
+			s.LogCtx(ctx, "INFO", fmt.Sprintf("device action switch_toggle target=%s id=%d", d.MAC, req.Instance))
+			return DeviceActionResult{Action: fmt.Sprintf("switch_toggle:%d", req.Instance), Status: "ok", Detail: message}, nil
+		},
+	},
+	{
+		id:              "light_toggle",
+		label:           "Toggle",
+		description:     "Toggle the light on/off.",
+		risk:            "low",
+		requiresOnline:  true,
+		requiredMethods: []string{"Light.Toggle"},
+		component:       "light",
+		apply: func(ctx context.Context, s *AppService, d models.Device, req DeviceActionRequest) (DeviceActionResult, error) {
+			ok, message := setters.New(s.setterOptions(d, 5*time.Second)).LightToggle(ctx, d.IP, req.Instance)
+			if !ok {
+				return DeviceActionResult{Action: fmt.Sprintf("light_toggle:%d", req.Instance), Status: "failed", Detail: message}, nil
+			}
+			s.LogCtx(ctx, "INFO", fmt.Sprintf("device action light_toggle target=%s id=%d", d.MAC, req.Instance))
+			return DeviceActionResult{Action: fmt.Sprintf("light_toggle:%d", req.Instance), Status: "ok", Detail: message}, nil
+		},
+	},
+	{
+		id:              "cover_open",
+		label:           "Open",
+		description:     "Drive the cover toward the fully-open position.",
+		risk:            "medium",
+		requiresOnline:  true,
+		requiredMethods: []string{"Cover.Open"},
+		component:       "cover",
+		apply: func(ctx context.Context, s *AppService, d models.Device, req DeviceActionRequest) (DeviceActionResult, error) {
+			ok, message := setters.New(s.setterOptions(d, 5*time.Second)).CoverOpen(ctx, d.IP, req.Instance)
+			if !ok {
+				return DeviceActionResult{Action: fmt.Sprintf("cover_open:%d", req.Instance), Status: "failed", Detail: message}, nil
+			}
+			s.LogCtx(ctx, "INFO", fmt.Sprintf("device action cover_open target=%s id=%d", d.MAC, req.Instance))
+			return DeviceActionResult{Action: fmt.Sprintf("cover_open:%d", req.Instance), Status: "ok", Detail: message}, nil
+		},
+	},
+	{
+		id:              "cover_close",
+		label:           "Close",
+		description:     "Drive the cover toward the fully-closed position.",
+		risk:            "medium",
+		requiresOnline:  true,
+		requiredMethods: []string{"Cover.Close"},
+		component:       "cover",
+		apply: func(ctx context.Context, s *AppService, d models.Device, req DeviceActionRequest) (DeviceActionResult, error) {
+			ok, message := setters.New(s.setterOptions(d, 5*time.Second)).CoverClose(ctx, d.IP, req.Instance)
+			if !ok {
+				return DeviceActionResult{Action: fmt.Sprintf("cover_close:%d", req.Instance), Status: "failed", Detail: message}, nil
+			}
+			s.LogCtx(ctx, "INFO", fmt.Sprintf("device action cover_close target=%s id=%d", d.MAC, req.Instance))
+			return DeviceActionResult{Action: fmt.Sprintf("cover_close:%d", req.Instance), Status: "ok", Detail: message}, nil
+		},
+	},
+	{
+		id:              "cover_stop",
+		label:           "Stop",
+		description:     "Halt the cover at its current position.",
+		risk:            "low",
+		requiresOnline:  true,
+		requiredMethods: []string{"Cover.Stop"},
+		component:       "cover",
+		apply: func(ctx context.Context, s *AppService, d models.Device, req DeviceActionRequest) (DeviceActionResult, error) {
+			ok, message := setters.New(s.setterOptions(d, 5*time.Second)).CoverStop(ctx, d.IP, req.Instance)
+			if !ok {
+				return DeviceActionResult{Action: fmt.Sprintf("cover_stop:%d", req.Instance), Status: "failed", Detail: message}, nil
+			}
+			s.LogCtx(ctx, "INFO", fmt.Sprintf("device action cover_stop target=%s id=%d", d.MAC, req.Instance))
+			return DeviceActionResult{Action: fmt.Sprintf("cover_stop:%d", req.Instance), Status: "ok", Detail: message}, nil
+		},
+	},
+	{
+		id:              "ota_revert",
+		label:           "Roll Back Firmware",
+		description:     "Restore the previously-installed firmware. Unrecoverable from the app side once committed; use only when a recent update introduced a regression.",
+		risk:            "high",
+		requiresOnline:  true,
+		requiredMethods: []string{"OTA.Revert"},
+		apply: func(ctx context.Context, s *AppService, d models.Device, _ DeviceActionRequest) (DeviceActionResult, error) {
+			ok, message := setters.New(s.setterOptions(d, 5*time.Second)).OTARevert(ctx, d.IP)
+			if !ok {
+				return DeviceActionResult{Action: "ota_revert", Status: "failed", Detail: message}, nil
+			}
+			s.LogCtx(ctx, "WARN", fmt.Sprintf("device action ota_revert target=%s", d.MAC))
+			return DeviceActionResult{Action: "ota_revert", Status: "ok", Detail: message}, nil
+		},
+	},
+	{
 		id:              "factory_reset",
 		label:           "Factory Reset",
 		description:     "Wipe ALL persisted configuration on the device. Unrecoverable from the app side — the device must be re-provisioned afterward.",
@@ -241,8 +352,13 @@ var actionCatalog = []actionDef{
 // a fallback so the post-upgrade rollout window doesn't leave devices
 // action-less).
 //
-// Risk grouping happens client-side; this layer returns a stable order so
-// the audit log + tests can rely on it.
+// Catalog entries with a non-empty `component` are expanded into one
+// DeviceAction per `<component>:N` instance the device exposes via
+// RawStatus. The action ID gets a `:N` suffix; the label gets a "Switch 0"
+// / "Cover 1" prefix so the front-end can group naturally.
+//
+// Risk grouping happens at the end; the catalog itself is already roughly
+// risk-ordered.
 func describeAvailableActions(device models.Device) []DeviceAction {
 	supported := methodSet(device)
 	probed := len(supported) > 0
@@ -259,23 +375,90 @@ func describeAvailableActions(device models.Device) []DeviceAction {
 			isSupported = false
 			reason = unsupportedReason
 		}
-		out = append(out, DeviceAction{
-			ID:             def.id,
-			Label:          def.label,
-			Description:    def.description,
-			Risk:           def.risk,
-			Supported:      isSupported,
-			RequiresOnline: def.requiresOnline,
-			Reason:         reason,
-		})
+		if def.component == "" {
+			out = append(out, DeviceAction{
+				ID:             def.id,
+				Label:          def.label,
+				Description:    def.description,
+				Risk:           def.risk,
+				Supported:      isSupported,
+				RequiresOnline: def.requiresOnline,
+				Reason:         reason,
+			})
+			continue
+		}
+		// Component-bound action: fan out per instance.
+		instances := componentInstances(device, def.component)
+		for _, inst := range instances {
+			label := fmt.Sprintf("%s %d — %s", strings.Title(def.component), inst, def.label) //nolint:staticcheck // Title is fine here
+			out = append(out, DeviceAction{
+				ID:             fmt.Sprintf("%s:%d", def.id, inst),
+				Label:          label,
+				Description:    def.description,
+				Risk:           def.risk,
+				Supported:      isSupported,
+				RequiresOnline: def.requiresOnline,
+				Reason:         reason,
+			})
+		}
 	}
-	// Stable: catalog order is the source of truth, but we also sort by
-	// risk inside the catalog already (low → medium → high) so the
-	// front-end can render in returned order.
 	sort.SliceStable(out, func(i, j int) bool {
 		return riskRank(out[i].Risk) < riskRank(out[j].Risk)
 	})
 	return out
+}
+
+// componentInstanceRE matches the standard Shelly `<type>:<id>` key shape
+// in RawStatus / RawConfig — captures the integer id.
+var componentInstanceRE = regexp.MustCompile(`^[a-z0-9_]+:(\d+)$`)
+
+// componentInstances returns the sorted list of integer ids the device
+// exposes for the given component type (e.g. "switch" → [0,1,2,3] for a
+// Pro 4 PM). Reads RawStatus first; falls back to empty if RawStatus is
+// missing or unparseable. Non-contiguous ids are preserved.
+func componentInstances(device models.Device, componentType string) []int {
+	if device.RawStatus == "" {
+		return nil
+	}
+	var status map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(device.RawStatus), &status); err != nil {
+		return nil
+	}
+	prefix := componentType + ":"
+	var ids []int
+	for key := range status {
+		if !strings.HasPrefix(key, prefix) {
+			continue
+		}
+		match := componentInstanceRE.FindStringSubmatch(key)
+		if match == nil {
+			continue
+		}
+		n, err := strconv.Atoi(match[1])
+		if err != nil {
+			continue
+		}
+		ids = append(ids, n)
+	}
+	sort.Ints(ids)
+	return ids
+}
+
+// parseInstancedActionID splits a "switch_toggle:0" form into ("switch_toggle", 0).
+// Returns the original id and -1 when there's no `:N` suffix — used by
+// ExecuteDeviceAction to dispatch component-bound actions back to their
+// catalog entry while passing the instance through DeviceActionRequest.
+func parseInstancedActionID(id string) (string, int) {
+	colon := strings.LastIndex(id, ":")
+	if colon < 0 || colon == len(id)-1 {
+		return id, -1
+	}
+	suffix := id[colon+1:]
+	n, err := strconv.Atoi(suffix)
+	if err != nil {
+		return id, -1
+	}
+	return id[:colon], n
 }
 
 // unavailableReason mirrors the "device offline / auth required" guard that

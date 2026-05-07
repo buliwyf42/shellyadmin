@@ -7,6 +7,7 @@ package setters
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"shellyadmin/internal/core/shellyclient"
@@ -126,6 +127,58 @@ func (s *Setter) SetCoverTilt(ctx context.Context, ip string, id int, percent in
 func (s *Setter) Reboot(ctx context.Context, ip string) bool {
 	_, err := s.c.RPC(ctx, ip, "Shelly.Reboot", nil)
 	return err == nil
+}
+
+// CoverOpen / CoverClose / CoverStop dispatch the corresponding RPC for the
+// given Cover component instance. Most Shelly cover devices have a single
+// instance (id=0); the per-component action discovery layer (ADR-0010) is
+// what produces multiple action rows when the device exposes multiple.
+func (s *Setter) CoverOpen(ctx context.Context, ip string, id int) (bool, string) {
+	if _, err := s.c.RPC(ctx, ip, "Cover.Open", map[string]any{"id": id}); err != nil {
+		return false, err.Error()
+	}
+	return true, fmt.Sprintf("cover %d opening", id)
+}
+
+func (s *Setter) CoverClose(ctx context.Context, ip string, id int) (bool, string) {
+	if _, err := s.c.RPC(ctx, ip, "Cover.Close", map[string]any{"id": id}); err != nil {
+		return false, err.Error()
+	}
+	return true, fmt.Sprintf("cover %d closing", id)
+}
+
+func (s *Setter) CoverStop(ctx context.Context, ip string, id int) (bool, string) {
+	if _, err := s.c.RPC(ctx, ip, "Cover.Stop", map[string]any{"id": id}); err != nil {
+		return false, err.Error()
+	}
+	return true, fmt.Sprintf("cover %d stopped", id)
+}
+
+// SwitchToggle / LightToggle flip the on/off state of a single component
+// instance. The `Switch.Toggle` and `Light.Toggle` RPCs are read-modify-
+// write on the device side — no need to fetch current state first.
+func (s *Setter) SwitchToggle(ctx context.Context, ip string, id int) (bool, string) {
+	if _, err := s.c.RPC(ctx, ip, "Switch.Toggle", map[string]any{"id": id}); err != nil {
+		return false, err.Error()
+	}
+	return true, fmt.Sprintf("switch %d toggled", id)
+}
+
+func (s *Setter) LightToggle(ctx context.Context, ip string, id int) (bool, string) {
+	if _, err := s.c.RPC(ctx, ip, "Light.Toggle", map[string]any{"id": id}); err != nil {
+		return false, err.Error()
+	}
+	return true, fmt.Sprintf("light %d toggled", id)
+}
+
+// OTARevert rolls the device back to the previously-installed firmware.
+// High-risk: the firmware may have been replaced for a reason. Surfaced
+// behind the typed-name confirm modal in the action-discovery UI.
+func (s *Setter) OTARevert(ctx context.Context, ip string) (bool, string) {
+	if _, err := s.c.RPC(ctx, ip, "OTA.Revert", nil); err != nil {
+		return false, err.Error()
+	}
+	return true, "firmware rollback triggered"
 }
 
 // FactoryReset wipes every persisted configuration value on the device.

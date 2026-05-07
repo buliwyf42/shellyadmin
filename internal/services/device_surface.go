@@ -74,6 +74,11 @@ type DeviceDetail struct {
 
 type DeviceActionRequest struct {
 	Stage string `json:"stage"`
+	// Instance is set by ExecuteDeviceAction when the requested action ID
+	// has a `:N` suffix (per-component fan-out — see ADR-0010). Apply
+	// functions for component-bound actions read this to know which
+	// switch / cover / light / script to act on.
+	Instance int `json:"instance,omitempty"`
 }
 
 type DeviceActionResult struct {
@@ -203,13 +208,22 @@ func (s *AppService) ExecuteDeviceAction(ctx context.Context, target, action str
 		return DeviceActionResult{}, err
 	}
 	action = strings.TrimSpace(action)
-	def := findActionDef(action)
-	if def == nil {
+	// `detail.Actions` is already filtered through methodsCovered + the
+	// online/auth gate. Verify the requested action (with any :N suffix
+	// preserved, since fan-out IDs like "switch_toggle:0" are what gets
+	// listed) is still in that set.
+	if !supportedAction(detail.Actions, action) {
 		return DeviceActionResult{}, fmt.Errorf("unsupported action: %s", action)
 	}
-	// `detail.Actions` is already filtered through methodsCovered + the
-	// online/auth gate. Verify the requested action is still in that set.
-	if !supportedAction(detail.Actions, action) {
+	// For component-bound actions, peel the `:N` suffix and pass the
+	// instance through DeviceActionRequest so Apply functions don't need
+	// to re-parse it.
+	baseID, instance := parseInstancedActionID(action)
+	if instance >= 0 {
+		req.Instance = instance
+	}
+	def := findActionDef(baseID)
+	if def == nil {
 		return DeviceActionResult{}, fmt.Errorf("unsupported action: %s", action)
 	}
 	return def.apply(ctx, s, detail.Device, req)

@@ -4,6 +4,42 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.9] - 2026-05-07 — Per-component action fan-out (cover/switch/light) + OTA revert
+
+Completes the v2 wave of [ADR-0010](docs/adr/0010-per-device-action-discovery-via-listmethods.md):
+the action catalog now expands one entry into N per-component-instance
+actions, so a Pro 4 PM gets four `Switch N — Toggle` rows automatically.
+Adds `ota_revert` (firmware rollback) gated by the typed-name confirm
+modal alongside the factory-reset variants. No schema migration.
+
+### Added
+- **Per-component action fan-out.** Catalog entries can now declare
+  `component: "switch" | "cover" | "light"` and `describeAvailableActions`
+  expands one entry into one action row per `<component>:N` instance the
+  device exposes via `RawStatus`. Action IDs gain a `:N` suffix; the
+  ExecuteDeviceAction dispatcher peels it off and threads the integer
+  through `DeviceActionRequest.Instance`.
+- **Six new component-bound actions** (only appear on devices that
+  actually expose the component + its RPC):
+  - `switch_toggle:N` — flip a switch on/off (`Switch.Toggle`)
+  - `light_toggle:N` — flip a light on/off (`Light.Toggle`)
+  - `cover_open:N` / `cover_close:N` / `cover_stop:N` — drive a cover
+    (`Cover.Open` / `Cover.Close` / `Cover.Stop`)
+- **`ota_revert`** action (`OTA.Revert`) — firmware rollback. High-risk;
+  protected by the typed-name confirm modal alongside the factory-reset
+  variants. Useful when a recent firmware update introduces a regression.
+- **`Instance` field on `DeviceActionRequest`** so component-bound Apply
+  functions don't need to re-parse the action ID.
+- New tests: per-component fan-out, instance discovery from `RawStatus`,
+  the `<base>:<instance>` parser. Dispatch table coverage extended to all
+  v0.1.8 + v0.1.9 actions.
+
+### Changed
+- ADR-0010 promoted from `docs/plans/broader-action-discovery.md` to
+  `docs/adr/0010-per-device-action-discovery-via-listmethods.md` with
+  status `Accepted`. References in CHANGELOG / `actions.go` / ARCHITECTURE
+  follow the new path.
+
 ## [0.1.8] - 2026-05-07 — Per-device action discovery via Shelly.ListMethods
 
 Replaces the hand-rolled five-action surface with a declarative catalog

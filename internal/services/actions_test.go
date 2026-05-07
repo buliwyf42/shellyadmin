@@ -40,13 +40,91 @@ func TestMethodsCovered(t *testing.T) {
 
 // TestDescribeAvailableActions_FallbackUnprobed proves that a device with
 // no SupportedMethods cache (= never firmware-checked since v0.1.8) still
-// gets the full action surface. This is the rollout-window contract.
+// gets every fleet-wide catalog action. Component-bound entries
+// (`switch_toggle`, `cover_open`, etc.) require RawStatus to fan out, so
+// an unprobed device with no RawStatus correctly shows zero of those —
+// exposing four "Switch — Toggle" buttons with no idea which switch
+// they'd hit would be worse UX than just hiding them until probed.
 func TestDescribeAvailableActions_FallbackUnprobed(t *testing.T) {
 	device := models.Device{MAC: "AA", Online: true, Gen: 2}
 	got := describeDeviceActions(device)
-	if len(got) != len(actionCatalog) {
-		t.Fatalf("unprobed device action count = %d, want all %d catalog entries",
-			len(got), len(actionCatalog))
+
+	expected := 0
+	for _, def := range actionCatalog {
+		if def.component == "" {
+			expected++
+		}
+	}
+	if len(got) != expected {
+		t.Fatalf("unprobed device action count = %d, want %d (fleet-wide catalog entries)",
+			len(got), expected)
+	}
+}
+
+// TestDescribeAvailableActions_ComponentFanout proves the fan-out path:
+// an unprobed device with two switches in RawStatus should produce two
+// switch_toggle:N rows (one per instance), with stable per-instance IDs.
+func TestDescribeAvailableActions_ComponentFanout(t *testing.T) {
+	device := models.Device{
+		MAC:       "AA",
+		Online:    true,
+		Gen:       2,
+		RawStatus: `{"switch:0":{"output":true},"switch:1":{"output":false},"sys":{}}`,
+	}
+	got := describeDeviceActions(device)
+	var found []string
+	for _, a := range got {
+		if a.ID == "switch_toggle:0" || a.ID == "switch_toggle:1" {
+			found = append(found, a.ID)
+		}
+	}
+	if len(found) != 2 {
+		t.Errorf("expected 2 switch_toggle fan-out actions, got %d (%v)", len(found), found)
+	}
+}
+
+// TestComponentInstances pins the JSON-key parser so a future RawStatus
+// shape change can't silently break per-component fan-out.
+func TestComponentInstances(t *testing.T) {
+	device := models.Device{
+		RawStatus: `{"switch:0":{},"switch:2":{},"cover:0":{},"sys":{},"switch:notanint":{}}`,
+	}
+	if got := componentInstances(device, "switch"); len(got) != 2 || got[0] != 0 || got[1] != 2 {
+		t.Errorf("componentInstances(switch) = %v, want [0 2] (skip non-integer ids, sort)", got)
+	}
+	if got := componentInstances(device, "cover"); len(got) != 1 || got[0] != 0 {
+		t.Errorf("componentInstances(cover) = %v, want [0]", got)
+	}
+	if got := componentInstances(device, "light"); len(got) != 0 {
+		t.Errorf("componentInstances(light) = %v, want empty", got)
+	}
+	if got := componentInstances(models.Device{}, "switch"); len(got) != 0 {
+		t.Errorf("empty RawStatus should yield empty instance list, got %v", got)
+	}
+}
+
+// TestParseInstancedActionID covers the dispatch path that turns
+// "switch_toggle:1" back into ("switch_toggle", 1).
+func TestParseInstancedActionID(t *testing.T) {
+	tests := []struct {
+		in       string
+		wantBase string
+		wantInst int
+	}{
+		{"refresh", "refresh", -1},
+		{"firmware_update", "firmware_update", -1},
+		{"switch_toggle:0", "switch_toggle", 0},
+		{"cover_close:7", "cover_close", 7},
+		{"trailing:colon:", "trailing:colon:", -1}, // empty suffix → no instance
+		{"bad_id:notanint", "bad_id:notanint", -1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.in, func(t *testing.T) {
+			base, inst := parseInstancedActionID(tt.in)
+			if base != tt.wantBase || inst != tt.wantInst {
+				t.Errorf("parseInstancedActionID(%q) = (%q, %d), want (%q, %d)", tt.in, base, inst, tt.wantBase, tt.wantInst)
+			}
+		})
 	}
 }
 
@@ -72,7 +150,7 @@ func TestDescribeAvailableActions_FilterByMethods(t *testing.T) {
 	if !ids["reboot"] {
 		t.Errorf("reboot missing — Shelly.Reboot is in the supported set")
 	}
-	for _, banned := range []string{"firmware_check", "firmware_update", "wifi_scan", "factory_reset"} {
+	for _, banned := range []string{"firmware_check", "firmware_update", "wifi_scan", "factory_reset", "ota_revert"} {
 		if ids[banned] {
 			t.Errorf("%s should be filtered out — its required methods aren't in the supported set", banned)
 		}
@@ -119,7 +197,12 @@ func TestDescribeAvailableActions_RiskOrdering(t *testing.T) {
 // ExecuteDeviceAction relies on. A typo in actions.go would otherwise
 // surface as "unsupported action" at runtime.
 func TestFindActionDef(t *testing.T) {
-	for _, tt := range []string{"refresh", "firmware_check", "firmware_update", "reboot", "ble_pair", "wifi_scan", "eth_status", "factory_reset_wifi", "factory_reset"} {
+	for _, tt := range []string{
+		"refresh", "firmware_check", "firmware_update", "reboot", "ble_pair",
+		"wifi_scan", "eth_status",
+		"switch_toggle", "light_toggle", "cover_open", "cover_close", "cover_stop",
+		"ota_revert", "factory_reset_wifi", "factory_reset",
+	} {
 		if findActionDef(tt) == nil {
 			t.Errorf("action %q missing from catalog", tt)
 		}
