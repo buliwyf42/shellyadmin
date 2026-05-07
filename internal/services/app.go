@@ -127,6 +127,9 @@ func (s *AppService) GetDevices() ([]models.Device, error) {
 	}
 	for i := range devices {
 		devices[i].Compliant, devices[i].ComplianceIssues = compliance.Evaluate(devices[i], settings.Compliance)
+		devices[i].SwitchCount = len(componentInstances(devices[i], "switch"))
+		devices[i].CoverCount = len(componentInstances(devices[i], "cover"))
+		devices[i].LightCount = len(componentInstances(devices[i], "light"))
 	}
 	return devices, nil
 }

@@ -50,6 +50,12 @@ export interface Device {
   fw_available_beta: string;
   fw_checked_at: string;
   fw_auto_update: string; // "" | "off" | "stable" | "beta"
+  /** Per-component instance counts derived from RawStatus on the server.
+   * Drive the Devices-page Capabilities column. 0 = device doesn't
+   * expose that component type. */
+  switch_count?: number;
+  cover_count?: number;
+  light_count?: number;
   serial: string;
   is_new?: boolean;
   compliant: boolean;
