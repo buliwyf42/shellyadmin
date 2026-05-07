@@ -117,6 +117,17 @@
     >
     <h1 class="h4 mb-0">
       {detail?.device.name || detail?.device.serial || detail?.device.mac || target}
+      {#if detail?.device.app}
+        <span
+          class="badge bg-secondary align-middle ms-2"
+          style="font-size: 0.55em; vertical-align: middle;"
+          title={detail.device.model
+            ? `App: ${detail.device.app}\nModel: ${detail.device.model}`
+            : detail.device.app}
+        >
+          {detail.device.app}
+        </span>
+      {/if}
     </h1>
     <p class="text-secondary mb-0">{detail?.device.ip || target}</p>
   </div>
@@ -146,7 +157,14 @@
           <h2 class="h5">Status</h2>
           <div class="detail-grid">
             <div>
-              <span class="text-secondary">Model</span><strong
+              <span class="text-secondary">Type</span><strong
+                title={detail.device.app && detail.device.model
+                  ? `App: ${detail.device.app}\nModel: ${detail.device.model}`
+                  : ''}>{detail.device.app || detail.device.model || 'n/a'}</strong
+              >
+            </div>
+            <div>
+              <span class="text-secondary">Model SKU</span><strong
                 >{detail.device.model || 'n/a'}</strong
               >
             </div>
@@ -158,6 +176,25 @@
             <div>
               <span class="text-secondary">Generation</span><strong>Gen {detail.device.gen}</strong>
             </div>
+            {#if detail.device.switch_count || detail.device.cover_count || detail.device.light_count}
+              <div>
+                <span class="text-secondary">Components</span><strong>
+                  {[
+                    detail.device.switch_count
+                      ? `${detail.device.switch_count} switch${detail.device.switch_count === 1 ? '' : 'es'}`
+                      : '',
+                    detail.device.cover_count
+                      ? `${detail.device.cover_count} cover${detail.device.cover_count === 1 ? '' : 's'}`
+                      : '',
+                    detail.device.light_count
+                      ? `${detail.device.light_count} light${detail.device.light_count === 1 ? '' : 's'}`
+                      : '',
+                  ]
+                    .filter(Boolean)
+                    .join(', ')}
+                </strong>
+              </div>
+            {/if}
             <div>
               <span class="text-secondary">Online</span><strong
                 >{detail.device.online ? 'Yes' : 'No'}</strong
