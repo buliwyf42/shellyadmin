@@ -62,6 +62,22 @@ func decryptCipher(cipher string) (string, error) {
 	return secretbox.OpenString(cipher)
 }
 
+// marshalSupportedMethods serialises a method-list slice for storage in the
+// devices.supported_methods TEXT column. Returns "" for nil/empty slices so
+// the on-disk representation distinguishes "never probed" from "probed and
+// found to support nothing" (the latter shouldn't happen in practice but
+// would round-trip as "[]" rather than "").
+func marshalSupportedMethods(methods []string) string {
+	if methods == nil {
+		return ""
+	}
+	body, err := json.Marshal(methods)
+	if err != nil {
+		return ""
+	}
+	return string(body)
+}
+
 func (db *DB) Close() error { return db.sql.Close() }
 
 func (db *DB) MarkRunningJobsInterrupted() error {
@@ -117,7 +133,7 @@ func (db *DB) ListDevices() ([]models.Device, error) {
 		last_refresh_attempt, last_refresh_ok, last_refresh_error,
 		consecutive_misses, mqtt_enabled, mqtt_server, mqtt_client_id, mqtt_topic_prefix, mqtt_flags_na,
 		lat, lon, tz, ws_enabled, ws_server, ble_gw_enabled, wifi_ssid,
-		fw_available_stable, fw_available_beta, fw_checked_at, fw_auto_update,
+		fw_available_stable, fw_available_beta, fw_checked_at, fw_auto_update, supported_methods,
 		cloud_enabled, cloud_connected, ws_connected, matter_enabled, sntp_server, serial, auth_required, auth_error,
 		eco_mode, discoverable, raw_config, raw_status,
 		scheme, enhanced_security, tls_cert_valid, tls_allow_insecure, auth_locked_until, wifi_hostname, wifi_channel,
@@ -131,11 +147,12 @@ func (db *DB) ListDevices() ([]models.Device, error) {
 	for rows.Next() {
 		var d models.Device
 		var online, refreshOK, cloudConnected, wsConnected, authRequired int
+		var supportedMethodsRaw string
 		if err := rows.Scan(&d.MAC, &d.IP, &d.Name, &d.Model, &d.FW, &d.Gen, &online, &d.LastSeen, &d.FirstSeen, &d.DeviceNum,
 			&d.LastRefreshAttempt, &refreshOK, &d.LastRefreshError,
 			&d.ConsecutiveMisses, &d.MQTTEnabled, &d.MQTTServer, &d.MQTTClientID, &d.MQTTTopicPrefix, &d.MQTTFlagsNA,
 			&d.Lat, &d.Lon, &d.TZ, &d.WSEnabled, &d.WSServer, &d.BLEGWEnabled, &d.WiFiSSID,
-			&d.FWAvailableStable, &d.FWAvailableBeta, &d.FWCheckedAt, &d.FWAutoUpdate,
+			&d.FWAvailableStable, &d.FWAvailableBeta, &d.FWCheckedAt, &d.FWAutoUpdate, &supportedMethodsRaw,
 			&d.CloudEnabled, &cloudConnected, &wsConnected, &d.MatterEnabled, &d.SNTPServer, &d.Serial, &authRequired, &d.AuthError,
 			&d.EcoMode, &d.Discoverable, &d.RawConfig, &d.RawStatus,
 			&d.Scheme, &d.EnhancedSecurity, &d.TLSCertValid, &d.TLSAllowInsecure, &d.AuthLockedUntil, &d.WiFiHostname, &d.WiFiChannel,
@@ -147,6 +164,9 @@ func (db *DB) ListDevices() ([]models.Device, error) {
 		d.CloudConnected = cloudConnected == 1
 		d.WSConnected = wsConnected == 1
 		d.AuthRequired = authRequired == 1
+		if supportedMethodsRaw != "" {
+			_ = json.Unmarshal([]byte(supportedMethodsRaw), &d.SupportedMethods)
+		}
 		out = append(out, d)
 	}
 	return out, rows.Err()
@@ -224,12 +244,12 @@ func upsertDeviceRow(ex dbExec, d models.Device) error {
 		last_refresh_attempt, last_refresh_ok, last_refresh_error,
 		mqtt_enabled, mqtt_server, mqtt_client_id, mqtt_topic_prefix, mqtt_flags_na, lat, lon, tz,
 		ws_enabled, ws_server, ble_gw_enabled, wifi_ssid,
-		fw_available_stable, fw_available_beta, fw_checked_at, fw_auto_update,
+		fw_available_stable, fw_available_beta, fw_checked_at, fw_auto_update, supported_methods,
 		cloud_enabled, auth_required, auth_error,
 		cloud_connected, ws_connected, matter_enabled, sntp_server, serial, eco_mode, discoverable, raw_config, raw_status,
 		scheme, enhanced_security, tls_cert_valid, tls_allow_insecure, auth_locked_until, wifi_hostname, wifi_channel,
 		power_w, voltage_v, current_a
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	ON CONFLICT(mac) DO UPDATE SET
 		ip=excluded.ip, name=excluded.name, model=excluded.model, fw=excluded.fw, gen=excluded.gen,
 		online=excluded.online, last_seen=excluded.last_seen, first_seen=excluded.first_seen,
@@ -244,6 +264,7 @@ func upsertDeviceRow(ex dbExec, d models.Device) error {
 		fw_available_beta=excluded.fw_available_beta,
 		fw_checked_at=excluded.fw_checked_at,
 		fw_auto_update=excluded.fw_auto_update,
+		supported_methods=excluded.supported_methods,
 		auth_required=excluded.auth_required, auth_error=excluded.auth_error,
 		cloud_enabled=excluded.cloud_enabled, cloud_connected=excluded.cloud_connected,
 		ws_connected=excluded.ws_connected, matter_enabled=excluded.matter_enabled,
@@ -259,7 +280,7 @@ func upsertDeviceRow(ex dbExec, d models.Device) error {
 		d.LastRefreshAttempt, boolToInt(d.LastRefreshOK), d.LastRefreshError,
 		d.MQTTEnabled, d.MQTTServer, d.MQTTClientID, d.MQTTTopicPrefix, d.MQTTFlagsNA, d.Lat, d.Lon, d.TZ,
 		d.WSEnabled, d.WSServer, d.BLEGWEnabled, d.WiFiSSID,
-		d.FWAvailableStable, d.FWAvailableBeta, d.FWCheckedAt, d.FWAutoUpdate,
+		d.FWAvailableStable, d.FWAvailableBeta, d.FWCheckedAt, d.FWAutoUpdate, marshalSupportedMethods(d.SupportedMethods),
 		d.CloudEnabled, boolToInt(d.AuthRequired), d.AuthError,
 		boolToInt(d.CloudConnected), boolToInt(d.WSConnected), d.MatterEnabled, d.SNTPServer, d.Serial, d.EcoMode, d.Discoverable, d.RawConfig, d.RawStatus,
 		d.Scheme, d.EnhancedSecurity, d.TLSCertValid, d.TLSAllowInsecure, d.AuthLockedUntil, d.WiFiHostname, d.WiFiChannel,

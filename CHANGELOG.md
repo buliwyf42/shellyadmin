@@ -4,6 +4,59 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-05-07 — Per-device action discovery via Shelly.ListMethods
+
+Replaces the hand-rolled five-action surface with a declarative catalog
+filtered against each device's `Shelly.ListMethods` output. Adds four new
+actions (Wi-Fi scan, Ethernet status read, "reset Wi-Fi & cloud", full
+factory reset) and a typed-name confirm modal for the two unrecoverable
+ones. See [docs/plans/broader-action-discovery.md](docs/plans/broader-action-discovery.md)
+for the design. Includes migration `021_device_supported_methods.sql`.
+
+### Added
+- **Per-device cached method list.** New `supported_methods` column on
+  the `devices` row holding the device's `Shelly.ListMethods` output as
+  a JSON array. Populated on every firmware-check and refresh; nil
+  means "never probed" and the action layer falls back to the v0.1.7
+  catalog so the rollout window leaves no device action-less.
+- **Declarative action catalog** in `internal/services/actions.go`.
+  Each entry declares `RequiredMethods []string` plus an `Apply`
+  function; discovery is a filter, not a hand-edited switch.
+  `ExecuteDeviceAction` becomes a single dispatch.
+- **Four new per-device actions**, gated by their respective RPC
+  methods:
+  - `wifi_scan` (`Wifi.Scan`) — list visible SSIDs, useful for diagnostics.
+  - `eth_status` (`Eth.GetStatus`) — read live link/IPv4/IPv6 status.
+  - `factory_reset_wifi` (`Shelly.ResetWiFiConfig`) — clear stored Wi-Fi + cloud config; preserves scripts/KVS/schedule.
+  - `factory_reset` (`Shelly.FactoryReset`) — wipe all persisted configuration.
+- **Typed-name confirm modal** for `factory_reset` and
+  `factory_reset_wifi`. Operator must type the device's name exactly
+  before the RPC fires. Reversible high-risk actions (`firmware_update`,
+  `reboot`) keep the existing single-click behaviour. ADR-0002 carve-out
+  documented in the plan.
+- **Risk-grouped action ordering** — the API now returns actions
+  sorted low → medium → high so the front-end renders a natural
+  click-freely → confirm-required progression.
+- New tests: `methodsCovered` branches, fallback-when-unprobed,
+  filter-by-methods, online-gate, risk ordering, dispatch table.
+
+### Changed
+- `BLE.Pair` action's runtime "skipped on unsupported firmware" path
+  now functions as a fallback: once `SupportedMethods` is populated the
+  catalog filter handles it before the RPC fires. Old behaviour kept
+  for the rollout window.
+- `app_clients.refreshFirmwareCache` renamed to
+  `refreshDeviceCapabilities` and extended to also pull
+  `Shelly.ListMethods`. Three RPCs per online device per refresh
+  (CheckForUpdate + ReadAutoUpdate + ListMethods); negligible
+  wall-time at concurrency-64 fleet sizes.
+
+### Migration notes
+- Migration `021_device_supported_methods.sql` adds a single
+  `supported_methods TEXT NOT NULL DEFAULT ''` column. Empty string =
+  "never probed", populated by the next firmware-check or refresh on
+  each device.
+
 ## [0.1.7] - 2026-05-06
 
 Scheduled firmware checks, configurable install timeout, the legacy

@@ -128,6 +128,40 @@ func (s *Setter) Reboot(ctx context.Context, ip string) bool {
 	return err == nil
 }
 
+// FactoryReset wipes every persisted configuration value on the device.
+// Unrecoverable from the app side — operator must re-provision afterward.
+// Returns (ok, error-message); the per-device action layer converts these
+// to DeviceActionResult statuses.
+func (s *Setter) FactoryReset(ctx context.Context, ip string) (bool, string) {
+	if _, err := s.c.RPC(ctx, ip, "Shelly.FactoryReset", nil); err != nil {
+		return false, err.Error()
+	}
+	return true, "factory reset triggered"
+}
+
+// ResetWiFiConfig clears stored Wi-Fi + cloud credentials but keeps the
+// rest of the device config (scripts, KVS, schedule, etc.). The device
+// returns to the AP-mode "ready to be re-provisioned" state.
+func (s *Setter) ResetWiFiConfig(ctx context.Context, ip string) (bool, string) {
+	if _, err := s.c.RPC(ctx, ip, "Shelly.ResetWiFiConfig", nil); err != nil {
+		return false, err.Error()
+	}
+	return true, "Wi-Fi & cloud config reset"
+}
+
+// WiFiScan asks the device to scan its radio for visible SSIDs. Result
+// payload is forwarded to the operator UI as-is so signal strength /
+// channel / encryption type can be surfaced for diagnostics.
+func (s *Setter) WiFiScan(ctx context.Context, ip string) (map[string]any, error) {
+	return s.c.RPC(ctx, ip, "Wifi.Scan", nil)
+}
+
+// EthGetStatus reads the Ethernet component status: link state, IPv4 + IPv6
+// addresses, etc. Cheap diagnostic for "is the wire actually up".
+func (s *Setter) EthGetStatus(ctx context.Context, ip string) (map[string]any, error) {
+	return s.c.RPC(ctx, ip, "Eth.GetStatus", nil)
+}
+
 // BLEPair triggers BLE pairing mode (FW 2.0.0-beta1). Devices on older firmware
 // return method-not-found and the action surfaces "not supported on this firmware".
 // Returns (ok, supported, error-message). supported=false means the device's

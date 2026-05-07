@@ -203,65 +203,16 @@ func (s *AppService) ExecuteDeviceAction(ctx context.Context, target, action str
 		return DeviceActionResult{}, err
 	}
 	action = strings.TrimSpace(action)
+	def := findActionDef(action)
+	if def == nil {
+		return DeviceActionResult{}, fmt.Errorf("unsupported action: %s", action)
+	}
+	// `detail.Actions` is already filtered through methodsCovered + the
+	// online/auth gate. Verify the requested action is still in that set.
 	if !supportedAction(detail.Actions, action) {
 		return DeviceActionResult{}, fmt.Errorf("unsupported action: %s", action)
 	}
-	switch action {
-	case "refresh":
-		if _, err := s.RefreshDevice(ctx, target); err != nil {
-			return DeviceActionResult{}, err
-		}
-		s.LogCtx(ctx, "INFO", fmt.Sprintf("device action refresh target=%s", target))
-		return DeviceActionResult{Action: action, Status: "ok", Detail: "device refreshed"}, nil
-	case "firmware_check":
-		result := firmware.CheckOneWithOptions(ctx, detail.Device, s.firmwareOptions(detail.Device, 10*time.Second))
-		// Persist per-channel cache + running version (from GetDeviceInfo) so
-		// out-of-band firmware upgrades reflect immediately.
-		updated := detail.Device
-		if result.CurrentVer != "" {
-			updated.FW = result.CurrentVer
-		}
-		updated.FWAvailableStable = result.StableVer
-		updated.FWAvailableBeta = result.BetaVer
-		updated.FWCheckedAt = result.CheckedAt
-		if mode, autoErr := firmware.ReadAutoUpdate(ctx, updated.IP, updated.Gen, s.firmwareOptions(updated, 5*time.Second)); autoErr == nil {
-			updated.FWAutoUpdate = mode
-		}
-		if uerr := s.db.UpsertDevice(updated); uerr != nil {
-			s.LogCtx(ctx, "warn", fmt.Sprintf("device action firmware_check persist target=%s err=%v", target, uerr))
-		}
-		s.LogCtx(ctx, "INFO", fmt.Sprintf("device action firmware_check target=%s status=%s", target, result.Status))
-		return DeviceActionResult{Action: action, Status: "ok", Detail: "firmware check completed", Result: result}, nil
-	case "firmware_update":
-		stage := util.FirstNonEmpty(req.Stage, "stable")
-		results, err := s.FirmwareUpdate(ctx, []string{detail.Device.MAC}, stage)
-		if err != nil {
-			return DeviceActionResult{}, err
-		}
-		s.LogCtx(ctx, "INFO", fmt.Sprintf("device action firmware_update target=%s stage=%s", target, stage))
-		return DeviceActionResult{Action: action, Status: "ok", Detail: "firmware update triggered", Result: results}, nil
-	case "reboot":
-		timeout := 5 * time.Second
-		if !setters.New(s.setterOptions(detail.Device, timeout)).Reboot(ctx, detail.Device.IP) {
-			return DeviceActionResult{Action: action, Status: "failed", Detail: "device did not accept reboot request"}, nil
-		}
-		s.LogCtx(ctx, "INFO", fmt.Sprintf("device action reboot target=%s", target))
-		return DeviceActionResult{Action: action, Status: "ok", Detail: "reboot requested"}, nil
-	case "ble_pair":
-		timeout := 5 * time.Second
-		ok, supported, message := setters.New(s.setterOptions(detail.Device, timeout)).BLEPair(ctx, detail.Device.IP)
-		if !supported {
-			s.LogCtx(ctx, "INFO", fmt.Sprintf("device action ble_pair target=%s status=skipped (unsupported firmware)", target))
-			return DeviceActionResult{Action: action, Status: "skipped", Detail: message}, nil
-		}
-		if !ok {
-			return DeviceActionResult{Action: action, Status: "failed", Detail: message}, nil
-		}
-		s.LogCtx(ctx, "INFO", fmt.Sprintf("device action ble_pair target=%s", target))
-		return DeviceActionResult{Action: action, Status: "ok", Detail: message}, nil
-	default:
-		return DeviceActionResult{}, fmt.Errorf("unsupported action: %s", action)
-	}
+	return def.apply(ctx, s, detail.Device, req)
 }
 
 func supportedAction(actions []DeviceAction, id string) bool {
@@ -291,60 +242,12 @@ func describeCapabilities(device models.Device) []DeviceCapability {
 	return capabilities
 }
 
+// describeDeviceActions is the catalog-driven action surface added in
+// v0.1.8. The legacy hand-rolled slice is gone; the source of truth is
+// internal/services/actions.go's `actionCatalog`, filtered against each
+// device's SupportedMethods cache.
 func describeDeviceActions(device models.Device) []DeviceAction {
-	unsupportedReason := ""
-	if !device.Online {
-		unsupportedReason = "device offline"
-	} else if device.AuthRequired {
-		unsupportedReason = util.FirstNonEmpty(device.AuthError, "device requires authentication")
-	}
-	return []DeviceAction{
-		{
-			ID:             "refresh",
-			Label:          "Refresh",
-			Description:    "Re-read the device and update the stored snapshot.",
-			Risk:           "low",
-			Supported:      true,
-			RequiresOnline: false,
-		},
-		{
-			ID:             "firmware_check",
-			Label:          "Firmware Check",
-			Description:    "Check the selected firmware channel for this device only.",
-			Risk:           "low",
-			Supported:      device.Online && !device.AuthRequired,
-			RequiresOnline: true,
-			Reason:         unsupportedReason,
-		},
-		{
-			ID:             "firmware_update",
-			Label:          "Firmware Update",
-			Description:    "Trigger a firmware update for this device.",
-			Risk:           "high",
-			Supported:      device.Online && !device.AuthRequired,
-			RequiresOnline: true,
-			Reason:         unsupportedReason,
-		},
-		{
-			ID:             "reboot",
-			Label:          "Reboot",
-			Description:    "Request a device reboot over the local API.",
-			Risk:           "medium",
-			Supported:      device.Online && !device.AuthRequired,
-			RequiresOnline: true,
-			Reason:         unsupportedReason,
-		},
-		{
-			ID:    "ble_pair",
-			Label: "BLE Pair",
-			Description: "Trigger BLE pairing mode. " +
-				"Requires Shelly firmware 2.0.0-beta1 or newer; older devices report this as unsupported.",
-			Risk:           "low",
-			Supported:      device.Online && !device.AuthRequired,
-			RequiresOnline: true,
-			Reason:         unsupportedReason,
-		},
-	}
+	return describeAvailableActions(device)
 }
 
 func validateBulkAction(req BulkActionRequest) error {

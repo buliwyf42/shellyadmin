@@ -56,9 +56,14 @@ type Device struct {
 	FWAvailableBeta   string   `json:"fw_available_beta"`
 	FWCheckedAt       string   `json:"fw_checked_at"`
 	FWAutoUpdate      string   `json:"fw_auto_update"`
-	Serial            string   `json:"serial"`
-	Compliant         bool     `json:"compliant"`
-	ComplianceIssues  []string `json:"compliance_issues"`
-	RawConfig         string   `json:"-"`
-	RawStatus         string   `json:"-"`
+	// SupportedMethods is the device's Shelly.ListMethods output, cached
+	// at firmware-check / refresh time. Drives the per-device action
+	// catalog filter — see docs/plans/broader-action-discovery.md. nil =
+	// "not yet probed".
+	SupportedMethods []string `json:"supported_methods"`
+	Serial           string   `json:"serial"`
+	Compliant        bool     `json:"compliant"`
+	ComplianceIssues []string `json:"compliance_issues"`
+	RawConfig        string   `json:"-"`
+	RawStatus        string   `json:"-"`
 }

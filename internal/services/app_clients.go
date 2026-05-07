@@ -94,11 +94,12 @@ func (s *AppService) setterOptions(d models.Device, timeout time.Duration) sette
 	return opts
 }
 
-// refreshFirmwareCache pulls per-channel availability and the auto-update
-// schedule for one device, in place, so a Refresh keeps everything that
-// runFirmwareJob would have written. Best-effort — failures leave the existing
-// persisted fields intact.
-func (s *AppService) refreshFirmwareCache(ctx context.Context, d *models.Device) {
+// refreshDeviceCapabilities pulls per-channel firmware availability, the
+// auto-update schedule, and the Shelly.ListMethods cache for one device, in
+// place, so a Refresh keeps everything that runFirmwareJob would have
+// written. Best-effort — failures leave the existing persisted fields
+// intact (so a transient cloud blip doesn't blank the cache).
+func (s *AppService) refreshDeviceCapabilities(ctx context.Context, d *models.Device) {
 	if d == nil || d.Gen < 2 || !d.Online || d.AuthRequired {
 		return
 	}
@@ -113,6 +114,9 @@ func (s *AppService) refreshFirmwareCache(ctx context.Context, d *models.Device)
 	}
 	if mode, err := firmware.ReadAutoUpdate(ctx, d.IP, d.Gen, fwOpts); err == nil {
 		d.FWAutoUpdate = mode
+	}
+	if methods, err := firmware.ListSupportedMethods(ctx, d.IP, d.Gen, fwOpts); err == nil {
+		d.SupportedMethods = methods
 	}
 }
 

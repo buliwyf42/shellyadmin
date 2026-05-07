@@ -14,6 +14,18 @@
   let busyAction = '';
   let selectedStage = 'stable';
 
+  // Actions that produce unrecoverable device state (no rollback path from
+  // the app side) require the operator to type the device name before they
+  // fire — see ADR-0002 carve-out documented in
+  // docs/plans/broader-action-discovery.md. Reversible high-risk actions
+  // like firmware_update keep the existing single-click behaviour.
+  const TYPED_CONFIRM_ACTIONS = new Set(['factory_reset', 'factory_reset_wifi']);
+
+  let confirmAction: { id: string; label: string; description: string } | null = null;
+  let confirmTyped = '';
+  $: confirmExpected = detail?.device.name || detail?.device.mac || '';
+  $: confirmReady = confirmTyped.trim() === confirmExpected;
+
   $: target = decodeURIComponent($currentPath.replace('/devices/', ''));
 
   function captureError(err: unknown) {
@@ -38,6 +50,20 @@
   }
 
   async function runAction(action: string) {
+    // High-risk + unrecoverable actions get a typed-name gate before
+    // any RPC fires. Other actions go through immediately.
+    if (TYPED_CONFIRM_ACTIONS.has(action)) {
+      const def = detail?.actions.find((a) => a.id === action);
+      if (def) {
+        confirmAction = { id: def.id, label: def.label, description: def.description };
+        confirmTyped = '';
+        return;
+      }
+    }
+    await runActionImmediate(action);
+  }
+
+  async function runActionImmediate(action: string) {
     busyAction = action;
     actionMessage = '';
     actionResult = null;
@@ -53,6 +79,14 @@
     } finally {
       busyAction = '';
     }
+  }
+
+  async function confirmAndRun() {
+    if (!confirmAction || !confirmReady) return;
+    const id = confirmAction.id;
+    confirmAction = null;
+    confirmTyped = '';
+    await runActionImmediate(id);
   }
 
   function pretty(value: unknown): string {
@@ -301,7 +335,69 @@
   </div>
 {/if}
 
+{#if confirmAction}
+  <div
+    class="modal-backdrop-custom"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="action-confirm-title"
+  >
+    <div class="modal-card card text-bg-dark border-warning">
+      <div class="card-body">
+        <h2 class="h6 mb-3" id="action-confirm-title">
+          <span class="badge bg-warning text-dark me-2">Unrecoverable</span>
+          {confirmAction.label}
+        </h2>
+        <p class="mb-2">{confirmAction.description}</p>
+        <p class="text-secondary small mb-3">
+          Type the device's name <code>{confirmExpected}</code> to confirm.
+        </p>
+        <input
+          class="form-control mb-3"
+          type="text"
+          placeholder={confirmExpected}
+          bind:value={confirmTyped}
+          autocomplete="off"
+        />
+        <div class="d-flex justify-content-end gap-2">
+          <button
+            class="btn btn-outline-light"
+            on:click={() => {
+              confirmAction = null;
+              confirmTyped = '';
+            }}>Cancel</button
+          >
+          <button
+            class="btn btn-danger"
+            on:click={confirmAndRun}
+            disabled={!confirmReady}
+            title={confirmReady
+              ? 'Run the destructive action'
+              : 'Type the device name exactly to enable'}>{confirmAction.label}</button
+          >
+        </div>
+      </div>
+    </div>
+  </div>
+{/if}
+
 <style>
+  .modal-backdrop-custom {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 1050;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 4rem 1rem 1rem;
+  }
+  .modal-card {
+    width: min(560px, 100%);
+    max-height: calc(100vh - 6rem);
+    overflow: auto;
+  }
+
   .detail-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));

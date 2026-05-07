@@ -226,7 +226,7 @@ func (s *AppService) RefreshDevice(ctx context.Context, target string) ([]models
 	probed.FWAvailableBeta = current.FWAvailableBeta
 	probed.FWCheckedAt = current.FWCheckedAt
 	probed.FWAutoUpdate = current.FWAutoUpdate
-	s.refreshFirmwareCache(ctx, probed)
+	s.refreshDeviceCapabilities(ctx, probed)
 	if err := s.db.UpsertDevice(*probed); err != nil {
 		return nil, err
 	}
