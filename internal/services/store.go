@@ -59,7 +59,9 @@ type Store interface {
 
 	// Logs
 	GetLogs(level, search string) ([]db.LogEntry, error)
+	GetLogsFiltered(level, search, risk string) ([]db.LogEntry, error)
 	GetLogsForExport(level, search string, limit int) ([]db.LogEntry, error)
+	GetLogsForExportFiltered(level, search, risk string, limit int) ([]db.LogEntry, error)
 	ClearLogs() (int64, error)
 }
 

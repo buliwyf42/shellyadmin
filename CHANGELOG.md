@@ -4,6 +4,44 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.12] - 2026-05-07 — Logs risk filter + batch / fw_id on the detail page
+
+Three small operator-facing improvements layered on the v0.1.10 audit
+risk_level + v0.1.11 friendly-label work. Includes migration
+`024_device_batch_fwid.sql`.
+
+### Added
+- **Logs page risk filter.** New dropdown next to the Level filter:
+  Off / Low / Medium / High. Filters the audit_log query server-side
+  via the new `?risk=` URL param and the `db.GetLogsFiltered` /
+  `db.GetLogsForExportFiltered` write surface; CSV/NDJSON export
+  honours the filter the same way Level + Search already do.
+- **Batch + Firmware ID** on the Device detail page. New "Batch" row
+  (only when populated; e.g. `2430-Broadwell`) and "Firmware ID" row
+  (full identifier including build hash, e.g.
+  `20260423-102547/2.0.0-beta1-g8c7700a`). Backed by two new columns
+  on the devices table (migration 024). Captured opportunistically:
+  `batch` from `Shelly.GetDeviceInfo` during firmware checks, `fw_id`
+  from both `/shelly` (scanner / refresh) and `Shelly.GetDeviceInfo`
+  (firmware check). Empty for existing rows until the next probe.
+- **`Firmware.Result` carries Batch + FWID** so the firmware-check
+  job can persist them in the same write that updates the per-channel
+  cache; no extra RPC.
+
+### Changed
+- **Devices page Model column sort** now keys on the displayed text
+  (app code first, model SKU fallback) so a click on the column
+  header matches what the eye sees in each cell. Mirrors the
+  Firmware-page comparator from v0.1.11.
+- `Store` interface gains `GetLogsFiltered` and
+  `GetLogsForExportFiltered`; the un-filtered legacy methods stay as
+  thin wrappers.
+
+### Migration notes
+- Migration `024_device_batch_fwid.sql` adds two `TEXT NOT NULL
+  DEFAULT ''` columns. Empty for existing rows; populated by the next
+  scan / refresh / firmware check on each device.
+
 ## [0.1.11] - 2026-05-07 — Friendly device labels (app code) + detail-page enrichment
 
 Surfaces Shelly's short application code (`PlugSG3`, `Pro4PM`,

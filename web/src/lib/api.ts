@@ -257,16 +257,16 @@ export const api = {
       macs,
       group_name: groupName,
     }),
-  getLogs: (level = '', search = '') =>
+  getLogs: (level = '', search = '', risk = '') =>
     req<LogEntry[]>(
       'GET',
-      `/api/logs?level=${encodeURIComponent(level)}&search=${encodeURIComponent(search)}`,
+      `/api/logs?level=${encodeURIComponent(level)}&search=${encodeURIComponent(search)}&risk=${encodeURIComponent(risk)}`,
     ),
   exportDevice: (target: string) =>
     req<DeviceExport>('GET', `/api/devices/${encodeURIComponent(target)}/export`),
-  exportLogs: (level = '', search = '', format: 'csv' | 'ndjson' = 'csv') =>
+  exportLogs: (level = '', search = '', risk = '', format: 'csv' | 'ndjson' = 'csv') =>
     fetchBlob(
-      `/api/logs/export?level=${encodeURIComponent(level)}&search=${encodeURIComponent(search)}&format=${encodeURIComponent(format)}`,
+      `/api/logs/export?level=${encodeURIComponent(level)}&search=${encodeURIComponent(search)}&risk=${encodeURIComponent(risk)}&format=${encodeURIComponent(format)}`,
     ),
   clearLogs: () => req<{ ok: true; deleted: number }>('DELETE', '/api/logs'),
   exportBackup: (includeSecrets = false, confirm = '') =>

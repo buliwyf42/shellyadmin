@@ -10,7 +10,17 @@ type Device struct {
 	// /shelly and Shelly.GetDeviceInfo. Friendlier than `Model` (which
 	// is the canonical SKU) — the Devices/Firmware pages use it as the
 	// primary "what is this" label and demote the SKU to the tooltip.
-	App                string   `json:"app"`
+	App string `json:"app"`
+	// Batch is the production batch label (e.g. "2430-Broadwell") from
+	// Shelly.GetDeviceInfo. Useful for warranty / hardware-quirk
+	// diagnostics. Empty until first firmware-check on devices that
+	// pre-date this release.
+	Batch string `json:"batch"`
+	// FWID is the long firmware identifier from /shelly +
+	// Shelly.GetDeviceInfo, including the build hash (e.g.
+	// "20260423-102547/2.0.0-beta1-g8c7700a"). Distinct from `FW`
+	// which is the user-friendly version string.
+	FWID               string   `json:"fw_id"`
 	FW                 string   `json:"fw"`
 	Gen                int      `json:"gen"`
 	Online             bool     `json:"online"`
