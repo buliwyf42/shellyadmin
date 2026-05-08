@@ -4,6 +4,39 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.16] - 2026-05-08 — Platform refresh: Go 1.25 + re-take v0.1.14 deps
+
+Toolchain bump. The Go floor moves from 1.24 to 1.25 across the
+build pipeline, which un-blocks the dep upgrades that v0.1.14 attempted
+and v0.1.15 had to roll back (gin v1.12 pulled `quic-go` for HTTP/3,
+which requires Go 1.25.0). Operator-facing surface is unchanged — the
+container is still a static Linux/amd64 binary, image size unchanged
+in this build.
+
+### Changed
+- **Go 1.24 → 1.25** across the build pipeline:
+  - `.github/workflows/test.yml` — both Go-version pins.
+  - `docker/Dockerfile` — `golang:1.24-alpine` → `golang:1.25-alpine`
+    (backend stage).
+  - `go.mod` directive `go 1.24.0` → `go 1.25.0`.
+- **Re-took the v0.1.14 dep upgrades** that were rolled back in v0.1.15
+  for Go-1.24 compat: `gin-gonic/gin` v1.10.1 → v1.12.0,
+  `gin-contrib/sessions` v1.0.4 → v1.1.0, `golang.org/x/net` v0.50.0 →
+  v0.51.0, `golang.org/x/text` v0.34.0 → v0.35.0, `golang.org/x/sync`
+  v0.19.0 → v0.20.0. Indirect deps follow accordingly (notably
+  `quic-go/quic-go` v0.59.0 + `quic-go/qpack` v0.6.0 are pulled in by
+  gin v1.12's HTTP/3 support).
+
+### Migration notes
+No DB migration. No env-var changes. Operators on v0.1.13 or v0.1.15
+upgrade with the usual `docker pull ghcr.io/buliwyf42/shellyadmin:v0.1.16`
++ recreate.
+
+If you build the image yourself (rather than pulling from GHCR), make
+sure your local Docker can pull `golang:1.25-alpine` — older Docker
+hosts that haven't refreshed their image cache may need a `docker
+image rm golang:1.24-alpine` and a fresh `docker build`.
+
 ## [0.1.15] - 2026-05-08 — Testability seams + v0.1.14 CI rollback
 
 **Operator-impacting:** v0.1.14's GHCR image never published — its dep
