@@ -31,6 +31,11 @@ threat model and deployment expectations see [SECURITY.md](./SECURITY.md).
 
 ### 2026-05-08
 
+- **v0.1.16** — Platform refresh: Go 1.25. Bumped CI workflow + Dockerfile
+  base + go.mod directive from 1.24 to 1.25; re-took the v0.1.14 dep
+  upgrades that needed it (gin v1.12, gin-contrib/sessions v1.1.0,
+  x/net v0.51, x/text v0.35, x/sync v0.20). HTTP/3 transitive deps
+  (quic-go) come along for the ride; not currently used by ShellyAdmin.
 - **v0.1.15** — Testability seams + v0.1.14 CI rollback. New
   `internal/core/clock` package (`Clock` interface + `Real()` +
   `Fake.Advance`); `OnClient` variants on scanner / firmware / setters
