@@ -34,6 +34,62 @@ func TestFirmwareInstallTimeoutFromSettings(t *testing.T) {
 	}
 }
 
+// firmwareInstallPollIntervalFromSettings is the bridge between the
+// operator-facing AppSettings.FirmwareInstallPollInterval (seconds, with a
+// 5 s default) and the time.Duration the install_job uses while waiting on
+// a device's reboot. Bounds [1, 60] mirror models.AppSettings.Normalize so
+// a settings row that pre-dates this field (lands as 0) silently picks up
+// the default rather than degenerating into a hot-loop poll.
+func TestFirmwareInstallPollIntervalFromSettings(t *testing.T) {
+	tests := []struct {
+		name     string
+		seconds  float64
+		expected time.Duration
+	}{
+		{"default when zero", 0, defaultFirmwareInstallPollInterval},
+		{"default when negative", -2, defaultFirmwareInstallPollInterval},
+		{"honours configured value", 10, 10 * time.Second},
+		{"clamps sub-second up to 1 s", 0.25, 1 * time.Second},
+		{"clamps above 60 s down to 60", 120, 60 * time.Second},
+		{"upper bound is inclusive", 60, 60 * time.Second},
+		{"lower bound is inclusive", 1, 1 * time.Second},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := firmwareInstallPollIntervalFromSettings(models.AppSettings{FirmwareInstallPollInterval: tt.seconds})
+			if got != tt.expected {
+				t.Errorf("firmwareInstallPollIntervalFromSettings(%v) = %v, want %v", tt.seconds, got, tt.expected)
+			}
+		})
+	}
+}
+
+// AppSettings.Normalize clamps the firmware-install poll interval to the
+// same [1, 60] window the helper assumes. This guards against a settings
+// roundtrip (load → mutate → save) drifting the value out of bounds.
+func TestAppSettingsNormalizeFirmwareInstallPollInterval(t *testing.T) {
+	tests := []struct {
+		name string
+		in   float64
+		out  float64
+	}{
+		{"zero becomes default", 0, 5},
+		{"negative becomes default", -3, 5},
+		{"sub-second clamps up to 1", 0.5, 1},
+		{"in-band stays", 10, 10},
+		{"above bound clamps to 60", 90, 60},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := models.AppSettings{FirmwareInstallPollInterval: tt.in}
+			s.Normalize()
+			if s.FirmwareInstallPollInterval != tt.out {
+				t.Errorf("Normalize(%v) -> %v, want %v", tt.in, s.FirmwareInstallPollInterval, tt.out)
+			}
+		})
+	}
+}
+
 // firmwareSchedulerDecision is the per-tick logic of the firmware-check
 // scheduler. The tests below cover the four reachable branches and verify
 // the nextRun anchor stays sensible across a realistic sequence of calls

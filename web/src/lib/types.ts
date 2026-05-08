@@ -142,6 +142,8 @@ export interface AppSettings {
   gen4_badge_class?: string;
   /** Per-device install timeout in seconds. Default 300. */
   firmware_install_timeout?: number;
+  /** How often the install_job polls a device's firmware version while waiting for the reboot. Seconds; default 5; bounded [1, 60]. */
+  firmware_install_poll_interval?: number;
   /** Scheduled firmware check cadence in seconds. 0 = disabled. */
   firmware_check_interval?: number;
   compliance: ComplianceRules;

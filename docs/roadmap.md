@@ -9,9 +9,9 @@ threat model and deployment expectations see [SECURITY.md](./SECURITY.md).
 
 ## Now (v0.1.x)
 
-- Field-test the v0.1.7–v0.1.12 sweep on a real fleet before adding more
-  surfaces. Almost every operator-facing area changed; concrete bug
-  reports beat speculative additions.
+- Continue field-testing on a real fleet between increments; the v0.1.7–
+  v0.1.12 sweep changed almost every operator-facing area, so concrete
+  bug reports still beat speculative additions.
 
 ## Next (pre-v1)
 
@@ -20,9 +20,19 @@ threat model and deployment expectations see [SECURITY.md](./SECURITY.md).
 - Handler-side interface extraction and broader unit test coverage on
   `internal/core/scanner`, `internal/core/firmware`, and `internal/core/setters`.
 - Review and tighten gin, sessions, and x/crypto dependency pins on a regular cadence.
-- Configurable firmware-install poll cadence (currently fixed at 5 s).
+- Strengthen the `SHELLYADMIN_PASS` plaintext deprecation warning with a removal
+  target version + date (the removal itself is gated on the 3-month-overlap
+  promise from `docs/SECURITY.md`).
 
 ## Recently shipped
+
+### 2026-05-08
+
+- **v0.1.13** — Configurable firmware-install poll cadence. The
+  install_job's per-device version-recheck loop is now an AppSetting
+  (`firmware_install_poll_interval`, default 5 s, bounded `[1, 60]`).
+  Surfaced on the Settings page next to Install timeout. Helper +
+  Normalize unit-tested.
 
 ### 2026-05-07 (intra-day burst v0.1.8 → v0.1.12)
 

@@ -413,7 +413,7 @@ func (s *AppService) ConfirmScan(macs []string) (int, error) {
 // --- Firmware check ---
 
 const defaultFirmwareInstallTimeout = 5 * time.Minute
-const firmwareInstallPollInterval = 5 * time.Second
+const defaultFirmwareInstallPollInterval = 5 * time.Second
 const firmwareInstallConcurrency = 5
 
 func (s *AppService) StartFirmwareCheck() (int, error) {
@@ -624,7 +624,7 @@ type FirmwareInstallStatus struct {
 // StartFirmwareInstall is the entry point used by the bulk Update page. It
 // reserves each MAC, spawns a single background job that runs Shelly.Update
 // with bounded concurrency, then polls each device's Shelly.GetDeviceInfo
-// every firmwareInstallPollInterval until the reported version changes (or
+// at the configured poll interval until the reported version changes (or
 // matches the per-channel target captured by the latest firmware_check),
 // timing out at firmwareInstallTimeout.
 func (s *AppService) StartFirmwareInstall(macs []string, stage string) (int64, int, error) {
@@ -663,18 +663,20 @@ func (s *AppService) StartFirmwareInstall(macs []string, stage string) (int64, i
 		return 0, 0, err
 	}
 	timeout := defaultFirmwareInstallTimeout
+	pollInterval := defaultFirmwareInstallPollInterval
 	if settings, err := s.db.GetSettings(); err == nil {
 		timeout = firmwareInstallTimeoutFromSettings(settings)
+		pollInterval = firmwareInstallPollIntervalFromSettings(settings)
 	}
 	s.bgJobs.Add(1)
 	go func() {
 		defer s.bgJobs.Done()
-		s.runFirmwareInstallJob(jobID, targetMACs, stage, index, timeout)
+		s.runFirmwareInstallJob(jobID, targetMACs, stage, index, timeout, pollInterval)
 	}()
 	return jobID, len(targetMACs), nil
 }
 
-func (s *AppService) runFirmwareInstallJob(jobID int64, macs []string, stage string, index map[string]models.Device, timeout time.Duration) {
+func (s *AppService) runFirmwareInstallJob(jobID int64, macs []string, stage string, index map[string]models.Device, timeout time.Duration, pollInterval time.Duration) {
 	requested := make([]string, 0, len(macs))
 	for _, mac := range macs {
 		requested = append(requested, "mac:"+mac)
@@ -749,7 +751,7 @@ func (s *AppService) runFirmwareInstallJob(jobID int64, macs []string, stage str
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			s.installOne(jobID, i, mac, stage, index[mac], timeout, setResult, persistProgress)
+			s.installOne(jobID, i, mac, stage, index[mac], timeout, pollInterval, setResult, persistProgress)
 		}()
 	}
 	wg.Wait()
@@ -764,7 +766,7 @@ func (s *AppService) runFirmwareInstallJob(jobID int64, macs []string, stage str
 	}
 }
 
-func (s *AppService) installOne(jobID int64, idx int, mac, stage string, device models.Device, timeout time.Duration, setResult func(int, func(*FirmwareInstallResult)), persistProgress func()) {
+func (s *AppService) installOne(jobID int64, idx int, mac, stage string, device models.Device, timeout time.Duration, pollInterval time.Duration, setResult func(int, func(*FirmwareInstallResult)), persistProgress func()) {
 	if s.ctx.Err() != nil {
 		setResult(idx, func(r *FirmwareInstallResult) {
 			r.Status = "unknown"
@@ -820,7 +822,7 @@ func (s *AppService) installOne(jobID int64, idx int, mac, stage string, device 
 		select {
 		case <-s.ctx.Done():
 			continue
-		case <-time.After(firmwareInstallPollInterval):
+		case <-time.After(pollInterval):
 		}
 		probeCtx, probeCancel := context.WithTimeout(s.ctx, 8*time.Second)
 		ver, err := firmware.GetDeviceFirmware(probeCtx, device.IP, device.Gen, s.firmwareOptions(device, 8*time.Second))
@@ -893,6 +895,23 @@ func firmwareInstallTimeoutFromSettings(s models.AppSettings) time.Duration {
 		return time.Duration(s.FirmwareInstallTimeout * float64(time.Second))
 	}
 	return defaultFirmwareInstallTimeout
+}
+
+// firmwareInstallPollIntervalFromSettings mirrors the timeout helper above.
+// Bounds [1, 60] match models.AppSettings.Normalize so a freshly-loaded
+// AppSettings round-trips identically; this clamp is defensive against
+// settings rows that pre-date the field (where it lands as 0).
+func firmwareInstallPollIntervalFromSettings(s models.AppSettings) time.Duration {
+	v := s.FirmwareInstallPollInterval
+	if v <= 0 {
+		return defaultFirmwareInstallPollInterval
+	}
+	if v < 1 {
+		v = 1
+	} else if v > 60 {
+		v = 60
+	}
+	return time.Duration(v * float64(time.Second))
 }
 
 // firmwareSchedulerDecision is the per-tick logic of runFirmwareCheckScheduler.
