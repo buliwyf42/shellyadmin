@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"shellyadmin/internal/core/clock"
 	"shellyadmin/internal/core/shellyclient"
 	"shellyadmin/internal/models"
 )
@@ -28,6 +29,16 @@ type ProbeOptions struct {
 	HA1           string
 	AllowInsecure bool   // skip TLS cert verification
 	KnownMAC      string // when set, recoverable failures (auth-required, lockout, TLS-cert-invalid) produce a partial Device record using this MAC so the refresh path can persist the state. When empty (scan path), recoverable failures yield nil — we have no positive Shelly identification, and persisting a partial record would surface non-Shelly LAN gear (UniFi UDM, etc.) in the device list.
+	// Clock is an optional injection seam for tests. nil means real wall-clock
+	// time; production callers leave this unset.
+	Clock clock.Clock
+}
+
+func (o ProbeOptions) clock() clock.Clock {
+	if o.Clock == nil {
+		return clock.Real()
+	}
+	return o.Clock
 }
 
 func (o ProbeOptions) toClientOptions() shellyclient.Options {
@@ -115,10 +126,21 @@ func ProbeDevice(ctx context.Context, ip string, timeout time.Duration, logFn fu
 // fields.
 func ProbeDeviceWithOptions(ctx context.Context, ip string, opts ProbeOptions, logFn func(level, msg string)) *models.Device {
 	client := shellyclient.New(opts.toClientOptions())
+	return ProbeDeviceOnClient(ctx, client, ip, opts.KnownMAC, opts.clock(), logFn)
+}
+
+// ProbeDeviceOnClient is the test seam: it accepts a pre-built shellyclient
+// and an explicit Clock, so unit tests can drive a httptest fake-Shelly
+// server with a deterministic time source. Production callers go through
+// ProbeDeviceWithOptions, which builds the client + real clock for them.
+func ProbeDeviceOnClient(ctx context.Context, client *shellyclient.Client, ip, knownMAC string, clk clock.Clock, logFn func(level, msg string)) *models.Device {
+	if clk == nil {
+		clk = clock.Real()
+	}
 	base, err := client.Probe(ctx, ip)
 	if err != nil {
 		logFn("DEBUG", fmt.Sprintf("[scan] %s probe failed: %v", ip, err))
-		return reportProbeFailure(ip, err, opts.KnownMAC)
+		return reportProbeFailure(ip, err, knownMAC, clk)
 	}
 	// Reject anything that doesn't look like a Shelly /shelly response. Some
 	// non-Shelly endpoints (UniFi UDM, Protect cameras, generic web servers)
@@ -141,7 +163,7 @@ func ProbeDeviceWithOptions(ctx context.Context, ip string, opts ProbeOptions, l
 		Name:     stringField(base, "name"),
 		Serial:   stringField(base, "id"),
 		Online:   true,
-		LastSeen: time.Now().UTC().Format(time.RFC3339),
+		LastSeen: clk.Now().UTC().Format(time.RFC3339),
 		Scheme:   client.Scheme(),
 	}
 	if dev.Gen == 0 {
@@ -162,9 +184,12 @@ func ProbeDeviceWithOptions(ctx context.Context, ip string, opts ProbeOptions, l
 // /shelly payload — so we return nil. Persisting a partial record without a
 // MAC would surface non-Shelly LAN gear (UniFi UDM with self-signed HTTPS,
 // nginx servers with HTTP Basic auth, etc.) in the device list.
-func reportProbeFailure(ip string, err error, knownMAC string) *models.Device {
+func reportProbeFailure(ip string, err error, knownMAC string, clk clock.Clock) *models.Device {
 	if knownMAC == "" {
 		return nil
+	}
+	if clk == nil {
+		clk = clock.Real()
 	}
 	switch {
 	case errors.Is(err, shellyclient.ErrAuthRequired):
@@ -182,7 +207,7 @@ func reportProbeFailure(ip string, err error, knownMAC string) *models.Device {
 			Online:          true,
 			AuthRequired:    true,
 			AuthError:       "device temporarily locked (brute-force protection)",
-			AuthLockedUntil: time.Now().UTC().Add(60 * time.Second).Format(time.RFC3339),
+			AuthLockedUntil: clk.Now().UTC().Add(60 * time.Second).Format(time.RFC3339),
 		}
 	case errors.Is(err, shellyclient.ErrTLSCertInvalid):
 		return &models.Device{

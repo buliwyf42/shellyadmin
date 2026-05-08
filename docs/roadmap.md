@@ -17,8 +17,10 @@ threat model and deployment expectations see [SECURITY.md](./SECURITY.md).
 
 - `shellyctl` CLI once the external API contract has settled enough to build against
   without churn. Will need its own ADR to scope the command surface.
-- Handler-side interface extraction and broader unit test coverage on
-  `internal/core/scanner`, `internal/core/firmware`, and `internal/core/setters`.
+- **M3 follow-ups (v0.1.16, v0.1.17):** add scanner + firmware unit tests
+  using the new Clock + OnClient seams (target: firmware coverage 0% →
+  ≥60% on the JSON-RPC translation paths); fill setters_test.go gaps;
+  add an integration smoke covering a typical provisioning flow.
 - Periodic dependency pin review on a regular cadence (next pass: ~3 months
   out, or sooner if a CVE lands).
 - **v0.2.0 cut:** removes `SHELLYADMIN_PASS` plaintext support; pulls major
@@ -29,7 +31,20 @@ threat model and deployment expectations see [SECURITY.md](./SECURITY.md).
 
 ### 2026-05-08
 
-- **v0.1.14** — Security hygiene. Plaintext-password deprecation warning
+- **v0.1.15** — Testability seams + v0.1.14 CI rollback. New
+  `internal/core/clock` package (`Clock` interface + `Real()` +
+  `Fake.Advance`); `OnClient` variants on scanner / firmware / setters
+  that accept a pre-built `shellyclient.Client`; `Clock` field on
+  `scanner.ProbeOptions` and `firmware.Options`. Three bare
+  `time.Now()` sites replaced. Also rolls back v0.1.14's gin/x-net/
+  x-text/x-sync bumps to restore Go 1.24 compatibility (v0.1.14's
+  dep bumps had pulled `quic-go` and forced `go 1.25.0`, breaking CI;
+  no GHCR image was published for v0.1.14).
+- **v0.1.14** — Security hygiene. **GHCR image never published** —
+  the dep bumps inadvertently forced `go 1.25.0` and CI Test +
+  Publish-Image both failed. Upgrade path: v0.1.13 → v0.1.15. The
+  plaintext-deprecation-warning sharpening from this release is
+  preserved in v0.1.15. Plaintext-password deprecation warning
   sharpened with a concrete removal target (v0.2.0, no earlier than
   2026-07-22; mirrored in `docs/SECURITY.md`). Conservative dep bumps
   (patch + minor only): `gin` 1.10.1 → 1.12.0, `gin-contrib/sessions`

@@ -48,6 +48,11 @@ type Setter struct {
 // New builds a Setter from the given Options. Reuse across calls to the same device.
 func New(opts Options) *Setter { return &Setter{c: shellyclient.New(opts.toClientOptions())} }
 
+// NewWithClient is the test seam: it wraps a pre-built shellyclient (so a
+// httptest fake-Shelly server can drive the RPC layer) without going
+// through Options. Production callers should use New.
+func NewWithClient(c *shellyclient.Client) *Setter { return &Setter{c: c} }
+
 func (s *Setter) call(ctx context.Context, ip, method string, payload map[string]any) bool {
 	params := payload
 	if isSetConfig(method) {

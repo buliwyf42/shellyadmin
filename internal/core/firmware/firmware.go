@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"shellyadmin/internal/core/clock"
 	"shellyadmin/internal/core/shellyclient"
 	"shellyadmin/internal/models"
 )
@@ -47,6 +48,9 @@ type Options struct {
 	Password      string
 	HA1           string
 	AllowInsecure bool
+	// Clock is an optional injection seam for tests. nil means real wall-clock
+	// time; production callers leave this unset.
+	Clock clock.Clock
 }
 
 func (o Options) toClientOptions() shellyclient.Options {
@@ -63,6 +67,13 @@ func (o Options) toClientOptions() shellyclient.Options {
 	return out
 }
 
+func (o Options) clock() clock.Clock {
+	if o.Clock == nil {
+		return clock.Real()
+	}
+	return o.Clock
+}
+
 // CheckOne preserves the existing signature for callers that don't yet thread
 // credentials/scheme; it delegates to CheckOneWithOptions internally.
 func CheckOne(ctx context.Context, d models.Device, timeout time.Duration) Result {
@@ -75,13 +86,31 @@ func CheckOne(ctx context.Context, d models.Device, timeout time.Duration) Resul
 // resilient to out-of-band upgrades (user flashed via the device's own web UI
 // — Device.FW would otherwise stay stale). Gen1 devices are unsupported.
 func CheckOneWithOptions(ctx context.Context, d models.Device, opts Options) Result {
-	checkedAt := time.Now().UTC().Format(time.RFC3339)
-	res := Result{IP: d.IP, MAC: d.MAC, CurrentVer: d.FW, Status: "na", CheckedAt: checkedAt}
 	if d.Gen < 2 {
-		res.Note = "gen1 devices not supported"
-		return res
+		return Result{
+			IP:         d.IP,
+			MAC:        d.MAC,
+			CurrentVer: d.FW,
+			Status:     "na",
+			CheckedAt:  opts.clock().Now().UTC().Format(time.RFC3339),
+			Note:       "gen1 devices not supported",
+		}
 	}
 	client := shellyclient.New(opts.toClientOptions())
+	return CheckOneOnClient(ctx, client, d, opts.clock())
+}
+
+// CheckOneOnClient is the test seam: caller supplies a pre-built
+// shellyclient (so a httptest fake-Shelly server can drive the RPC layer)
+// and an explicit Clock. The gen<2 short-circuit lives in
+// CheckOneWithOptions because it's a config-time check that doesn't need
+// the network.
+func CheckOneOnClient(ctx context.Context, client *shellyclient.Client, d models.Device, clk clock.Clock) Result {
+	if clk == nil {
+		clk = clock.Real()
+	}
+	checkedAt := clk.Now().UTC().Format(time.RFC3339)
+	res := Result{IP: d.IP, MAC: d.MAC, CurrentVer: d.FW, Status: "na", CheckedAt: checkedAt}
 
 	// Best-effort: refresh the running version so out-of-band updates are
 	// caught. A failure here is not fatal — we keep the persisted value and
@@ -125,6 +154,13 @@ func TriggerUpdateWithOptions(ctx context.Context, ip string, gen int, stage str
 		return UpdateResult{IP: ip, Status: "failed", Detail: "gen1 devices not supported"}
 	}
 	client := shellyclient.New(opts.toClientOptions())
+	return TriggerUpdateOnClient(ctx, client, ip, stage)
+}
+
+// TriggerUpdateOnClient is the test seam: caller supplies a pre-built
+// shellyclient. No clock dependency — the gen<2 short-circuit happens in
+// TriggerUpdateWithOptions before this is reached.
+func TriggerUpdateOnClient(ctx context.Context, client *shellyclient.Client, ip, stage string) UpdateResult {
 	_, err := client.RPC(ctx, ip, "Shelly.Update", map[string]any{"stage": stage})
 	if err != nil {
 		if errors.Is(err, shellyclient.ErrAuthRequired) {
@@ -146,6 +182,11 @@ func GetDeviceFirmware(ctx context.Context, ip string, gen int, opts Options) (s
 		return "", errors.New("gen1 devices not supported")
 	}
 	client := shellyclient.New(opts.toClientOptions())
+	return GetDeviceFirmwareOnClient(ctx, client, ip)
+}
+
+// GetDeviceFirmwareOnClient is the test seam. No clock dependency.
+func GetDeviceFirmwareOnClient(ctx context.Context, client *shellyclient.Client, ip string) (string, error) {
 	payload, err := client.RPC(ctx, ip, "Shelly.GetDeviceInfo", nil)
 	if err != nil {
 		return "", err
