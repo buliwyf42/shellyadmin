@@ -4,6 +4,45 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.18] - 2026-05-08 — Setters round-out + provisioning integration smoke
+
+Step 3 (final) of the M3 testability foundation. Closes the coverage gap
+on `internal/core/setters` (was 32.1%) and adds the multi-section
+end-to-end smoke called for in the M3 plan.
+
+### Added
+- `internal/core/setters/setters_more_test.go` (~6 test groups, ~13
+  cases including subtests):
+  - `SetLocation` (lat/lon under `params.config.location`),
+  - `SetSNTPServer` (different nesting under `params.config.sntp`),
+  - `SetCoverTilt` percent-clamping table (in-range / negative / over /
+    boundary),
+  - method-not-found path (Shelly 404 + JSON-RPC -32601 both make the
+    setter return false — the bulk-action UI's silent-skip contract),
+  - `CoverOpen` happy-path detail string (representative of the
+    `(bool, string)` returner family),
+  - `BLEPair` with all three branches: happy path, 404 →
+    `supported=false`, and 401-with-Digest → `supported=true` but
+    `ok=false` (the supported-but-unreachable distinction the
+    per-device action layer relies on).
+- `internal/core/provisioner/integration_smoke_test.go` —
+  `TestProvisionDevice_MultiSectionSmoke`. One template carrying sys +
+  mqtt + wifi + auth drives a single `ProvisionDevice` call; verifies
+  every section ends `Status="ok"`, the expected RPCs were issued
+  exactly once each, the `{device_name}` token was hydrated from the
+  preflight, and the `Shelly.SetAuth` HA1 is the correct
+  `SHA-256("admin:serial:pass")` (the highest-risk computation in the
+  provisioner — a wrong hash silently locks operators out).
+
+### Coverage
+- `internal/core/setters`: 32.1% → **56.4%** (+24.3 pp).
+- `internal/core/provisioner`: → **61.7%** (already had cases; the
+  cross-section smoke is new value).
+
+### Migration notes
+None. Test-only release. No public-signature changes, no DB migration,
+no env-var change.
+
 ## [0.1.17] - 2026-05-08 — Firmware + scanner unit tests on the OnClient seams
 
 Step 2 of the M3 testability foundation. Uses the Clock + OnClient seams

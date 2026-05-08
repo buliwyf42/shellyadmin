@@ -17,10 +17,6 @@ threat model and deployment expectations see [SECURITY.md](./SECURITY.md).
 
 - `shellyctl` CLI once the external API contract has settled enough to build against
   without churn. Will need its own ADR to scope the command surface.
-- **M3 follow-ups (v0.1.18+):** fill remaining `setters_test.go` gaps
-  (setters round-out); add an integration smoke covering a typical
-  provisioning flow (sys + mqtt + wifi + auth) wired through a fake-
-  Shelly httptest server.
 - Periodic dependency pin review on a regular cadence (next pass: ~3 months
   out, or sooner if a CVE lands).
 - **v0.2.0 cut:** removes `SHELLYADMIN_PASS` plaintext support; pulls major
@@ -31,6 +27,14 @@ threat model and deployment expectations see [SECURITY.md](./SECURITY.md).
 
 ### 2026-05-08
 
+- **v0.1.18** — Setters round-out + provisioning integration smoke
+  (final M3 step). 6 setters-test groups closing the gaps in lat/lon
+  payload shape, percent clamping, method-not-found behavior, and the
+  `BLEPair` (ok, supported, message) tri-state. New
+  `TestProvisionDevice_MultiSectionSmoke` drives sys + mqtt + wifi +
+  auth in one `ProvisionDevice` call and pins the
+  `Shelly.SetAuth` HA1 calculation. `internal/core/setters` coverage
+  32.1% → 56.4%; `internal/core/provisioner` → 61.7%.
 - **v0.1.17** — Firmware + scanner unit tests. New shared `fakeShelly`
   test fixture; 10 firmware tests + 3 methods tests + 9 auto-update
   tests + 5 scanner clock/failure tests. firmware package coverage
