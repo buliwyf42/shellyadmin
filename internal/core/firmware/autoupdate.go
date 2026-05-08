@@ -38,6 +38,13 @@ func ReadAutoUpdate(ctx context.Context, ip string, gen int, opts Options) (stri
 		return "", errors.New("gen1 devices not supported")
 	}
 	client := shellyclient.New(opts.toClientOptions())
+	return ReadAutoUpdateOnClient(ctx, client, ip)
+}
+
+// ReadAutoUpdateOnClient is the test seam: caller supplies a pre-built
+// shellyclient. The gen<2 short-circuit lives in ReadAutoUpdate because
+// it's a config-time check that doesn't need the network.
+func ReadAutoUpdateOnClient(ctx context.Context, client *shellyclient.Client, ip string) (string, error) {
 	payload, err := client.RPC(ctx, ip, "Schedule.List", nil)
 	if err != nil {
 		return "", err

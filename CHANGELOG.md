@@ -4,6 +4,56 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.17] - 2026-05-08 — Firmware + scanner unit tests on the OnClient seams
+
+Step 2 of the M3 testability foundation. Uses the Clock + OnClient seams
+landed in v0.1.15 to back the previously-untested `internal/core/firmware`
+package and the failure-handling branches of `internal/core/scanner` with
+fast (sub-second), deterministic, network-free unit tests.
+
+### Added
+- `internal/core/firmware/helpers_test.go` — shared `fakeShelly`
+  fixture: a httptest server with a per-method handler map and a call
+  recorder. Unregistered methods return Shelly's non-standard 404 RPC
+  error so `IsMethodNotFound` paths can be tested realistically.
+- `internal/core/firmware/firmware_test.go` (10 cases) covering
+  `CheckOneOnClient` (happy path, no-update case, GetDeviceInfo
+  failure, CheckForUpdate failure), `TriggerUpdateOnClient` (request
+  shape + 401-with-Digest + 429 lockout), `GetDeviceFirmwareOnClient`
+  (ver-vs-fw fallback table + RPC error), and the gen<2 short-circuit
+  on `CheckOneWithOptions`.
+- `internal/core/firmware/methods_test.go` (3 cases) covering
+  `ListSupportedMethodsOnClient` (sort + filter, the Shelly 404 vs
+  JSON-RPC -32601 quirk that CLAUDE.md flags), and the gen<2
+  short-circuit on the `…WithOptions` wrapper.
+- `internal/core/firmware/autoupdate_test.go` (9 cases) covering the
+  Schedule.\*-based auto-update read/write path called out in
+  ADR-0009: `ReadAutoUpdateOnClient` (off/stable/beta/disabled-job/
+  user-created-job/case-insensitive-method) and
+  `SetAutoUpdateOnClient` (off-deletes-only-shelly_service-jobs,
+  stable-creates-with-expected-shape, invalid-mode-rejected,
+  empty-mode-canonicalises-to-off).
+- `internal/core/scanner/probe_clock_test.go` (5 cases) — pins the
+  `LastSeen`-via-FakeClock and `AuthLockedUntil`-via-FakeClock+60s
+  contracts, the scan-path-must-return-nil regression class
+  (v0.0.16 / v0.1.1 / v0.1.2 fixes around UniFi UDM and friends),
+  the refresh-path auth-required partial Device, and the nil-clock
+  fallback to `clock.Real()`.
+- `firmware.ReadAutoUpdateOnClient` — pre-built-client variant of
+  `ReadAutoUpdate`, mirroring the existing `SetAutoUpdateOnClient`
+  precedent. The `…WithOptions` wrapper retains its signature.
+
+### Coverage
+- `internal/core/firmware`: 0% → **71.1%** (target: ≥60% on JSON-RPC
+  translation paths).
+- `internal/core/scanner`: 21% → **39.2%** (CIDR / mDNS / ScanSubnets
+  concurrency intentionally out of scope; the OnClient JSON-RPC paths
+  are well covered).
+
+### Migration notes
+None. Test-only release plus one additive helper (`ReadAutoUpdateOnClient`).
+No DB migration, no env-var change, no public-signature break.
+
 ## [0.1.16] - 2026-05-08 — Platform refresh: Go 1.25 + re-take v0.1.14 deps
 
 Toolchain bump. The Go floor moves from 1.24 to 1.25 across the

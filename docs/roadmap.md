@@ -17,10 +17,10 @@ threat model and deployment expectations see [SECURITY.md](./SECURITY.md).
 
 - `shellyctl` CLI once the external API contract has settled enough to build against
   without churn. Will need its own ADR to scope the command surface.
-- **M3 follow-ups (v0.1.16, v0.1.17):** add scanner + firmware unit tests
-  using the new Clock + OnClient seams (target: firmware coverage 0% →
-  ≥60% on the JSON-RPC translation paths); fill setters_test.go gaps;
-  add an integration smoke covering a typical provisioning flow.
+- **M3 follow-ups (v0.1.18+):** fill remaining `setters_test.go` gaps
+  (setters round-out); add an integration smoke covering a typical
+  provisioning flow (sys + mqtt + wifi + auth) wired through a fake-
+  Shelly httptest server.
 - Periodic dependency pin review on a regular cadence (next pass: ~3 months
   out, or sooner if a CVE lands).
 - **v0.2.0 cut:** removes `SHELLYADMIN_PASS` plaintext support; pulls major
@@ -31,6 +31,13 @@ threat model and deployment expectations see [SECURITY.md](./SECURITY.md).
 
 ### 2026-05-08
 
+- **v0.1.17** — Firmware + scanner unit tests. New shared `fakeShelly`
+  test fixture; 10 firmware tests + 3 methods tests + 9 auto-update
+  tests + 5 scanner clock/failure tests. firmware package coverage
+  jumps from 0% to 71.1%; scanner from 21% to 39.2% (the JSON-RPC
+  paths are covered; CIDR/mDNS/concurrency intentionally out of
+  scope). Adds `ReadAutoUpdateOnClient` to mirror the existing
+  `SetAutoUpdateOnClient` precedent.
 - **v0.1.16** — Platform refresh: Go 1.25. Bumped CI workflow + Dockerfile
   base + go.mod directive from 1.24 to 1.25; re-took the v0.1.14 dep
   upgrades that needed it (gin v1.12, gin-contrib/sessions v1.1.0,
