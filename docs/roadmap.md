@@ -19,15 +19,23 @@ threat model and deployment expectations see [SECURITY.md](./SECURITY.md).
   without churn. Will need its own ADR to scope the command surface.
 - Handler-side interface extraction and broader unit test coverage on
   `internal/core/scanner`, `internal/core/firmware`, and `internal/core/setters`.
-- Review and tighten gin, sessions, and x/crypto dependency pins on a regular cadence.
-- Strengthen the `SHELLYADMIN_PASS` plaintext deprecation warning with a removal
-  target version + date (the removal itself is gated on the 3-month-overlap
-  promise from `docs/SECURITY.md`).
+- Periodic dependency pin review on a regular cadence (next pass: ~3 months
+  out, or sooner if a CVE lands).
+- **v0.2.0 cut:** removes `SHELLYADMIN_PASS` plaintext support; pulls major
+  dep updates (eslint 10, vite 8, typescript 6, etc.) that were deferred
+  in v0.1.14. Earliest target: 2026-07-22.
 
 ## Recently shipped
 
 ### 2026-05-08
 
+- **v0.1.14** — Security hygiene. Plaintext-password deprecation warning
+  sharpened with a concrete removal target (v0.2.0, no earlier than
+  2026-07-22; mirrored in `docs/SECURITY.md`). Conservative dep bumps
+  (patch + minor only): `gin` 1.10.1 → 1.12.0, `gin-contrib/sessions`
+  1.0.2 → 1.1.0, `gorilla/sessions` (indirect) 1.2.2 → 1.4.0,
+  `golang.org/x/crypto` 0.45.0 → 0.48.0; npm in-range patches across
+  the TS/eslint/vitest toolchain. Majors deferred.
 - **v0.1.13** — Configurable firmware-install poll cadence. The
   install_job's per-device version-recheck loop is now an AppSetting
   (`firmware_install_poll_interval`, default 5 s, bounded `[1, 60]`).
