@@ -4,6 +4,70 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.15] - 2026-05-08 — Testability seams + v0.1.14 CI rollback
+
+**Operator-impacting:** v0.1.14's GHCR image never published — its dep
+bumps (gin v1.10.1 → v1.12.0) pulled in `quic-go/quic-go` for HTTP/3,
+which forced `go.mod` to `go 1.25.0`, but CI runs Go 1.24. Both the
+Test and Publish-Image workflows for v0.1.14 failed with
+`go.mod requires go >= 1.25.0 (running go 1.24.13)`. **There is no
+`ghcr.io/buliwyf42/shellyadmin:v0.1.14` image; upgrade directly from
+v0.1.13 to v0.1.15.** The v0.1.14 tag is left in place as a historical
+marker but should not be deployed.
+
+This release combines two concerns:
+
+1. **CI fix** — partial rollback of v0.1.14's dep bumps to restore Go
+   1.24 compatibility.
+2. **M3a (testability seams)** — step 1 of the M3 testability
+   foundation from the post-v0.1.12 plan. Pure structural refactor — no
+   behaviour change for any production caller. The goal is to make
+   `internal/core/{scanner,firmware,setters}` exercisable by
+   deterministic httptest-backed unit tests in v0.1.16 / v0.1.17
+   without needing to mock the time package globally or stand up real
+   network I/O.
+
+### Fixed
+- **go.mod restored to `go 1.24.0`.** Rolled back: `gin-gonic/gin`
+  v1.12.0 → v1.10.1 (drops the quic-go/HTTP/3 transitive dep);
+  `gin-contrib/sessions` v1.1.0 → v1.0.4 (the v1.1.0 release requires
+  gin v1.12); `golang.org/x/net` v0.51.0 → v0.50.0; `golang.org/x/text`
+  v0.35.0 → v0.34.0; `golang.org/x/sync` v0.20.0 → v0.19.0. The
+  `golang.org/x/crypto` v0.45.0 → v0.48.0 bump is preserved (v0.48.0
+  still targets `go 1.24.0`). The plaintext-deprecation-warning text
+  changes from v0.1.14 are also preserved — this rollback is dep-only.
+
+### Added
+- New `internal/core/clock` package — minimal `Clock` interface
+  (`Now() time.Time`), `Real()` factory, and `Fake` with `Advance(d)`
+  for tests. Two-test coverage: real-clock advances; fake is
+  deterministic until `Advance`.
+- `firmware.CheckOneOnClient`, `firmware.TriggerUpdateOnClient`,
+  `firmware.GetDeviceFirmwareOnClient` — pre-built-client variants
+  matching the existing `ListSupportedMethodsOnClient` pattern from
+  `firmware/methods.go`. Existing `…WithOptions` callers keep working;
+  they now build a client internally and delegate.
+- `scanner.ProbeDeviceOnClient` — same shape; takes a pre-built
+  shellyclient and an explicit Clock. `ProbeDeviceWithOptions` is a
+  thin wrapper.
+- `setters.NewWithClient` — wraps a pre-built shellyclient without
+  going through Options. Setters has no time-dependent code so no
+  Clock plumbing was added there.
+
+### Changed
+- `scanner.ProbeOptions` and `firmware.Options` gain an optional
+  `Clock clock.Clock` field. Production callers leave it nil; the
+  package internally falls back to `clock.Real()`. Surfaces a single
+  injection point for tests without changing existing call sites.
+- Bare `time.Now()` calls at `scanner.go:144` (LastSeen),
+  `scanner.go:185` (AuthLockedUntil), and `firmware.go:78` (CheckedAt)
+  now route through the Clock seam.
+
+### Migration notes
+None. No DB migration, no env-var change, no public-signature break for
+existing callers. All previously-exported `…WithOptions` functions
+retain their signatures and behaviour.
+
 ## [0.1.14] - 2026-05-08 — Security hygiene: dep pins + plaintext deprecation countdown
 
 Two related cleanups under one release.
