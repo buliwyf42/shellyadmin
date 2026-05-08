@@ -46,7 +46,7 @@ func main() {
 		panic("set SHELLYADMIN_PASS_HASH (argon2id PHC from `shellyctl hash-password`) or SHELLYADMIN_PASS (deprecated plaintext)")
 	}
 	if passHash == "" {
-		slog.Warn("SHELLYADMIN_PASS is set as plaintext; migrate to SHELLYADMIN_PASS_HASH (run `shellyctl hash-password`) — plaintext support will be removed in a future release")
+		slog.Warn("SHELLYADMIN_PASS is set as plaintext; migrate to SHELLYADMIN_PASS_HASH (run `shellyctl hash-password`) — plaintext support is scheduled for removal in v0.2.0, no earlier than 2026-07-22 (3-month overlap from v0.0.15)")
 	}
 	secret := services.DecodeSecretValue("SHELLYADMIN_SECRET")
 	if secret == "" {

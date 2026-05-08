@@ -28,7 +28,10 @@ It is not designed for:
   env/memory at runtime — constant-time compared on login.
 - Deprecated: `SHELLYADMIN_PASS` still accepts a plaintext password for
   existing deployments. Startup logs a deprecation warning. Plaintext support
-  will be removed in a future release.
+  is scheduled for removal in **v0.2.0**, no earlier than **2026-07-22** —
+  the 3-month overlap window from the v0.0.15 deprecation (2026-04-22). After
+  removal, missing `SHELLYADMIN_PASS_HASH` will panic at startup with a
+  pointer to `shellyctl hash-password`.
 
 ## Session Security
 

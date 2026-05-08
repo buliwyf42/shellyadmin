@@ -4,6 +4,39 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.14] - 2026-05-08 — Security hygiene: dep pins + plaintext deprecation countdown
+
+Two related cleanups under one release.
+
+### Changed
+- **Plaintext password deprecation warning sharpened** with a concrete
+  removal target. The startup `slog.Warn` and `docs/SECURITY.md` now
+  state that `SHELLYADMIN_PASS` plaintext support is scheduled for
+  removal in **v0.2.0, no earlier than 2026-07-22** — the 3-month
+  overlap window from the v0.0.15 (2026-04-22) deprecation. Operators
+  on plaintext: run `shellyctl hash-password <plaintext>` and switch to
+  `SHELLYADMIN_PASS_HASH` (or `_FILE`) before that date. Removal itself
+  is **not** in this release.
+- **Conservative dependency bumps** (patch + minor only; majors deferred
+  to dedicated releases):
+  - Go: `gin-gonic/gin` v1.10.1 → v1.12.0; `gin-contrib/sessions`
+    v1.0.2 → v1.1.0. `go mod tidy` rolled forward indirect deps —
+    notably `gorilla/sessions` v1.2.2 → v1.4.0, `golang.org/x/crypto`
+    v0.45.0 → v0.48.0, `golang.org/x/net` v0.47.0 → v0.51.0, and
+    several supporting libraries — none of which are direct API
+    surface.
+  - npm: in-range patches for `@typescript-eslint/*`, `typescript-
+    eslint`, `@vitest/ui`, `jsdom`, `svelte`, `vitest`. `npm audit`
+    reports 0 vulnerabilities. Major-version updates for `eslint`,
+    `vite`, `typescript`, `eslint-plugin-svelte`, `svelte-eslint-
+    parser`, `eslint-config-prettier`, and `@sveltejs/vite-plugin-
+    svelte` are deferred per the conservative-bump policy.
+
+### Migration notes
+No DB migration. No env-var changes. Operators on plaintext should see
+the sharpened deprecation warning on next startup; act on it before
+2026-07-22 to avoid a hard panic in v0.2.0.
+
 ## [0.1.13] - 2026-05-08 — Configurable firmware-install poll cadence
 
 First item from the post-v0.1.12 field-test pause: a small operator knob.
