@@ -15,6 +15,7 @@
     gen3_badge_class: 'bg-success',
     gen4_badge_class: 'bg-info text-dark',
     firmware_install_timeout: 300,
+    firmware_install_poll_interval: 5,
     firmware_check_interval: 0,
     compliance: {},
   };
@@ -208,7 +209,7 @@
 
         <h3 class="h6 mt-4">Firmware</h3>
         <div class="row g-3">
-          <div class="col-md-6">
+          <div class="col-md-4">
             <label class="form-label" for="settings-firmware-check-interval">
               Scheduled firmware check
             </label>
@@ -223,7 +224,7 @@
               {/each}
             </select>
           </div>
-          <div class="col-md-6">
+          <div class="col-md-4">
             <label class="form-label" for="settings-firmware-install-timeout">
               Install timeout (s)
             </label>
@@ -237,11 +238,27 @@
               title="Per-device timeout: how long the install_job waits for a device to reboot onto the new firmware before marking it 'unknown'. Default 300 (5 min)."
             />
           </div>
+          <div class="col-md-4">
+            <label class="form-label" for="settings-firmware-install-poll-interval">
+              Install poll (s)
+            </label>
+            <input
+              id="settings-firmware-install-poll-interval"
+              class="form-control"
+              type="number"
+              min="1"
+              max="60"
+              step="1"
+              bind:value={settings.firmware_install_poll_interval}
+              title="How often the install_job re-queries a device's firmware version during the post-trigger wait. Default 5; bounded 1–60."
+            />
+          </div>
         </div>
         <p class="text-secondary small mt-2 mb-0">
           The scheduled check skips a tick if a manual Check Firmware is already running. Install
           timeout is per-device, not job-total — a fleet of 50 devices still completes in minutes
-          thanks to bounded parallel installs.
+          thanks to bounded parallel installs. Lower the install poll for snappier feedback on a
+          small fleet; raise it to be gentler on slow devices.
         </p>
 
         <button class="btn btn-warning text-dark mt-3" on:click={saveSettings}>Save Settings</button

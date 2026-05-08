@@ -4,6 +4,36 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.13] - 2026-05-08 — Configurable firmware-install poll cadence
+
+First item from the post-v0.1.12 field-test pause: a small operator knob.
+The firmware install_job's per-device version-recheck cadence (the loop
+that watches a device come back up after `Shelly.Update`) was previously
+hardcoded at 5 s. It is now an AppSetting, bounded `[1, 60]`, default 5.
+
+### Added
+- `AppSettings.FirmwareInstallPollInterval` (seconds; default 5; bounds
+  `[1, 60]` enforced in `Normalize`). Surfaced on the Settings page next
+  to the existing Install timeout field. Lower it for snappier feedback
+  on a small fleet, raise it to be gentler on slow devices.
+- `firmwareInstallPollIntervalFromSettings` helper mirrors the existing
+  timeout helper; unit tests cover both the helper and the Normalize
+  bounds.
+
+### Changed
+- The firmware install_job's `runFirmwareInstallJob` / `installOne`
+  signatures gain a `pollInterval time.Duration` parameter, threaded
+  from `StartFirmwareInstall` after a `db.GetSettings` read. The const
+  `firmwareInstallPollInterval` is renamed
+  `defaultFirmwareInstallPollInterval` and now serves only as the
+  fallback when the settings row pre-dates the field.
+
+### Migration notes
+No DB migration. Existing settings rows will read `0` for the new field
+on first load; both Normalize and the helper treat that as "use default
+5", so no operator action is required. The field round-trips through
+the JSON API and the backup/import flow without further changes.
+
 ## [0.1.12] - 2026-05-07 — Logs risk filter + batch / fw_id on the detail page
 
 Three small operator-facing improvements layered on the v0.1.10 audit

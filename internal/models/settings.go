@@ -16,6 +16,11 @@ type AppSettings struct {
 	// reboot onto the new firmware before the install_job marks it "unknown".
 	// Seconds; default 300 (5 min). Per-device, not job-total.
 	FirmwareInstallTimeout float64 `json:"firmware_install_timeout"`
+	// FirmwareInstallPollInterval is how often the install_job re-queries a
+	// device's reported firmware version while waiting for the reboot. Seconds;
+	// default 5. Bounded to [1, 60] in Normalize — too aggressive hammers slow
+	// devices, too slow makes the UI feel stuck.
+	FirmwareInstallPollInterval float64 `json:"firmware_install_poll_interval"`
 	// FirmwareCheckInterval triggers a periodic firmware_check job at the
 	// given cadence in seconds. 0 disables the scheduler (manual-only). The
 	// scheduler skips a tick if a firmware_check is already running.
@@ -83,16 +88,17 @@ type CustomRule struct {
 
 func DefaultSettings() AppSettings {
 	return AppSettings{
-		Subnets:                []string{},
-		ScanTimeout:            2,
-		RefreshTimeout:         5,
-		ScanConcurrency:        64,
-		EnableMDNS:             false,
-		Gen2BadgeClass:         "bg-warning text-dark",
-		Gen3BadgeClass:         "bg-success",
-		Gen4BadgeClass:         "bg-info text-dark",
-		FirmwareInstallTimeout: 300,
-		FirmwareCheckInterval:  0,
+		Subnets:                     []string{},
+		ScanTimeout:                 2,
+		RefreshTimeout:              5,
+		ScanConcurrency:             64,
+		EnableMDNS:                  false,
+		Gen2BadgeClass:              "bg-warning text-dark",
+		Gen3BadgeClass:              "bg-success",
+		Gen4BadgeClass:              "bg-info text-dark",
+		FirmwareInstallTimeout:      300,
+		FirmwareInstallPollInterval: 5,
+		FirmwareCheckInterval:       0,
 	}
 }
 
@@ -125,6 +131,13 @@ func (s *AppSettings) Normalize() {
 	}
 	if s.FirmwareInstallTimeout <= 0 {
 		s.FirmwareInstallTimeout = 300
+	}
+	if s.FirmwareInstallPollInterval <= 0 {
+		s.FirmwareInstallPollInterval = 5
+	} else if s.FirmwareInstallPollInterval < 1 {
+		s.FirmwareInstallPollInterval = 1
+	} else if s.FirmwareInstallPollInterval > 60 {
+		s.FirmwareInstallPollInterval = 60
 	}
 	if s.FirmwareCheckInterval < 0 {
 		s.FirmwareCheckInterval = 0
