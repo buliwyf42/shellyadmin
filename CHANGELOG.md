@@ -4,6 +4,87 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.22] - 2026-05-09 — State-changing MCP tools, confirm-gated
+
+Lifts the v0.1.19–v0.1.21 read-only restriction on the MCP surface.
+Eight new tools let LLM-driven agents trigger refreshes, scans,
+firmware checks/installs, per-device actions (reboot, factory reset,
+ota_revert, switch toggles, cover open/close, etc.) and bulk
+configuration changes. Every state-changing tool requires an
+explicit `confirm: true` parameter to execute; without it, returns
+a structured **preview** describing what would happen so the LLM
+can summarize it for the operator and obtain approval before
+proceeding. The tool description spells out the policy verbatim.
+
+ShellyAdmin-config writes (settings, credentials, templates,
+provisioning, log clearing) remain hard-excluded — those still go
+through the SPA where they belong.
+
+### Added — 8 state-changing tools
+- `refresh_device(target, confirm)` (risk: low) — re-probe one device.
+- `refresh_all_devices(confirm)` (risk: low) — fleet-wide refresh job.
+- `start_scan(confirm)` (risk: low) — discovery scan over configured
+  subnets. Discovered devices land in `scan_status.pending`.
+- `confirm_scan(macs, confirm)` (risk: medium) — register devices
+  found by the most recent scan. `macs=[]` means register everything.
+- `firmware_check(confirm)` (risk: low) — query stable+beta firmware
+  versions for every known device.
+- `firmware_install(macs, stage, confirm)` (risk: high) — trigger
+  `Shelly.Update` against the named devices on the chosen channel.
+  Validates `stage` ∈ {"stable", "beta"}.
+- `execute_device_action(target, action, stage?, confirm)` (risk:
+  varies, surfaced in preview) — run any per-device action from
+  `list_device_actions`. Preview includes the catalog risk level
+  ("low" / "medium" / "high") so the LLM knows how loud to be when
+  asking for approval.
+- `bulk_action(action, macs, value?, confirm)` (risk: high) — apply
+  fleet-wide setting changes (set_timezone, set_sntp_server,
+  set_mqtt_server, set_auto_update, etc.). The preview reuses
+  `services.PreviewBulkAction` so the LLM sees per-target
+  eligibility (offline, locked, missing capability) before asking.
+
+### Confirm flow
+Every tool input has a `Confirm bool` field, default false. With
+`confirm` omitted or false, the tool returns a typed preview output
+(`SimpleActionResult.Preview = true`, plus tool-specific fields like
+`device_count`, `target_count`, `risk`, or per-target eligibility)
+and does not call into the AppService action method. With
+`confirm: true`, the tool delegates to the AppService method as
+usual. Each invocation writes to `audit_log` with a
+`mode=preview` or `mode=confirmed` tag so an operator grepping
+`/api/logs` can pair preview/execute calls by `request_id` and see
+exactly what ran.
+
+Risk-aware audit: `actionTool` wraps the call context with
+`services.WithRisk(ctx, "low|medium|high")` before invoking the
+underlying method, so audit rows carry `risk_level` (the v0.1.10
+column) for filterability. `execute_device_action` is tagged "high"
+at the audit boundary; the preview separately surfaces the
+catalog-defined per-action risk so the LLM can adapt its prompt.
+
+### Tests
+- `internal/mcp/tools_actions_test.go` — 7 cases exercising the
+  preview gate end-to-end through the MCP transport:
+  `TestRefreshAllDevicesPreviewVsConfirm` (the omitted-confirm and
+  explicit-confirm:false paths both preview),
+  `TestStartScanPreview`, `TestFirmwareInstallRequiresConfirmAndStage`
+  (stage validation kicks in even in preview),
+  `TestExecuteDeviceActionPreviewSurfacesRisk`,
+  `TestExecuteDeviceActionRejectsUnknownAction`,
+  `TestBulkActionPreviewListsTargets`,
+  `TestActionAuditLogsPreviewVsConfirmed` (audit rows carry
+  mode=preview when no confirm).
+- `internal/mcp/tools_test.go` — `connectInMemory` now wires the
+  service's logFn to `database.AddLog` so audit-aware tests can
+  inspect what each MCP call produced.
+
+### Migration notes
+None. The new tools are additive — clients that don't know about
+them continue to use the read-only surface unchanged. Existing
+`tools/list` callers will see the surface grow from 13 → 21 tools.
+Token resolution, transport, encryption, and the v0.1.21 live
+toggle behavior are unchanged.
+
 ## [0.1.21] - 2026-05-09 — Live MCP toggle (no restart required)
 
 Lifts the v0.1.20 restart-required posture for the MCP toggle.

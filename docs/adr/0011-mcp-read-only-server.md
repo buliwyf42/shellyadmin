@@ -257,3 +257,79 @@ on `AppSettings`. The hint text was updated to reflect "saves apply
 immediately" — no more restart-required language. After Save the
 SPA re-fetches `/api/settings` so the badge and the redacted-token
 placeholder reflect the new state without a manual reload.
+
+## v0.1.22 follow-up — State-changing tools, confirm-gated
+
+The "Hard exclusions in v1" section of this ADR explicitly deferred
+state-changing tools "pending a confirmation-flow design that v1
+does not provide." v0.1.22 lands that design and the corresponding
+8-tool surface.
+
+**Confirm-flow shape.** Every state-changing tool's input includes a
+`Confirm bool` field, default false. The tool's runtime behavior
+forks on it:
+
+- `confirm: false` (or omitted) — the tool calls a *preview* code
+  path: read-only inspection of the device store, settings, or
+  PreviewBulkAction; returns a typed result with `Preview=true` and
+  fields describing what would happen (count of devices, list of
+  affected MACs, per-action risk level from the catalog,
+  eligibility-flagged target list). The underlying state-changing
+  AppService method is **not** called.
+- `confirm: true` — the tool delegates to the AppService method as
+  usual; the result is the unwrapped action outcome (job id, per-
+  target results, etc.).
+
+**Tool description policy.** Every state-changing tool's description
+ends with a verbatim `confirmPolicy` paragraph stating
+"OPERATOR APPROVAL REQUIRED" and the workflow: first call without
+confirm to get the preview, surface to operator in plain language,
+obtain explicit yes/no, only then call again with `confirm: true`.
+The policy is on the tool description (visible in `tools/list`) so
+the LLM is exposed to it on every connection, not just buried in
+docs.
+
+**Why a single `confirm` flag rather than a two-call token dance.**
+Considered both. The token dance is harder to bypass (the LLM can't
+just flip a flag) but adds round-trip ceremony for every action. The
+`confirm` flag plus the operator-in-the-loop expectation is the
+right trade-off for ShellyAdmin's actual deployment shape — single
+operator, conversational LLM client where the operator sees the
+preview the model surfaces. The audit-log entries (`mode=preview` vs
+`mode=confirmed`) give the operator a forensic trail if a model ever
+short-circuits the flow.
+
+**Surface in v0.1.22.** 8 tools, mapped to existing AppService methods:
+
+| Tool | AppService method | Audit risk |
+|------|-------------------|------------|
+| `refresh_device(target, confirm)` | `RefreshDevice` | low |
+| `refresh_all_devices(confirm)` | `RefreshDevices` | low |
+| `start_scan(confirm)` | `StartScan` | low |
+| `confirm_scan(macs, confirm)` | `ConfirmScan` | medium |
+| `firmware_check(confirm)` | `StartFirmwareCheck` | low |
+| `firmware_install(macs, stage, confirm)` | `StartFirmwareInstall` | high |
+| `execute_device_action(target, action, stage?, confirm)` | `ExecuteDeviceAction` | high (catalog risk on preview) |
+| `bulk_action(action, macs, value?, confirm)` | `PreviewBulkAction` / `BulkAction` | high |
+
+Hard exclusions remain: anything that mutates ShellyAdmin's *own*
+config (settings, credentials, templates, provisioning, logs). Those
+still go through the SPA where they belong.
+
+**Risk-level audit integration.** The new `actionTool` helper wraps
+the request context with `services.WithRisk(ctx, "low|medium|high")`
+before invoking the underlying method, so audit rows the action
+emits carry `risk_level` (the v0.1.10 column) for filterability.
+Tagging `execute_device_action` and `bulk_action` as "high" at the
+audit boundary is intentional — they're powerful surfaces; the
+preview separately exposes the per-action catalog risk so the LLM
+can scale its operator prompt.
+
+**Tests.** 7 cases in `internal/mcp/tools_actions_test.go` exercising
+the preview gate end-to-end through the MCP transport (in-memory
+client + server, real `services.AppService`). They confirm: omitted
+`confirm` and explicit `confirm: false` both preview;
+`firmware_install` rejects bad / missing `stage` even in preview;
+`execute_device_action` surfaces per-action catalog risk in the
+preview output; unknown actions error before any state change; the
+audit log differentiates `mode=preview` from `mode=confirmed`.

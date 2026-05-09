@@ -23,7 +23,11 @@ func connectInMemory(t *testing.T) (*db.DB, *mcp.ClientSession) {
 	}
 	t.Cleanup(func() { _ = database.Close() })
 
-	svc := services.NewAppService(database, t.TempDir(), func(context.Context, string, string) {})
+	// logf writes to the same DB the test inspects, so audit-aware tests
+	// can grep what MCP tool calls produced.
+	svc := services.NewAppService(database, t.TempDir(), func(_ context.Context, level, msg string) {
+		_ = database.AddLog(level, msg)
+	})
 	server := mcp.NewServer(&mcp.Implementation{Name: "shellyadmin-test", Version: "v0"}, nil)
 	register(server, svc)
 
