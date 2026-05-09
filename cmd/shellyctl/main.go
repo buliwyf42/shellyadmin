@@ -87,6 +87,12 @@ func main() {
 	defer database.Close()
 	_ = database.MarkRunningJobsInterrupted()
 
+	// Single shared AppService — backs HTTP handlers, background workers,
+	// AND the MCP listener so SaveSettings can reconcile live state in
+	// one place (see ADR-0011 v0.1.21 amendment).
+	service := services.NewAppService(database, dataDir, func(_ context.Context, level, msg string) {
+		_ = database.AddLog(level, services.SanitizeLogMessage(msg))
+	})
 	router := api.NewRouter(database, api.Config{
 		User:           user,
 		Pass:           pass,
@@ -98,12 +104,22 @@ func main() {
 		BackendCommit:  backendCommit,
 		StaticFS:       staticFiles,
 		HasStatic:      true,
+		Service:        service,
 	})
-	service := services.NewAppService(database, dataDir, func(_ context.Context, level, msg string) {
-		_ = database.AddLog(level, services.SanitizeLogMessage(msg))
-	})
+	// Wire MCP runtime params into the service so SaveSettings can
+	// reconcile the live listener (start / stop / rotate token) without
+	// requiring a container restart. envToken!="" means env-locked —
+	// settings changes will be ignored at the reconcile point.
+	service.SetMCPParams(database, mcp.Build, mcpToken, mcpBind, mcpPort, backendVersion)
 	_ = service.RecoverInterruptedJobs()
 	service.StartBackgroundWorkers()
+	// Initial MCP startup. Service handles env-vs-settings resolution and
+	// the "MCP disabled" log line when neither is set.
+	service.StartMCPFromConfig()
+	if mcpToken == "" && !service.MCPRunning() {
+		slog.Info("MCP disabled (no token in env or settings)")
+	}
+
 	server := &http.Server{
 		Addr:              ":" + port,
 		Handler:           router,
@@ -118,39 +134,6 @@ func main() {
 		}
 	}()
 
-	// MCP token resolution: env var wins; if unset, fall back to the
-	// persisted settings (operator configured via the SPA). Documented in
-	// ADR-0011 → "Two equivalent transport-level auth shapes" + the
-	// settings precedence section.
-	mcpFromEnv := mcpToken != ""
-	if !mcpFromEnv {
-		if persisted, perr := service.GetSettings(); perr == nil {
-			if persisted.MCPEnabled && persisted.MCPToken != "" {
-				mcpToken = persisted.MCPToken
-				slog.Info("MCP enabled via settings (env var not set)")
-			}
-		} else {
-			slog.Warn("MCP settings read failed; MCP disabled", "err", perr)
-		}
-	}
-
-	var mcpServer *http.Server
-	if mcpToken == "" {
-		slog.Info("MCP disabled (no token in env or settings)")
-	} else {
-		built, err := mcp.Build(database, dataDir, mcpToken, mcpBind, mcpPort, backendVersion)
-		if err != nil {
-			panic(fmt.Sprintf("mcp init failed: %v", err))
-		}
-		mcpServer = built
-		slog.Info("MCP server starting", "addr", mcpServer.Addr)
-		go func() {
-			if err := mcpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-				panic(err)
-			}
-		}()
-	}
-
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
@@ -159,11 +142,7 @@ func main() {
 	if err := server.Shutdown(ctx); err != nil {
 		panic(err)
 	}
-	if mcpServer != nil {
-		if err := mcpServer.Shutdown(ctx); err != nil {
-			slog.Warn("mcp shutdown", "err", err)
-		}
-	}
+	// service.Stop now also tears down the MCP listener.
 	service.Stop(ctx)
 }
 

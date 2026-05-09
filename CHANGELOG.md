@@ -4,6 +4,96 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.21] - 2026-05-09 — Live MCP toggle (no restart required)
+
+Lifts the v0.1.20 restart-required posture for the MCP toggle.
+Saving settings with `mcp_enabled` true / false / a rotated token now
+**applies immediately** — the listener starts, stops, or rotates its
+token in-process without dropping the rest of the container. Token
+rotations no longer kick MCP clients (Claude Desktop, etc.) any
+harder than the rotation itself requires.
+
+The change came with one architectural fix: `api.NewHandler`
+previously constructed its own `services.NewAppService(...)`
+internally, parallel to the one in `main.go`. HTTP handlers and the
+boot-time service couldn't see each other's in-memory state — which
+is why surfacing live MCP status would have been impossible without
+this fix. `api.Config.Service` is the new entry point; when set,
+NewHandler reuses it. `main.go` always sets it. Background workers,
+audit-log routing, and the MCP controller now live on one
+process-wide service.
+
+### Added
+- `internal/services/app_mcp.go`: new `MCPController` struct holding
+  the live `*http.Server` and a mutex serializing start / stop /
+  rotate transitions. `SetMCPParams` installs runtime params
+  (database, builder, env-token, bind, port, version);
+  `StartMCPFromConfig` does boot-time env-or-settings resolution;
+  `ReconcileMCPFromSettings` is called by `SaveSettings` after a
+  successful persist; `stopMCP` is invoked from `Stop(ctx)` so
+  graceful shutdown drains the listener before background workers.
+- `MCPBuilder` is a function-typed seam on the controller. Production
+  code injects `mcp.Build` from `main.go` — passing it through (vs.
+  importing it in `internal/services`) avoids a services↔mcp import
+  cycle since the mcp package itself imports services for its tools.
+- `models.AppSettings.MCPRunning` (read-only, omitempty), populated
+  by the API GET handler from `service.MCPRunning()`. Drives a new
+  green `Running` / grey `Stopped` badge on the Settings page MCP
+  card.
+- `api.Config.Service *services.AppService` — when non-nil,
+  `NewHandler` reuses the externally-supplied AppService instead of
+  constructing its own. Required for the controller-sharing fix
+  above.
+- 5 new tests in `internal/services/app_mcp_test.go` covering the
+  lifecycle: `TestSaveSettingsStartsAndStopsMCPLive`,
+  `TestSaveSettingsRotatesMCPTokenLive`,
+  `TestSaveSettingsIsNoOpWhenEnvLocked`,
+  `TestStartMCPFromConfigPrefersEnvOverSettings`,
+  `TestStartMCPFromConfigUsesSettingsWhenEnvUnset`. Each uses a
+  test-only `MCPBuilder` that returns `*http.Server`s bound to
+  `httptest` listeners so port collisions don't break parallel test
+  runs.
+
+### Changed
+- `cmd/shellyctl/main.go`: AppService is now constructed before
+  `api.NewRouter` and passed into `Config.Service`. The MCP startup
+  block delegates to `service.SetMCPParams` + `service.StartMCPFromConfig`
+  instead of building the listener inline; `service.Stop(ctx)` now
+  shuts the listener down (the previous explicit `mcpServer.Shutdown(ctx)`
+  call was removed).
+- `internal/api/handler.go`: `GetSettings` populates `MCPManagedByEnv`
+  and `MCPRunning` via `h.service.MCPManagedByEnv()` /
+  `h.service.MCPRunning()` instead of reading `os.Getenv` directly.
+- `internal/services/app.go`: `SaveSettings` calls
+  `s.ReconcileMCPFromSettings()` after the successful DB write.
+  `Stop(ctx)` calls `s.stopMCP(ctx)` first so the externally-visible
+  surface drops new requests before background workers drain.
+- `web/src/pages/Settings.svelte`: MCP card hint text updated to
+  "Saves apply immediately"; "Enable MCP server on next restart"
+  → "Enable MCP server"; new live status badge in the card header;
+  Save handler re-fetches `/api/settings` after success so the
+  redacted-token placeholder and Running/Stopped badge update without
+  a manual reload.
+
+### Live verification (44-device fleet)
+- Boot via env var → MCP up; toggle off in Settings UI **without
+  env**: connection refused on `:8101` (listener stopped, port unbound).
+- Toggle on with new token: new token returns 200, old token returns
+  401 — listener restarted with the rotated token.
+- Token rotation while listener already running: old listener's
+  context is cancelled (5-sec graceful), new listener starts; total
+  outage <100 ms.
+- API GET reports `mcp_running: true` while listener is live, omitted
+  (false) when stopped — so the SPA badge tracks reality.
+
+### Migration notes
+None for the documented config surface — `SHELLYADMIN_MCP_TOKEN` env
+var still wins, and the persisted settings shape is unchanged from
+v0.1.20. Code consumers of `internal/api`: `Config.Service` is
+optional but strongly recommended; tests that don't set it still
+work (`NewHandler` falls back to constructing its own service for
+that case). DB schema is unchanged.
+
 ## [0.1.20] - 2026-05-09 — Settings UI for MCP + page reorganization
 
 Brings the v0.1.19 MCP server out of env-only territory: operators can

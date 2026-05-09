@@ -13,6 +13,7 @@ import (
 
 	"shellyadmin/internal/db"
 	"shellyadmin/internal/middleware"
+	"shellyadmin/internal/services"
 )
 
 type Config struct {
@@ -31,6 +32,13 @@ type Config struct {
 	StaticFS       fs.FS
 	HasStatic      bool
 	DevStatic      string
+	// Service is the shared AppService instance that backs every handler.
+	// When non-nil, NewHandler skips its own services.NewAppService() call
+	// and reuses this one instead — required so background workers, the
+	// MCP controller, and HTTP handlers all see the same in-memory state.
+	// When nil, NewHandler still constructs its own (back-compat for tests
+	// that don't need to share state with main.go).
+	Service *services.AppService
 }
 
 func NewRouter(database *db.DB, cfg Config) *gin.Engine {

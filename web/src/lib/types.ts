@@ -153,6 +153,8 @@ export interface AppSettings {
   mcp_token?: string;
   /** True when SHELLYADMIN_MCP_TOKEN is set in the environment, in which case mcp_enabled / mcp_token in this struct are ignored at boot and the UI should show fields read-only. Read-only — never persisted. */
   mcp_managed_by_env?: boolean;
+  /** True when an MCP listener goroutine is currently active. Surfaced in the API GET response so the UI can render a live status badge. Read-only — never persisted. */
+  mcp_running?: boolean;
 }
 
 export interface FWResult {

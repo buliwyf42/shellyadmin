@@ -202,9 +202,58 @@ shorter than 16 characters. UI exposes a Generate button (CSPRNG → 64
 hex chars, same length as `openssl rand -hex 32`) so operators don't
 have to copy-paste from a terminal.
 
-Toggle effect is **restart-required** (matches how
-`SHELLYADMIN_PASS_HASH` already behaves). This was an explicit fork —
-live start/stop of the MCP listener goroutine would roughly double
-the implementation cost and require race-condition tests; the
-single-operator audience makes a restart acceptable. Reconsider for
-v0.2.x if a multi-operator deploy becomes a target.
+Toggle effect was originally **restart-required** in v0.1.20 (matched
+how `SHELLYADMIN_PASS_HASH` behaves). Reconsidered and lifted in
+v0.1.21 — see the v0.1.21 follow-up section below.
+
+## v0.1.21 follow-up — Live MCP toggle
+
+The v0.1.20 restart-required posture was the conservative landing for
+a v1 feature. Operator feedback reframed the cost: every token
+rotation triggered a container restart, which dropped MCP sessions
+the operator had open in Claude Desktop. The work to make it live
+turned out smaller than estimated — about 200 lines of lifecycle
+code plus tests — once the right place to put it was clear.
+
+The right place is on `services.AppService`: the existing service
+already owns the long-lived background workers (firmware-check
+scheduler) that need to stop on shutdown, so MCP joins them.
+`internal/services/app_mcp.go` introduces an `MCPController` struct
+holding the live `*http.Server` plus a mutex serializing start /
+stop / rotate transitions. `SaveSettings` ends with a call to
+`ReconcileMCPFromSettings` which decrypts the new token and:
+
+- starts a listener if the previous state was disabled,
+- stops the listener if the new state is disabled,
+- gracefully shuts the old listener and starts a new one on token
+  rotation, or
+- no-ops when the desired token equals the running token.
+
+Env-locked instances (operator override path) are detected at
+reconcile entry and skip the dance entirely — `SHELLYADMIN_MCP_TOKEN`
+still wins per the v0.1.20 design.
+
+A second architectural change came along for the ride: until v0.1.21,
+`api.NewHandler` constructed its own `services.NewAppService(...)`
+internally, parallel to the one in `main.go`. That meant HTTP handlers
+couldn't see in-memory state owned by `main.go`'s service — including
+the live MCP listener. `api.Config.Service` is the new entry point;
+when set, NewHandler reuses it. `main.go` always sets it. This
+unifies background-worker state, audit-log routing, and MCP-controller
+state into one process-wide service.
+
+Test seam: `MCPBuilder` is a function-typed field on the controller.
+Production code passes `mcp.Build` (in `main.go`, to avoid a
+services↔mcp import cycle in the package itself). Tests pass a stub
+that returns an `*http.Server` bound to an httptest listener so
+the lifecycle transitions execute without conflicting on real ports.
+See `internal/services/app_mcp_test.go` for the five lifecycle cases:
+toggle on, toggle off, token rotation, env-precedence, env-or-settings
+boot resolution.
+
+UI: the Settings page MCP card grew a live status badge
+(`Running` / `Stopped`) populated from the new `mcp_running` field
+on `AppSettings`. The hint text was updated to reflect "saves apply
+immediately" — no more restart-required language. After Save the
+SPA re-fetches `/api/settings` so the badge and the redacted-token
+placeholder reflect the new state without a manual reload.

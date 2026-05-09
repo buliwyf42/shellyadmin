@@ -99,6 +99,11 @@
     clearMessages();
     try {
       await api.saveSettings(settings);
+      // Re-load so the MCP running/stopped badge and the redacted token
+      // placeholder reflect the new server state immediately. Other
+      // form values round-trip unchanged.
+      settings = await api.getSettings();
+      mcpTokenVisible = false;
       setStatus('Settings saved');
     } catch (err) {
       captureError(err);
@@ -318,20 +323,29 @@
   <div class="col-lg-6">
     <div class="card bg-dark border-secondary h-100">
       <div class="card-body">
-        <h2 class="h5">MCP Server <span class="badge bg-secondary ms-2">Read-only</span></h2>
+        <h2 class="h5 d-flex align-items-center gap-2">
+          MCP Server
+          <span class="badge bg-secondary">Read-only</span>
+          {#if settings.mcp_running}
+            <span class="badge bg-success" title="MCP listener is currently active">Running</span>
+          {:else}
+            <span class="badge bg-secondary" title="MCP listener is not running">Stopped</span>
+          {/if}
+        </h2>
         <p class="text-secondary small mb-3">
           Exposes a Model Context Protocol server on port 8081 (default) so LLM-driven agents can
           introspect the fleet — list devices, check firmware status, read compliance, inspect logs.
-          State-changing operations are deliberately not exposed. Changes here apply on the next
-          container restart.
+          State-changing operations are deliberately not exposed. <strong
+            >Saves apply immediately</strong
+          > — the listener starts, stops, or rotates its token without restarting the container.
         </p>
 
         {#if settings.mcp_managed_by_env}
           <div class="alert alert-secondary py-2 small mb-3">
             <strong>Managed by environment variable.</strong> The
             <code>SHELLYADMIN_MCP_TOKEN</code>
-            env var is set on this container, so the fields below are ignored at boot. Unset the env var
-            (and restart) to switch to settings-driven configuration.
+            env var is set on this container, so the fields below are ignored. Unset the env var (and
+            restart) to switch to settings-driven configuration.
           </div>
         {/if}
 
@@ -342,7 +356,7 @@
             bind:checked={settings.mcp_enabled}
             disabled={settings.mcp_managed_by_env}
           />
-          <span>Enable MCP server on next restart</span>
+          <span>Enable MCP server</span>
         </label>
 
         <label class="form-label" for="settings-mcp-token">Token</label>
@@ -399,15 +413,13 @@
         </div>
         <p class="text-secondary small mb-3">
           {#if settings.mcp_token === '<set>'}
-            A token is currently configured. Click <em>Generate</em> to rotate it, or
-            <em>Clear</em>
-            to remove it.
+            A token is currently configured. Click <em>Generate</em> to rotate it (Save Settings
+            applies the new token without restarting), or <em>Clear</em> to remove it.
           {:else if settings.mcp_token}
             Token is set in the form but not yet saved. Use <em>Copy</em> to put it on the clipboard for
             your MCP client config, then click Save Settings.
           {:else}
-            No token configured. The MCP server will not start until a token is set and the
-            container is restarted.
+            No token configured. The MCP server will not start until a token is set and saved.
           {/if}
         </p>
 
