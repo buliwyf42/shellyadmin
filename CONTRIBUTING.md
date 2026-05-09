@@ -17,8 +17,9 @@ If a change pushes beyond that scope, please explain the tradeoff clearly in the
 
 Requirements:
 
-- Go 1.24+
+- Go 1.25+ (the floor moved from 1.24 → 1.25 in v0.1.16; gin's HTTP/3 transitive deps require it)
 - Node 20+
+- `golangci-lint` v2 (the project's `.golangci.yml` is v2 syntax — v1 binaries fail to load it). Install: `go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.6.0`
 
 Backend:
 
@@ -51,6 +52,7 @@ Backend tests:
 ```bash
 go test ./...
 go vet ./...
+golangci-lint run ./...
 ```
 
 Frontend tests:

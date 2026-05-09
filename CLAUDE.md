@@ -6,13 +6,24 @@ This file is a persistent memory aid for AI-assisted development. Keep it up to 
 
 ## Architecture
 
-- **Backend**: Go (single binary, `cmd/shellyctl/main.go`)
+- **Backend**: Go 1.25 (single binary, `cmd/shellyctl/main.go`). The Go floor moved from 1.24 → 1.25 in v0.1.16 — gin v1.12.0 pulls `quic-go/quic-go` for HTTP/3, which requires Go 1.25.0 in its `go.mod`. CI is pinned to Go 1.25 in `.github/workflows/test.yml`; the Dockerfile backend stage uses `golang:1.25-alpine`.
 - **Frontend**: Svelte + TypeScript SPA (`web/src/`)
 - **Database**: SQLite via `modernc.org/sqlite` (no CGO required)
-- **Deployment**: Multi-stage Docker image — Node 20 builds frontend, Go 1.24 builds backend, Alpine 3.19 is the runtime
+- **Deployment**: Multi-stage Docker image — Node 20 builds frontend, Go 1.25 builds backend, Alpine 3.19 is the runtime
 - **Entry point**: `cmd/shellyctl/main.go` → `internal/services/app.go`
 
 The SPA is embedded into the Go binary at build time via `//go:embed`.
+
+### Dependency-bump trap (lesson from v0.1.14 / v0.1.15)
+
+A bump of gin or any `golang.org/x/{net,text,sync}` to its latest version can silently raise the `go` directive in `go.mod` past whatever CI is running. v0.1.14 hit this: dep bumps pushed `go.mod` to `1.25.0` while CI was still on Go 1.24, breaking the Test + Publish-Image workflows. Two-line check before any dep bump:
+
+```bash
+go list -m -f "{{if .GoVersion}}{{.GoVersion}} {{.Path}}@{{.Version}}{{end}}" all 2>/dev/null | sort -V -r | head -10
+grep -E "^go " go.mod
+```
+
+If anything in the top of that list outranks `go.mod`'s directive, either bump CI/Dockerfile/go.mod together (the v0.1.16 path) or pick an older version of the offending dep.
 
 ---
 
@@ -20,9 +31,9 @@ The SPA is embedded into the Go binary at build time via `//go:embed`.
 
 Only Gen2+ devices are supported. Gen1 devices (HTTP REST / GET-based API) are not supported and will not be probed or provisioned.
 
-| Gen | Protocol | Endpoint |
-|-----|----------|---------|
-| Gen2+ | JSON-RPC 2.0 (POST with JSON body) | `/rpc` |
+| Gen   | Protocol                           | Endpoint |
+| ----- | ---------------------------------- | -------- |
+| Gen2+ | JSON-RPC 2.0 (POST with JSON body) | `/rpc`   |
 
 Generation is detected via `GET /shelly` → `{"gen": N}`. Defaults to Gen2 if absent or zero.
 
@@ -31,14 +42,19 @@ Generation is detected via `GET /shelly` → `{"gen": N}`. Defaults to Gen2 if a
 ## Shelly API Quirks
 
 ### Method-not-found error code
+
 Shelly uses **non-standard JSON-RPC error code `404`** (not `-32601`) when a method is not supported on a specific device model. Example response:
+
 ```json
-{"error": {"code": 404, "message": "Not Found"}}
+{ "error": { "code": 404, "message": "Not Found" } }
 ```
+
 `isMethodNotFound()` in `provisioner.go` handles both `404` and `-32601` for safety.
 
 ### OTA configuration on Gen2+ — implemented via `Schedule.*`, not `OTA.SetConfig`
+
 The Shelly Gen2 API has **no `OTA.SetConfig` / `Sys.SetAutoUpdate` / dedicated OTA-config method**. The `OTA.*` methods that DO exist (`OTA.Start/Write/Data/Abort/Commit/Revert`) are byte-level chunked-upload plumbing, not configuration. Direct firmware update lives at:
+
 - `Shelly.Update` — one-shot firmware update (requires `stage` param: `"stable"` or `"beta"`)
 - `Shelly.CheckForUpdate` — check for available updates (returns BOTH `stable` and `beta` in one response)
 
@@ -53,36 +69,43 @@ Persisted on the Device row as `fw_auto_update` with values `""` (never read) | 
 Historical context: the `ota` provisioner section and an `ota_auto_update` compliance field that called `OTA.SetConfig` were **fully removed in v0.0.16** (the v0.0.14 removal was partial). If an `ota` block still appears in a user-supplied JSON template, it falls through to the catch-all handler (calls `Ota.SetConfig` → 404 → gracefully skipped).
 
 ### mqtt.ssl_ca valid values
+
 The `mqtt.ssl_ca` field only accepts exactly four values:
+
 - `""` / omitted — no TLS
 - `"*"` — TLS, disable certificate validation
 - `"ca.pem"` — TLS with built-in CA bundle
 - `"user_ca.pem"` — TLS with user-uploaded CA certificate
 
 ### WS SSL CA
+
 Same four-value pattern as MQTT: `""`, `"*"`, `"ca.pem"`, `"user_ca.pem"`.
 
 ---
 
 ## Key Files
 
-| File | Role |
-|------|------|
-| `internal/services/app.go` | Service layer; job scheduling, refresh/scan orchestration |
-| `internal/services/device_surface.go` | Bulk actions (set_sntp_server, reboot, etc.) |
-| `internal/core/scanner/scanner.go` | Device discovery & probing; populates `models.Device` |
-| `internal/core/provisioner/provisioner.go` | Template-based fleet provisioning |
-| `internal/core/compliance/compliance.go` | Compliance rule evaluation |
-| `internal/core/setters/setters.go` | Targeted single-field setters for bulk actions |
-| `internal/core/secretbox/secretbox.go` | NaCl secretbox envelope encryption for credential at-rest storage |
-| `internal/middleware/requestid.go` | `X-Request-ID` middleware; IDs propagate to audit_log rows and slog attrs |
-| `internal/services/password.go` | Argon2id hash/verify for `SHELLYADMIN_PASS_HASH` |
-| `internal/services/store.go` | `Store` interface at the service/DB boundary |
-| `internal/api/errors.go` | `respondError` / `respondUserError` — sanitized HTTP error responses |
-| `internal/models/device.go` | Device struct (source of truth for all device fields) |
-| `internal/models/settings.go` | ComplianceRules, AppSettings, etc. |
-| `web/src/pages/Provision.svelte` | Provisioning UI — form editor + JSON editor |
-| `web/src/pages/Compliance.svelte` | Compliance rules UI |
+| File                                       | Role                                                                          |
+| ------------------------------------------ | ----------------------------------------------------------------------------- |
+| `internal/services/app.go`                 | Service layer; job scheduling, refresh/scan orchestration                     |
+| `internal/services/device_surface.go`      | Bulk actions (set_sntp_server, reboot, etc.)                                  |
+| `internal/core/scanner/scanner.go`         | Device discovery & probing; populates `models.Device`                         |
+| `internal/core/firmware/firmware.go`       | `Shelly.GetDeviceInfo` + `Shelly.CheckForUpdate` per channel; install trigger |
+| `internal/core/firmware/autoupdate.go`     | `Schedule.*`-based auto-update read/write (see ADR-0009)                      |
+| `internal/core/firmware/methods.go`        | `Shelly.ListMethods` capability probe (see ADR-0010)                          |
+| `internal/core/provisioner/provisioner.go` | Template-based fleet provisioning                                             |
+| `internal/core/compliance/compliance.go`   | Compliance rule evaluation                                                    |
+| `internal/core/setters/setters.go`         | Targeted single-field setters for bulk actions                                |
+| `internal/core/clock/clock.go`             | Tiny `Clock` interface + `Real()` + `Fake.Advance(d)` for deterministic tests |
+| `internal/core/secretbox/secretbox.go`     | NaCl secretbox envelope encryption for credential at-rest storage             |
+| `internal/middleware/requestid.go`         | `X-Request-ID` middleware; IDs propagate to audit_log rows and slog attrs     |
+| `internal/services/password.go`            | Argon2id hash/verify for `SHELLYADMIN_PASS_HASH`                              |
+| `internal/services/store.go`               | `Store` interface at the service/DB boundary                                  |
+| `internal/api/errors.go`                   | `respondError` / `respondUserError` — sanitized HTTP error responses          |
+| `internal/models/device.go`                | Device struct (source of truth for all device fields)                         |
+| `internal/models/settings.go`              | ComplianceRules, AppSettings, etc.                                            |
+| `web/src/pages/Provision.svelte`           | Provisioning UI — form editor + JSON editor                                   |
+| `web/src/pages/Compliance.svelte`          | Compliance rules UI                                                           |
 
 ---
 
@@ -90,23 +113,23 @@ Same four-value pattern as MQTT: `""`, `"*"`, `"ca.pem"`, `"user_ca.pem"`.
 
 Sections in a template JSON map to backend handlers in `applySection()`:
 
-| Section key | Handler |
-|-------------|---------|
-| `sys` | `Sys.SetConfig` |
-| `mqtt` | `MQTT.SetConfig` |
-| `ws` | `WS.SetConfig` |
-| `ble` | `BLE.SetConfig` |
-| `cloud` | `Cloud.SetConfig` |
-| `matter` | `Matter.SetConfig` |
-| `wifi` | `Wifi.SetConfig` (full surface: sta, sta1, roam, static IPv4) |
-| `auth` | `Shelly.SetAuth` |
-| `ota` | catch-all handler; Shelly returns 404 → `skipped` (form + normalizer removed in v0.0.16) |
-| `kvs` | `KVS.Set` per key |
-| `script` | `Script.SetConfig` per id (loop like kvs) |
-| `ui` | `UI.SetConfig` |
-| `gen2_rpc` | arbitrary method map |
-| `gen1_http` | skipped (legacy; Gen1 no longer supported) |
-| anything else | `<Capitalized>.SetConfig` |
+| Section key   | Handler                                                                                  |
+| ------------- | ---------------------------------------------------------------------------------------- |
+| `sys`         | `Sys.SetConfig`                                                                          |
+| `mqtt`        | `MQTT.SetConfig`                                                                         |
+| `ws`          | `WS.SetConfig`                                                                           |
+| `ble`         | `BLE.SetConfig`                                                                          |
+| `cloud`       | `Cloud.SetConfig`                                                                        |
+| `matter`      | `Matter.SetConfig`                                                                       |
+| `wifi`        | `Wifi.SetConfig` (full surface: sta, sta1, roam, static IPv4)                            |
+| `auth`        | `Shelly.SetAuth`                                                                         |
+| `ota`         | catch-all handler; Shelly returns 404 → `skipped` (form + normalizer removed in v0.0.16) |
+| `kvs`         | `KVS.Set` per key                                                                        |
+| `script`      | `Script.SetConfig` per id (loop like kvs)                                                |
+| `ui`          | `UI.SetConfig`                                                                           |
+| `gen2_rpc`    | arbitrary method map                                                                     |
+| `gen1_http`   | skipped (legacy; Gen1 no longer supported)                                               |
+| anything else | `<Capitalized>.SetConfig`                                                                |
 
 Template variable substitution: `{device_name}` is replaced with the device's configured name (from `Shelly.GetConfig` → `sys.device.name`).
 
@@ -143,6 +166,7 @@ The Dockerfile reads the `VERSION` file at the repo root as the default version 
 ## Job Locking
 
 Long-running jobs (refresh, scan, firmware_check) use a SQLite-backed status:
+
 - `"running"` — job active
 - `"done"` / `"failed"` — terminal
 - `"interrupted"` — set on startup for any jobs stuck in `"running"` from a previous crash
@@ -158,3 +182,64 @@ Compliance rules in `models.ComplianceRules` are evaluated in `compliance.Evalua
 - `cloud_enabled` checks the device's cloud enable setting (distinct from `cloud_connected`)
 - Custom rules support `source: device | config | status`, path traversal with `.`, operators: `eq` (default), `ne`, `contains`, `regex`, `exists`
 - `{device_name}` token in rule values is substituted with the device's effective name
+
+---
+
+## Testability Pattern: OnClient Seams + Clock
+
+Added in v0.1.15 (M3a). Each device-talking package (`internal/core/{scanner,firmware,setters}`) ships in two layers:
+
+- **Public `…WithOptions` / `New(opts)` entry points** — production callers use these. They build a `*shellyclient.Client` from `Options` and delegate to the seam below. Behavior unchanged from before M3.
+- **`…OnClient` seams** — accept a pre-built `*shellyclient.Client` directly. The precedent is `firmware/methods.go:30 ListSupportedMethodsOnClient`; v0.1.15 brought scanner / firmware / setters into line. Tests construct a `httptest.NewServer` fake-Shelly + a `shellyclient.Client` aimed at it, then call the OnClient variant.
+
+`scanner.ProbeOptions` and `firmware.Options` carry an optional `Clock clock.Clock` field — nil falls back to `clock.Real()`. Tests inject `clock.NewFake(t)` + `Advance(d)` to pin timestamp-bearing fields (`LastSeen`, `AuthLockedUntil`, `CheckedAt`) to deterministic values.
+
+When you add a new device-talking call site, follow the same pattern:
+
+1. Public `…WithOptions` builds the client from `Options`.
+2. Internal `…OnClient(ctx, client, …)` does the work.
+3. Any wall-clock dependency goes through `clk.Now()`, not `time.Now()`.
+
+The shared test fixture for firmware lives at `internal/core/firmware/helpers_test.go` (`fakeShelly` — per-method handler map, call recorder, defaults to the Shelly non-standard 404 RPC error for unregistered methods). Reuse it for new firmware tests.
+
+---
+
+## App Settings (operator-facing)
+
+Defined in `models.AppSettings` (`internal/models/settings.go`), normalised on load via `Normalize()`. Notable knobs:
+
+| Field                         | JSON key                         | Default     | Bounds      | Notes                                                                                         |
+| ----------------------------- | -------------------------------- | ----------- | ----------- | --------------------------------------------------------------------------------------------- |
+| `FirmwareInstallTimeout`      | `firmware_install_timeout`       | 300 (5 min) | `> 0`       | Per-device cap before install_job marks "unknown"                                             |
+| `FirmwareInstallPollInterval` | `firmware_install_poll_interval` | 5           | `[1, 60]` s | How often the install_job re-queries device firmware while waiting for reboot (added v0.1.13) |
+| `FirmwareCheckInterval`       | `firmware_check_interval`        | 0 (off)     | `≥ 0` s     | Periodic firmware_check job cadence; 0 disables the scheduler                                 |
+
+The pattern for adding a new knob:
+
+1. Field on `AppSettings` with JSON tag.
+2. Default in `DefaultSettings()`.
+3. Bounds clamp in `Normalize()`.
+4. A `…FromSettings(s) <Type>` helper in the consuming service (see `firmwareInstallTimeoutFromSettings` / `firmwareInstallPollIntervalFromSettings` in `internal/services/app_jobs.go`).
+5. Settings.svelte input — match `firmware_install_timeout`'s number-input shape unless a preset dropdown fits better.
+6. TS field on `AppSettings` in `web/src/lib/types.ts`.
+
+---
+
+## Plaintext Password Removal Schedule
+
+`SHELLYADMIN_PASS` (plaintext) is **scheduled for removal in v0.2.0, no earlier than 2026-07-22** — the 3-month overlap window from the v0.0.15 deprecation (2026-04-22). The startup `slog.Warn` in `cmd/shellyctl/main.go` carries this date verbatim; `docs/SECURITY.md` mirrors it.
+
+When v0.2.0 lands, the changes are limited to:
+
+- `cmd/shellyctl/main.go:42-50` — drop the plaintext fallback in env resolution.
+- `internal/api/router.go:18-34` — remove `Config.Pass` field (keep `PassHash`).
+- `internal/api/handler.go:628-645` — drop the plaintext path in `verifyAdminPassword`.
+- Docs: README quick-start, both compose files, `docker/entrypoint.sh`, this file.
+
+`internal/services/password.go` (Argon2id hash/verify) and the `shellyctl hash-password` subcommand stay untouched — they're the migration target, not part of the removal.
+
+---
+
+## Release Cadence Convention
+
+VERSION + `web/package.json` + lockfile bump together on every release. Tag is lightweight (`git tag vX.Y.Z`, no `-a`); push needs `git push origin main vX.Y.Z` because `--follow-tags` only auto-pushes annotated tags. CHANGELOG header convention is `## [X.Y.Z] - YYYY-MM-DD — em-dash subtitle`; the publish-image workflow extracts the subtitle for the auto-created GitHub Release title.

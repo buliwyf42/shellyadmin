@@ -44,9 +44,18 @@ The current accepted decision set includes:
   - `app_clients.go` — per-device option builders (scanner / setter / firmware / provisioner) and the cross-cutting `refreshFirmwareCache` helper
   - `app_backup.go` — backup export/import and dry-run impact reporting
   - `app_credentials.go` — credential and credential-group CRUD
-- `internal/core`: Shelly protocol logic. `internal/core/firmware/autoupdate.go` reads/writes the per-device auto-update mode by manipulating `Schedule.*` jobs (Shelly Gen2+ has no dedicated OTA-config method)
+- `internal/core`: Shelly protocol logic — `scanner`, `firmware`, `setters`, `provisioner`, `compliance`, `shellyclient`, `secretbox`, plus the small `clock` package that abstracts wall time so the protocol packages can be tested deterministically without mocking the time package globally. `internal/core/firmware/autoupdate.go` reads/writes the per-device auto-update mode by manipulating `Schedule.*` jobs (Shelly Gen2+ has no dedicated OTA-config method)
 - `internal/db`: persistence and migrations
 - `web`: embedded Svelte UI
+
+### Testability seams (M3, v0.1.15)
+
+Each device-talking package exposes its public entry point in two layers:
+
+- `…WithOptions(ctx, …, opts Options)` — production callers. Builds a `*shellyclient.Client` from `Options`, then delegates.
+- `…OnClient(ctx, client, …)` — accepts a pre-built `shellyclient.Client` directly. Tests construct an `httptest.NewServer` fake-Shelly + a client aimed at it.
+
+`scanner.ProbeOptions` and `firmware.Options` carry an optional `Clock clock.Clock` field — nil falls back to `clock.Real()`. Tests inject `clock.NewFake(t)` + `Advance(d)` to pin timestamp-bearing fields to deterministic values. Production behaviour is unchanged from before the seam was added.
 
 ## Data Model
 

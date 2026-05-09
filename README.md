@@ -86,7 +86,7 @@ Use strong secrets for real installs. The `COOKIE_SECURE=false` example above is
 - Manual firmware check and update flow:
   - per-device, per-channel availability cache (stable + beta read in a single check)
   - sortable, select-all-aware Firmware page with a confirmation modal before bulk install
-  - dedicated install job with per-device version-match polling and a 5-minute timeout
+  - dedicated install job with per-device version-match polling; both the timeout (default 300 s) and the poll cadence (default 5 s, bounded 1–60) are operator-configurable in Settings
   - bulk auto-update controls (Off / Stable / Beta) implemented via `Schedule.*`, the same mechanism the device's own web UI uses
   - shared Stable/Beta channel between the Firmware and Devices pages (persisted to localStorage)
 - Guided provisioning form plus JSON mode with template management (load, save, delete, rename) in-context:
@@ -135,7 +135,7 @@ docs                 Product and deployment documentation
 
 Requirements:
 
-- Go 1.24+
+- Go 1.25+
 
 Run:
 
