@@ -118,9 +118,25 @@ func main() {
 		}
 	}()
 
+	// MCP token resolution: env var wins; if unset, fall back to the
+	// persisted settings (operator configured via the SPA). Documented in
+	// ADR-0011 → "Two equivalent transport-level auth shapes" + the
+	// settings precedence section.
+	mcpFromEnv := mcpToken != ""
+	if !mcpFromEnv {
+		if persisted, perr := service.GetSettings(); perr == nil {
+			if persisted.MCPEnabled && persisted.MCPToken != "" {
+				mcpToken = persisted.MCPToken
+				slog.Info("MCP enabled via settings (env var not set)")
+			}
+		} else {
+			slog.Warn("MCP settings read failed; MCP disabled", "err", perr)
+		}
+	}
+
 	var mcpServer *http.Server
 	if mcpToken == "" {
-		slog.Info("MCP disabled (SHELLYADMIN_MCP_TOKEN not set)")
+		slog.Info("MCP disabled (no token in env or settings)")
 	} else {
 		built, err := mcp.Build(database, dataDir, mcpToken, mcpBind, mcpPort, backendVersion)
 		if err != nil {

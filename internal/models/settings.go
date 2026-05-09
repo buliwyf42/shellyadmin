@@ -26,6 +26,20 @@ type AppSettings struct {
 	// scheduler skips a tick if a firmware_check is already running.
 	FirmwareCheckInterval int             `json:"firmware_check_interval"`
 	Compliance            ComplianceRules `json:"compliance"`
+	// MCPEnabled controls whether the read-only MCP server starts at the
+	// next container restart, when no SHELLYADMIN_MCP_TOKEN env var is set.
+	// Env var takes precedence over this flag (see ADR-0011).
+	MCPEnabled bool `json:"mcp_enabled,omitempty"`
+	// MCPToken is the bearer/path token used to authenticate MCP clients.
+	// Stored encrypted at rest via internal/core/secretbox; the API GET
+	// path redacts it to "<set>" / "" so plaintext never leaves the
+	// process. Ignored when SHELLYADMIN_MCP_TOKEN env var is set.
+	MCPToken string `json:"mcp_token,omitempty"`
+	// MCPManagedByEnv is a read-only flag the API GET handler sets to
+	// true when SHELLYADMIN_MCP_TOKEN is present in the environment.
+	// Tells the UI to disable the MCP fields and show an override notice.
+	// Never persisted.
+	MCPManagedByEnv bool `json:"mcp_managed_by_env,omitempty"`
 }
 
 type ComplianceRules struct {
@@ -142,6 +156,10 @@ func (s *AppSettings) Normalize() {
 	if s.FirmwareCheckInterval < 0 {
 		s.FirmwareCheckInterval = 0
 	}
+	s.MCPToken = strings.TrimSpace(s.MCPToken)
+	// MCPManagedByEnv is a runtime overlay set by the API layer at GET
+	// time; never persist it.
+	s.MCPManagedByEnv = false
 	s.Compliance.Normalize()
 }
 

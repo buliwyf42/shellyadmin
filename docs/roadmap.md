@@ -34,6 +34,23 @@ threat model and deployment expectations see [SECURITY.md](./SECURITY.md).
 
 ### 2026-05-09
 
+- **v0.1.20** — Settings UI for MCP + page reorganization.
+  `models.AppSettings` gains `MCPEnabled` and `MCPToken` (encrypted at
+  rest via `internal/core/secretbox`); the SPA's Settings page can now
+  enable, disable, and rotate the MCP token without touching the
+  container's `docker run`. `SHELLYADMIN_MCP_TOKEN` env var still
+  takes precedence (operator override; UI shows a "managed by
+  environment variable" notice with controls disabled). `cmd/shellyctl/main.go`
+  resolution order: env → settings → disabled. API GET redacts the
+  persisted token to `<set>`; sending `<set>` back on save preserves
+  the existing stored value (round-trip without exposure). Settings
+  page reorganized from 3 mixed cards into 5 focused cards (Discovery
+  & Refresh, Firmware, MCP, Display, Backup). MCP card has Show /
+  Hide / Generate (CSPRNG, 64 hex chars) / Copy / Clear actions on
+  the token input, with per-state hint text. ADR-0011 amended with
+  a follow-up section documenting the precedence rule, encryption
+  approach, and the restart-required-vs-live-toggle decision.
+
 - **v0.1.19** — Optional read-only MCP server. New `internal/mcp` package
   embedded in the existing binary; binds on `:8081` only when
   `SHELLYADMIN_MCP_TOKEN` is set, off otherwise. 13 tools (list_devices,

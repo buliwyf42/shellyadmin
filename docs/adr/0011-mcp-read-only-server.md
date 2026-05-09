@@ -74,9 +74,13 @@ design that v1 does not provide.
   middleware chain that protects the SPA, and isolates the new failure mode
   (MCP listener won't bind / panics) from the main UI.
 - **Static bearer token** via `SHELLYADMIN_MCP_TOKEN` (resolved through
-  `services.DecodeSecretValue` → supports `_FILE` indirection). When unset,
-  the listener does not start and an info log is emitted at boot. There is
-  no other way to enable MCP — this is the gate.
+  `services.DecodeSecretValue` → supports `_FILE` indirection). The env
+  var is the operator-override path and always wins. As of v0.1.20, the
+  token can also be configured via the Settings UI (`AppSettings.MCPToken`,
+  encrypted at rest via `secretbox`); the Settings path is consulted
+  only when the env var is unset. When neither is set the listener does
+  not start and an info log is emitted at boot. Either path is sufficient
+  to enable MCP — this dual-source resolution is the gate.
 - **Two equivalent transport-level auth shapes**, picked per client:
   - `Authorization: Bearer <token>` header (default; spec-conformant).
   - URL whose first path segment IS the token, e.g.
@@ -162,3 +166,45 @@ fixed before the v0.1.19 tag:
 - **URL-path auth form** added per the alternatives section — see the
   Transport, port, auth section above. Same security model, more ergonomic
   for `mcp-remote`-style clients.
+
+## v0.1.20 follow-up — Settings-driven configuration
+
+The v0.1.19 design required an env var to enable MCP, on the rationale
+that env-only is the simplest secure-by-default gate. v0.1.20 keeps
+that property — env still wins — and adds a second source: persisted
+`AppSettings` editable via the SPA's Settings page. Resolution order
+in `cmd/shellyctl/main.go`:
+
+1. `SHELLYADMIN_MCP_TOKEN` env var (operator override; always wins).
+2. `AppSettings.MCPEnabled && AppSettings.MCPToken != ""` (the Settings UI path).
+3. Otherwise, MCP is disabled.
+
+Token storage: encrypted at rest via the existing `internal/core/secretbox`
+envelope (NaCl secretbox; same path used for credential passwords).
+`services.SaveSettings` seals on write; `services.GetSettings` opens on
+read for internal callers. The API GET handler in `internal/api/handler.go`
+re-redacts the decrypted token to the `<set>` placeholder before the
+response leaves the process — plaintext never crosses the wire to the
+SPA. The placeholder also functions as the round-trip token: when the
+SPA re-saves settings it sends `<set>` for the token field, and
+`SaveSettings` interprets that as "preserve the existing stored value."
+
+UI changes (`web/src/pages/Settings.svelte`): Settings page reorganized
+from 3 cards (Discovery+Refresh+Firmware mixed, UI Preferences, Backup)
+into 5 cleaner cards: Discovery & Refresh, Firmware, **MCP (new)**,
+Display, Backup. The MCP card is gated by an `mcp_managed_by_env` flag
+returned by the API: when the env var is present, fields and the Save
+button are disabled and an "override" notice is shown so operators
+can't accidentally edit values that won't take effect.
+
+Validation: `ValidateSettings` rejects `MCPEnabled=true` with a token
+shorter than 16 characters. UI exposes a Generate button (CSPRNG → 64
+hex chars, same length as `openssl rand -hex 32`) so operators don't
+have to copy-paste from a terminal.
+
+Toggle effect is **restart-required** (matches how
+`SHELLYADMIN_PASS_HASH` already behaves). This was an explicit fork —
+live start/stop of the MCP listener goroutine would roughly double
+the implementation cost and require race-condition tests; the
+single-operator audience makes a restart acceptable. Reconsider for
+v0.2.x if a multi-operator deploy becomes a target.

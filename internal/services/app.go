@@ -16,6 +16,7 @@ import (
 	"shellyadmin/internal/core/compliance"
 	"shellyadmin/internal/core/provisioner"
 	"shellyadmin/internal/core/scanner"
+	"shellyadmin/internal/core/secretbox"
 	"shellyadmin/internal/db"
 	"shellyadmin/internal/models"
 )
@@ -507,13 +508,59 @@ func checkAuthRequired(ctx context.Context, ip string, timeout time.Duration) (b
 	return false, ""
 }
 
+// MCPTokenRedacted is the placeholder API GET handlers substitute for a
+// non-empty MCP token before returning settings to the SPA, and the value
+// SaveSettings interprets as "keep the existing token unchanged." Any
+// other value (including the empty string) replaces the stored token.
+const MCPTokenRedacted = "<set>"
+
 func (s *AppService) GetSettings() (models.AppSettings, error) {
-	return s.db.GetSettings()
+	settings, err := s.db.GetSettings()
+	if err != nil {
+		return settings, err
+	}
+	// Decrypt the persisted token (if any) so internal callers see the
+	// plaintext. The API GET handler is the boundary that re-redacts
+	// before returning to the SPA — see internal/api/handler.go.
+	if settings.MCPToken != "" && secretbox.IsBlob(settings.MCPToken) {
+		plain, derr := secretbox.OpenString(settings.MCPToken)
+		if derr != nil {
+			return settings, fmt.Errorf("decrypt mcp token: %w", derr)
+		}
+		settings.MCPToken = plain
+	}
+	return settings, nil
 }
 
 func (s *AppService) SaveSettings(settings models.AppSettings) error {
+	// "<set>" is the placeholder GET returns when a token is configured —
+	// when the SPA round-trips settings back unchanged we must NOT overwrite
+	// the stored token with a literal "<set>". Resolve it back to whatever
+	// is currently persisted.
+	if settings.MCPToken == MCPTokenRedacted {
+		current, err := s.db.GetSettings()
+		if err != nil {
+			return fmt.Errorf("read existing settings: %w", err)
+		}
+		if current.MCPToken != "" && secretbox.IsBlob(current.MCPToken) {
+			plain, derr := secretbox.OpenString(current.MCPToken)
+			if derr != nil {
+				return fmt.Errorf("decrypt existing mcp token: %w", derr)
+			}
+			settings.MCPToken = plain
+		} else {
+			settings.MCPToken = current.MCPToken
+		}
+	}
 	if err := ValidateSettings(settings); err != nil {
 		return err
+	}
+	if settings.MCPToken != "" {
+		sealed, err := secretbox.SealString(settings.MCPToken)
+		if err != nil {
+			return fmt.Errorf("encrypt mcp token: %w", err)
+		}
+		settings.MCPToken = sealed
 	}
 	return s.db.SaveSettings(settings)
 }
@@ -641,6 +688,9 @@ func ValidateSettings(settings models.AppSettings) error {
 	}
 	if lon := settings.Compliance.Lon; lon != nil && (*lon < -180 || *lon > 180) {
 		return fmt.Errorf("longitude must be between -180 and 180")
+	}
+	if settings.MCPEnabled && len(settings.MCPToken) < 16 {
+		return fmt.Errorf("mcp token must be at least 16 characters when MCP is enabled")
 	}
 	// Fail-fast on bad regex patterns in custom rules. Without this, a typo in
 	// the UI would silently classify every device as "mismatch" because the
