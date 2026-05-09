@@ -25,6 +25,7 @@ func register(server *mcp.Server, svc *services.AppService) {
 	registerSettingsTool(server, svc)
 	registerLogsTool(server, svc)
 	registerComplianceTool(server, svc)
+	registerActionTools(server, svc)
 }
 
 // tool wraps a typed handler with the standard audit-logging boilerplate

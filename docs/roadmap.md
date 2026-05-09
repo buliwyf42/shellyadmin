@@ -19,13 +19,14 @@ threat model and deployment expectations see [SECURITY.md](./SECURITY.md).
   without churn. Will need its own ADR to scope the command surface.
 - Periodic dependency pin review on a regular cadence (next pass: ~3 months
   out, or sooner if a CVE lands).
-- **MCP follow-ups (v0.2.x)**: state-changing tools (refresh, scan, firmware,
-  provision, settings) gated by an explicit confirmation/audit-trail design;
-  stdio sub-command (`shellyctl mcp`) for Claude Desktop on the same host;
-  per-token scoping; result paging / filter on `firmware_status` (currently
-  ~250 B/device, lean enough for a 44-device fleet but would approach the
-  per-tool output cap somewhere past 200 devices). Read-only baseline
-  shipped in v0.1.19 (ADR-0011).
+- **MCP follow-ups (v0.2.x)**: stdio sub-command (`shellyctl mcp`)
+  for Claude Desktop on the same host; per-token scoping (different
+  tokens granting different tool subsets); result paging / filter on
+  `firmware_status` (currently ~250 B/device, lean enough for a
+  44-device fleet but would approach the per-tool output cap
+  somewhere past 200 devices). Read-only baseline shipped in v0.1.19,
+  Settings UI in v0.1.20, live toggle in v0.1.21, state-changing
+  confirm-gated tools in v0.1.22 (ADR-0011 v0.1.22 follow-up).
 - **v0.2.0 cut:** removes `SHELLYADMIN_PASS` plaintext support; pulls major
   dep updates (eslint 10, vite 8, typescript 6, etc.) that were deferred
   in v0.1.14. Earliest target: 2026-07-22.
@@ -33,6 +34,21 @@ threat model and deployment expectations see [SECURITY.md](./SECURITY.md).
 ## Recently shipped
 
 ### 2026-05-09
+
+- **v0.1.22** — State-changing MCP tools, confirm-gated. 8 new tools
+  (refresh_device, refresh_all_devices, start_scan, confirm_scan,
+  firmware_check, firmware_install, execute_device_action,
+  bulk_action) bring fleet management into the MCP surface. Each
+  requires explicit `confirm: true` to execute; without it returns
+  a typed preview describing what would happen so the LLM can
+  summarize and obtain operator approval. Tool descriptions include
+  a verbatim "OPERATOR APPROVAL REQUIRED" policy paragraph; audit
+  rows tag `mode=preview` vs `mode=confirmed` and carry risk_level.
+  Hard-excluded: ShellyAdmin's own config (settings, credentials,
+  templates, provisioning, log clearing) — those stay SPA-only.
+  ADR-0011 amended with a v0.1.22 follow-up covering the design
+  trade-off (single confirm flag vs two-call token dance) and the
+  full tool table.
 
 - **v0.1.21** — Live MCP toggle (no restart required).
   v0.1.20's restart-required posture lifted: enabling, disabling, or
