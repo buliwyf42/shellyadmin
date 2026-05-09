@@ -180,7 +180,7 @@ func (s *AppService) GetDeviceDetail(target string) (DeviceDetail, error) {
 		return DeviceDetail{}, err
 	}
 	for _, device := range devices {
-		if device.MAC != target && device.IP != target {
+		if device.MAC != target && device.IP != target && device.Name != target {
 			continue
 		}
 		return DeviceDetail{

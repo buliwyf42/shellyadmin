@@ -79,6 +79,33 @@ func TestGetDeviceDetailIncludesSupportedActions(t *testing.T) {
 	}
 }
 
+func TestGetDeviceDetailResolvesByMACOrIPOrName(t *testing.T) {
+	database, service := testService(t)
+	_ = database.UpsertDevice(models.Device{
+		MAC:    "AA:BB:CC:DD:EE:05",
+		IP:     "192.168.1.50",
+		Name:   "kitchen-plug",
+		Online: true,
+		Gen:    2,
+	})
+
+	for _, target := range []string{"AA:BB:CC:DD:EE:05", "192.168.1.50", "kitchen-plug"} {
+		t.Run(target, func(t *testing.T) {
+			detail, err := service.GetDeviceDetail(target)
+			if err != nil {
+				t.Fatalf("GetDeviceDetail(%q) error = %v", target, err)
+			}
+			if detail.Device.MAC != "AA:BB:CC:DD:EE:05" {
+				t.Errorf("GetDeviceDetail(%q) device.MAC = %q, want AA:BB:CC:DD:EE:05", target, detail.Device.MAC)
+			}
+		})
+	}
+
+	if _, err := service.GetDeviceDetail("nope"); err == nil {
+		t.Errorf("GetDeviceDetail(nope) error = nil, want device not found")
+	}
+}
+
 func TestValidateSettingsAllowsMDNSWithoutSubnets(t *testing.T) {
 	err := ValidateSettings(models.AppSettings{
 		EnableMDNS:      true,

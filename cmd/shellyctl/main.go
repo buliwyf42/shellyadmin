@@ -22,6 +22,7 @@ import (
 	"shellyadmin/internal/api"
 	"shellyadmin/internal/core/secretbox"
 	"shellyadmin/internal/db"
+	"shellyadmin/internal/mcp"
 	"shellyadmin/internal/services"
 )
 
@@ -55,6 +56,9 @@ func main() {
 	dataDir := getenv("DATA_DIR", "./data")
 	port := getenv("PORT", "8080")
 	cookieSecure := getenv("COOKIE_SECURE", "true") == "true"
+	mcpToken := services.DecodeSecretValue("SHELLYADMIN_MCP_TOKEN")
+	mcpPort := getenv("SHELLYADMIN_MCP_PORT", "8081")
+	mcpBind := getenv("SHELLYADMIN_MCP_BIND", "0.0.0.0")
 	backendVersion := resolveBackendVersion()
 	backendCommit := resolveBackendCommit()
 
@@ -113,6 +117,24 @@ func main() {
 			panic(err)
 		}
 	}()
+
+	var mcpServer *http.Server
+	if mcpToken == "" {
+		slog.Info("MCP disabled (SHELLYADMIN_MCP_TOKEN not set)")
+	} else {
+		built, err := mcp.Build(database, dataDir, mcpToken, mcpBind, mcpPort, backendVersion)
+		if err != nil {
+			panic(fmt.Sprintf("mcp init failed: %v", err))
+		}
+		mcpServer = built
+		slog.Info("MCP server starting", "addr", mcpServer.Addr)
+		go func() {
+			if err := mcpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				panic(err)
+			}
+		}()
+	}
+
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
@@ -120,6 +142,11 @@ func main() {
 	defer cancel()
 	if err := server.Shutdown(ctx); err != nil {
 		panic(err)
+	}
+	if mcpServer != nil {
+		if err := mcpServer.Shutdown(ctx); err != nil {
+			slog.Warn("mcp shutdown", "err", err)
+		}
 	}
 	service.Stop(ctx)
 }
