@@ -8,16 +8,15 @@ The detailed security model lives in [docs/SECURITY.md](/Users/buliwyf/Documents
 
 Security fixes are best-effort while the project is in active early development.
 
-| Version | Supported |
-| --- | --- |
-| `v0.1.6` | Yes |
-| `v0.1.5` | Best effort |
-| `v0.1.4` | Best effort |
-| `v0.1.3` | No (older firmware-page bugs — upgrade) |
-| `v0.1.2` | No (scanner false-positive bug — upgrade) |
-| `v0.1.1` | No (scanner false-positive bug — upgrade) |
-| `v0.1.0` | No (scanner false-positive bug — upgrade) |
-| `v0.0.16` and older | No |
+| Version                                    | Supported   | Notes                                                                                                                                 |
+| ------------------------------------------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `v0.1.18`                                  | Yes         | Current baseline                                                                                                                      |
+| `v0.1.17`, `v0.1.16`, `v0.1.15`, `v0.1.13` | Best effort | Recent v0.1.x sweep                                                                                                                   |
+| `v0.1.14`                                  | **No**      | Broken release — `go.mod` directive forced 1.25 with CI on 1.24, no GHCR image was published. Upgrade directly to `v0.1.15` or later. |
+| `v0.1.7` – `v0.1.12`                       | Best effort | Operational improvements; no known unfixed CVEs                                                                                       |
+| `v0.1.4` – `v0.1.6`                        | Best effort | Older v0.1.x — prefer the most recent release                                                                                         |
+| `v0.1.0` – `v0.1.3`                        | No          | Scanner false-positive / firmware-page bugs — upgrade                                                                                 |
+| `v0.0.16` and older                        | No          |                                                                                                                                       |
 
 ## Reporting a Vulnerability
 
@@ -35,8 +34,9 @@ When reporting, include:
 ## Deployment Expectations
 
 - Keep ShellyAdmin on a trusted LAN or behind a private reverse proxy.
-- Set strong `SHELLYADMIN_PASS` and `SHELLYADMIN_SECRET` values for real deployments.
-- Prefer `SHELLYADMIN_PASS_FILE` and `SHELLYADMIN_SECRET_FILE` for containers.
+- **Use `SHELLYADMIN_PASS_HASH`** (argon2id PHC from `shellyctl hash-password`) for the admin password. `SHELLYADMIN_PASS` (plaintext) still works but is scheduled for removal in v0.2.0 (no earlier than 2026-07-22).
+- Set a strong `SHELLYADMIN_SECRET` for real deployments.
+- Prefer `SHELLYADMIN_PASS_HASH_FILE`, `SHELLYADMIN_SECRET_FILE`, and `SHELLYADMIN_ENCRYPTION_KEY_FILE` for containers — keep cleartext out of environment files and container manifests.
 - Treat the product as a LAN admin tool, not an internet-facing identity system.
 
 ## Hardening notes

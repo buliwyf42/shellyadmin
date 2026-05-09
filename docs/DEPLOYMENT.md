@@ -21,19 +21,29 @@ Supported environments:
 
 Supported runtime variables:
 
-- `SHELLYADMIN_USER`
-- `SHELLYADMIN_PASS`
-- `SHELLYADMIN_PASS_FILE`
-- `SHELLYADMIN_SECRET`
-- `SHELLYADMIN_SECRET_FILE`
-- `DATA_DIR`
-- `PORT`
-- `COOKIE_SECURE`
+| Variable                               | Purpose                                                                        | Notes                                                                                                                                                                  |
+| -------------------------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SHELLYADMIN_USER`                     | Admin username                                                                 | Default `admin`                                                                                                                                                        |
+| `SHELLYADMIN_PASS_HASH` / `_FILE`      | **Preferred** — argon2id PHC string from `shellyctl hash-password <plaintext>` | The hash sits in env/memory at runtime; never the cleartext                                                                                                            |
+| `SHELLYADMIN_PASS` / `_FILE`           | Plaintext admin password (deprecated)                                          | Logs a startup warning. **Scheduled for removal in v0.2.0, no earlier than 2026-07-22**. Migrate before then.                                                          |
+| `SHELLYADMIN_SECRET` / `_FILE`         | Cookie/session signing secret                                                  | Auto-generated if unset, but persists only for the process lifetime                                                                                                    |
+| `SHELLYADMIN_ENCRYPTION_KEY` / `_FILE` | base64-encoded 32-byte key for credential at-rest encryption                   | Optional — generated on first boot at `${DATA_DIR}/shellyadmin.key` (mode 0600) if unset. Back it up alongside the database; losing it orphans every stored credential |
+| `DATA_DIR`                             | SQLite + key + log directory                                                   | Default `./data`                                                                                                                                                       |
+| `PORT`                                 | HTTP listen port                                                               | Default `8080`                                                                                                                                                         |
+| `COOKIE_SECURE`                        | `true` to send the `Secure` flag on session cookies                            | Set when behind TLS                                                                                                                                                    |
 
 Recommended:
 
-- use `*_FILE` variants for container secrets
+- use the `_HASH` (preferred) or at minimum `_FILE` variants in containers — the cleartext should not sit in environment files or container manifests
 - set `COOKIE_SECURE=true` when behind TLS
+
+### Configurable knobs surfaced in Settings
+
+These live in the SQLite `settings` row, not env vars, but are worth knowing during deployment:
+
+- **Firmware install timeout** (`firmware_install_timeout`, default `300` s): per-device cap before the install_job marks "unknown".
+- **Firmware install poll cadence** (`firmware_install_poll_interval`, default `5` s, bounded `[1, 60]`): how often the install_job re-queries each device's firmware version while waiting for the post-`Shelly.Update` reboot. Lower for snappier feedback on a small fleet, raise for slow devices.
+- **Scheduled firmware check** (`firmware_check_interval`, default `0` = off): periodic fleet-wide `firmware_check` cadence in seconds.
 
 ## Docker Compose
 
@@ -44,34 +54,41 @@ The repo includes:
 
 Current expected flows:
 
-Published image:
+Published image (preferred path uses `SHELLYADMIN_PASS_HASH` — generate with `shellyctl hash-password`):
 
 ```bash
+HASH=$(docker run --rm ghcr.io/buliwyf42/shellyadmin:latest shellyctl hash-password 'change-this-admin-password')
 docker run -d \
   --name shellyadmin \
   -p 8080:8080 \
   -v shellyadmin-data:/data \
-  -e SHELLYADMIN_PASS='change-this-admin-password' \
+  -e SHELLYADMIN_PASS_HASH="$HASH" \
   -e SHELLYADMIN_SECRET='change-this-cookie-secret' \
   -e COOKIE_SECURE=false \
   ghcr.io/buliwyf42/shellyadmin:latest
 ```
 
+`SHELLYADMIN_PASS` (plaintext) still works for backward compatibility but logs a deprecation warning and is scheduled for removal in v0.2.0 (no earlier than 2026-07-22).
+
 This quick-start example is only for plain HTTP on a trusted LAN. For a more durable deployment, use the `*_FILE` secret variants and set `COOKIE_SECURE=true` when serving through TLS.
 
 Tagged source checkout:
 
-1. Check out a tagged GitHub release, for example `v0.1.6`
-2. Provide the required secrets files
-3. Build and run with Compose from the repository root
+1. Check out a tagged GitHub release (e.g. `v0.1.18`).
+2. Provide the required secrets files (the bundled compose expects them under `secrets/`).
+3. Build and run with Compose from the repository root.
 
 Example:
 
 ```bash
 git clone https://github.com/buliwyf42/shellyadmin.git
 cd shellyadmin
-git checkout v0.1.6
+git checkout v0.1.18
 mkdir -p secrets
+# Preferred: write a hash to secrets/shellyadmin_pass.txt and switch the
+# compose file to SHELLYADMIN_PASS_HASH_FILE (commented out by default).
+# docker run --rm ghcr.io/buliwyf42/shellyadmin:latest shellyctl hash-password 'change-this-admin-password' > secrets/shellyadmin_pass.txt
+# Backward-compat: a plaintext value here still works (deprecation warning).
 openssl rand -base64 24 > secrets/shellyadmin_pass.txt
 openssl rand -base64 32 > secrets/shellyadmin_secret.txt
 docker compose -f docker/docker-compose.yml up -d --build
