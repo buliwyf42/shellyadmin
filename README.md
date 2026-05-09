@@ -15,7 +15,7 @@ It is designed as a single-container deployment with:
 ## Status
 
 This repository is under active development.
-Current UI/API baseline is `v0.1.18`.
+Current UI/API baseline is `v0.1.19`.
 
 Public support posture:
 
@@ -206,6 +206,51 @@ Compatibility note:
 - the external product, Docker, and GitHub-facing name remains `ShellyAdmin`
 
 See [docs/DEPLOYMENT.md](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/docs/DEPLOYMENT.md) for deployment guidance.
+
+## Optional: MCP Server (Read-Only)
+
+ShellyAdmin can expose a read-only [Model Context Protocol](https://modelcontextprotocol.io) server so LLM-driven agents (Claude Desktop, Claude Code, custom MCP clients) can introspect the fleet — list devices, check scan/firmware status, read compliance, inspect logs — without scraping the SPA. State-changing operations (refresh, scan, firmware update, provision, settings writes) are deliberately not exposed in v1; see [docs/adr/0011-mcp-read-only-server.md](docs/adr/0011-mcp-read-only-server.md).
+
+The listener is **off by default**. Set `SHELLYADMIN_MCP_TOKEN` to enable it. Clients can authenticate either via the standard `Authorization: Bearer <token>` header **or** by putting the token as the first URL path segment (e.g. `http://host:8081/<token>/`) — convenient for clients like `mcp-remote` where a header arg is awkward.
+
+| Env var | Default | Purpose |
+|---------|---------|---------|
+| `SHELLYADMIN_MCP_TOKEN` | unset | Required to enable MCP. Supports `_FILE` indirection like other secrets. |
+| `SHELLYADMIN_MCP_PORT` | `8081` | Port for the MCP listener. |
+| `SHELLYADMIN_MCP_BIND` | `0.0.0.0` | Bind address. Set to `127.0.0.1` for loopback-only. |
+
+Example Claude Desktop config (`mcp.json`) — header form:
+
+```json
+{
+  "mcpServers": {
+    "shellyadmin": {
+      "url": "http://your-shellyadmin-host:8081/",
+      "headers": { "Authorization": "Bearer your-token-here" }
+    }
+  }
+}
+```
+
+Same client routed through `mcp-remote` (which doesn't natively expose a header field) using the URL-path form:
+
+```json
+{
+  "mcpServers": {
+    "shellyadmin": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote",
+        "http://your-shellyadmin-host:8081/your-token-here",
+        "--allow-http"
+      ]
+    }
+  }
+}
+```
+
+When MCP is enabled, every tool call writes to the same audit log the SPA shows on the Logs page (prefixed with `mcp `, filterable by request id).
 
 ## What Works Today
 

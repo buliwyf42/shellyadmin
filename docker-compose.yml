@@ -1,9 +1,12 @@
 services:
   shellyadmin:
-    image: ghcr.io/buliwyf42/shellyadmin:v0.0.5
+    image: ghcr.io/buliwyf42/shellyadmin:v0.1.19
     container_name: shellyadmin
     ports:
       - "8080:8080"
+      # Uncomment to expose the read-only MCP listener (only binds when
+      # SHELLYADMIN_MCP_TOKEN is set on the environment block below).
+      # - "8081:8081"
     volumes:
       - /docker/shellyadmin:/data
     environment:
@@ -12,6 +15,9 @@ services:
       SHELLYADMIN_PASS: ${SHELLYADMIN_PASS:-change-this-admin-password}
       SHELLYADMIN_SECRET: ${SHELLYADMIN_SECRET:-change-this-cookie-secret}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      # Set to enable the read-only MCP listener. Clients send
+      # `Authorization: Bearer <this value>`. Leave unset to keep MCP off.
+      # SHELLYADMIN_MCP_TOKEN: ${SHELLYADMIN_MCP_TOKEN:-}
     read_only: true
     tmpfs:
       - /tmp

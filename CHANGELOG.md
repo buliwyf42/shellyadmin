@@ -4,6 +4,108 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.19] - 2026-05-09 — Optional read-only MCP server
+
+First feature-surface expansion since v0.1.12. Adds an opt-in,
+read-only Model Context Protocol server embedded in the existing
+binary so LLM-driven agents (Claude Desktop, Claude Code, custom MCP
+clients) can introspect the fleet — without exposing any
+state-changing operation. Listener is off unless `SHELLYADMIN_MCP_TOKEN`
+is set; gated by static bearer-token auth. Design rationale in
+[ADR-0011](docs/adr/0011-mcp-read-only-server.md).
+
+### Added
+- New package `internal/mcp/` (server, auth, redact, tools, tests).
+  Streamable HTTP transport via the official
+  `github.com/modelcontextprotocol/go-sdk` v1.6.0; typed-generic
+  `mcp.AddTool[In, Out]` so each tool's JSON schema is generated from
+  its Go input struct.
+- 13 read-only tools, all thin adapters over `services.AppService`:
+  - **Devices**: `list_devices` (with `search` / `gen` / `limit`
+    filters), `get_device`, `list_device_actions`, `export_device`.
+  - **Job status**: `scan_status`, `firmware_status`,
+    `firmware_install_status`.
+  - **Configuration**: `list_templates`, `get_template`,
+    `list_credentials` (redacted — never returns plaintext password
+    or HA1), `get_settings`.
+  - **Audit & compliance**: `get_logs` (with `level` / `search` /
+    `risk` / `limit`), `compliance_summary`.
+- `internal/mcp/redact.go` + `redact_test.go` enforce the
+  no-plaintext-secrets rule in code, not docs. The credential output
+  type omits Password and HA1 fields entirely so even an accidental
+  marshal cannot leak them.
+- Auth middleware accepts the static token via either the standard
+  `Authorization: Bearer <token>` header or a URL whose first path
+  segment IS the token (`http://host:8081/<token>/`, the same shape
+  Home Assistant's MCP integration uses) — convenient for clients like
+  `mcp-remote` where header args are awkward. Both checks run through
+  `subtle.ConstantTimeCompare`; the matched path prefix is stripped
+  before reaching the SDK handler. HTTP listener returns plain `401
+  unauthorized` for missing / wrong tokens.
+- Request-ID middleware honours an inbound `X-Request-ID` header
+  (sanitized to `[A-Za-z0-9_-]{1,64}`) or generates a fresh 16-hex-char
+  id, then propagates via `middleware.WithRequestID` so every tool
+  call's audit row carries it. Echoes the value back on the response
+  for client-side correlation.
+- New env vars (parsed in `cmd/shellyctl/main.go`):
+  - `SHELLYADMIN_MCP_TOKEN` (required to enable; `_FILE` indirection
+    supported via `services.DecodeSecretValue`).
+  - `SHELLYADMIN_MCP_PORT` (default `8081`).
+  - `SHELLYADMIN_MCP_BIND` (default `0.0.0.0`; set to `127.0.0.1` for
+    loopback-only).
+- ADR-0011 documents the design (read-only-first scope, transport
+  choice, secret-hygiene boundary, alignment with the planned
+  `shellyctl` CLI).
+
+### Hard exclusions in v1
+Refresh, scan trigger, scan confirm, firmware check, firmware update,
+firmware install, provision, upload-CA, save/delete templates,
+save/delete credentials, save settings, clear logs, run bulk action,
+set auto-update. State-changing tools are deferred — they need a
+confirmation/audit-trail design that the read-only baseline does not
+provide. See ADR-0011 "Hard exclusions" and the roadmap "Next (pre-v1)"
+entry for v0.2.x follow-ups.
+
+### Audit logging
+Every tool invocation logs at `info` (or `warn` on tool error) through
+`service.LogCtx(ctx, ...)`. Entries appear in `/api/logs` and the
+SPA's Logs page filterable by request_id, prefixed with `mcp `.
+
+### Container
+- `docker/Dockerfile` adds `EXPOSE 8081`. Existing
+  `:8080/health` healthcheck unchanged.
+- `docker-compose.yml` adds a commented-out `8081:8081` port mapping
+  and a commented-out `SHELLYADMIN_MCP_TOKEN` env line so operators
+  see the opt-in path. Pinned image tag bumped from `v0.0.5` (very
+  stale) to `v0.1.19`.
+
+### Dependency bump check
+Adding `github.com/modelcontextprotocol/go-sdk@v1.6.0` (and its
+transitives — `google/jsonschema-go`, `yosida95/uritemplate`,
+`golang/oauth2`, `segmentio/encoding`, `golang-jwt/jwt`) does **not**
+raise the `go.mod` directive. Dep-bump-trap check (per CLAUDE.md)
+keeps `go 1.25.0` at the top.
+
+### Fixed (post-deploy refinements, same day)
+- `scan_status.pending` now returns a slim per-device summary
+  (`{mac, ip, name, model, gen, app}`) instead of the full
+  `models.Device` shape with its ~150-entry `supported_methods` list.
+  On a 44-device fleet the response shrank from ~63 KB → ~7.5 KB,
+  fitting under MCP client per-tool output caps. The SPA's scan
+  workflow keeps the full shape — only the MCP adapter slims it.
+- `services.GetDeviceDetail` now resolves targets by name in addition
+  to MAC and IP. The MCP tool descriptions for `get_device`,
+  `list_device_actions`, and `export_device` advertised name
+  resolution; the underlying lookup did not, so name-based calls
+  errored with `device not found`. Fix is at the service layer so all
+  four callers benefit.
+
+### Migration notes
+None. New env var is opt-in; when unset, MCP is off and the listener
+does not bind. No DB migration. No public-signature changes to the
+existing HTTP API. Both auth shapes use the same `SHELLYADMIN_MCP_TOKEN`,
+so existing bearer-header configs continue to work unchanged.
+
 ## [0.1.18] - 2026-05-08 — Setters round-out + provisioning integration smoke
 
 Step 3 (final) of the M3 testability foundation. Closes the coverage gap

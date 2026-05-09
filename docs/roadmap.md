@@ -19,11 +19,44 @@ threat model and deployment expectations see [SECURITY.md](./SECURITY.md).
   without churn. Will need its own ADR to scope the command surface.
 - Periodic dependency pin review on a regular cadence (next pass: ~3 months
   out, or sooner if a CVE lands).
+- **MCP follow-ups (v0.2.x)**: state-changing tools (refresh, scan, firmware,
+  provision, settings) gated by an explicit confirmation/audit-trail design;
+  stdio sub-command (`shellyctl mcp`) for Claude Desktop on the same host;
+  per-token scoping; result paging / filter on `firmware_status` (currently
+  ~250 B/device, lean enough for a 44-device fleet but would approach the
+  per-tool output cap somewhere past 200 devices). Read-only baseline
+  shipped in v0.1.19 (ADR-0011).
 - **v0.2.0 cut:** removes `SHELLYADMIN_PASS` plaintext support; pulls major
   dep updates (eslint 10, vite 8, typescript 6, etc.) that were deferred
   in v0.1.14. Earliest target: 2026-07-22.
 
 ## Recently shipped
+
+### 2026-05-09
+
+- **v0.1.19** — Optional read-only MCP server. New `internal/mcp` package
+  embedded in the existing binary; binds on `:8081` only when
+  `SHELLYADMIN_MCP_TOKEN` is set, off otherwise. 13 tools (list_devices,
+  get_device, list_device_actions, scan_status, firmware_status,
+  firmware_install_status, list_templates, get_template, list_credentials
+  (redacted), get_settings, get_logs, export_device, compliance_summary)
+  as thin adapters over `services.AppService`. Static token auth via
+  either `Authorization: Bearer <token>` header **or** first URL path
+  segment (`http://host:8081/<token>/`, the same shape Home Assistant's
+  MCP integration uses for `mcp-remote`-style clients) — both run
+  through `subtle.ConstantTimeCompare`; `X-Request-ID` honored and
+  audit lines flow through `service.LogCtx` so MCP activity shows up
+  in `/api/logs` with `mcp ` prefix. Hard exclusion: anything that
+  mutates state. Picks the official
+  `github.com/modelcontextprotocol/go-sdk` v1.6.0 (just hit v1.0;
+  typed-generic `mcp.AddTool` auto-generates JSON schemas from input
+  structs). Dep-bump-trap check passes — top entries stay at `1.25.0`.
+  Same-day post-deploy refinements: `scan_status.pending` slimmed to a
+  6-field summary (~63 KB → ~7.5 KB on a 44-device fleet) so the response
+  fits in MCP client output caps; `services.GetDeviceDetail` now resolves
+  by name in addition to MAC/IP, fixing `get_device` /
+  `list_device_actions` / `export_device` for name-based lookups.
+  Design rationale in [adr/0011-mcp-read-only-server.md](./adr/0011-mcp-read-only-server.md).
 
 ### 2026-05-08
 

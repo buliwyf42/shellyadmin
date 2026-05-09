@@ -45,6 +45,7 @@ The current accepted decision set includes:
   - `app_backup.go` — backup export/import and dry-run impact reporting
   - `app_credentials.go` — credential and credential-group CRUD
 - `internal/core`: Shelly protocol logic — `scanner`, `firmware`, `setters`, `provisioner`, `compliance`, `shellyclient`, `secretbox`, plus the small `clock` package that abstracts wall time so the protocol packages can be tested deterministically without mocking the time package globally. `internal/core/firmware/autoupdate.go` reads/writes the per-device auto-update mode by manipulating `Schedule.*` jobs (Shelly Gen2+ has no dedicated OTA-config method)
+- `internal/mcp`: optional read-only Model Context Protocol server (added v0.1.19). When `SHELLYADMIN_MCP_TOKEN` is set, the binary starts a second HTTP listener on `:8081` exposing 13 read-only tools as thin adapters over `services.AppService`. Listener is off by default; bearer-token gated. Design rationale in [adr/0011-mcp-read-only-server.md](./adr/0011-mcp-read-only-server.md).
 - `internal/db`: persistence and migrations
 - `web`: embedded Svelte UI
 
