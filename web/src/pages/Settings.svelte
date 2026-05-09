@@ -17,6 +17,9 @@
     firmware_install_timeout: 300,
     firmware_install_poll_interval: 5,
     firmware_check_interval: 0,
+    mcp_enabled: false,
+    mcp_token: '',
+    mcp_managed_by_env: false,
     compliance: {},
   };
 
@@ -102,6 +105,39 @@
     }
   }
 
+  /**
+   * Generate a fresh 64-hex-char MCP token (32 bytes of CSPRNG-backed
+   * randomness). Same length as `openssl rand -hex 32`. The new value
+   * replaces the placeholder text in the input but is not persisted
+   * until Save Settings.
+   */
+  function generateMCPToken() {
+    const bytes = new Uint8Array(32);
+    crypto.getRandomValues(bytes);
+    const hex = Array.from(bytes)
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+    settings = { ...settings, mcp_token: hex };
+    mcpTokenVisible = true;
+  }
+
+  async function copyMCPToken() {
+    if (!settings.mcp_token || settings.mcp_token === '<set>') return;
+    try {
+      await navigator.clipboard.writeText(settings.mcp_token);
+      setStatus('Token copied');
+    } catch (err) {
+      captureError(err);
+    }
+  }
+
+  function clearMCPToken() {
+    settings = { ...settings, mcp_token: '' };
+    mcpTokenVisible = false;
+  }
+
+  let mcpTokenVisible = false;
+
   async function exportBackup() {
     clearMessages();
     try {
@@ -155,15 +191,20 @@
 {/if}
 
 <div class="row g-3">
+  <!-- Card 1: Discovery & Refresh -->
   <div class="col-lg-6">
-    <div class="card bg-dark border-secondary">
+    <div class="card bg-dark border-secondary h-100">
       <div class="card-body">
         <h2 class="h5">Discovery & Refresh</h2>
+        <p class="text-secondary small mb-3">
+          Where to look for devices and how aggressively. mDNS works best on hosts that can receive
+          local multicast traffic; Docker setups may need host networking for reliable results.
+        </p>
         <label class="form-label" for="settings-subnets">Subnets (one per line)</label>
         <textarea
           id="settings-subnets"
           class="form-control mb-3"
-          rows="6"
+          rows="5"
           value={settings.subnets.join('\n')}
           on:input={(e) =>
             (settings.subnets = (e.currentTarget as HTMLTextAreaElement).value
@@ -202,16 +243,28 @@
           <input type="checkbox" class="form-check-input" bind:checked={settings.enable_mdns} />
           <span>Enable mDNS-assisted discovery</span>
         </label>
-        <p class="text-secondary mt-2 mb-3">
-          Tune discovery, refresh, and concurrency here. mDNS works best on hosts that can receive
-          local multicast traffic; Docker setups may need host networking for reliable results.
-        </p>
 
-        <h3 class="h6 mt-4">Firmware</h3>
+        <button class="btn btn-warning text-dark mt-3" on:click={saveSettings}>Save Settings</button
+        >
+      </div>
+    </div>
+  </div>
+
+  <!-- Card 2: Firmware -->
+  <div class="col-lg-6">
+    <div class="card bg-dark border-secondary h-100">
+      <div class="card-body">
+        <h2 class="h5">Firmware</h2>
+        <p class="text-secondary small mb-3">
+          The scheduled check skips a tick if a manual Check Firmware is already running. Install
+          timeout is per-device, not job-total — a fleet of 50 devices still completes in minutes
+          thanks to bounded parallel installs. Lower the install poll for snappier feedback on a
+          small fleet; raise it to be gentler on slow devices.
+        </p>
         <div class="row g-3">
           <div class="col-md-4">
             <label class="form-label" for="settings-firmware-check-interval">
-              Scheduled firmware check
+              Scheduled check
             </label>
             <select
               id="settings-firmware-check-interval"
@@ -254,23 +307,131 @@
             />
           </div>
         </div>
-        <p class="text-secondary small mt-2 mb-0">
-          The scheduled check skips a tick if a manual Check Firmware is already running. Install
-          timeout is per-device, not job-total — a fleet of 50 devices still completes in minutes
-          thanks to bounded parallel installs. Lower the install poll for snappier feedback on a
-          small fleet; raise it to be gentler on slow devices.
-        </p>
 
         <button class="btn btn-warning text-dark mt-3" on:click={saveSettings}>Save Settings</button
         >
       </div>
     </div>
   </div>
+
+  <!-- Card 3: MCP server (read-only API for LLM agents) -->
   <div class="col-lg-6">
-    <div class="card bg-dark border-secondary">
+    <div class="card bg-dark border-secondary h-100">
       <div class="card-body">
-        <h2 class="h5">UI Preferences</h2>
-        <label class="d-flex gap-2 align-items-center">
+        <h2 class="h5">MCP Server <span class="badge bg-secondary ms-2">Read-only</span></h2>
+        <p class="text-secondary small mb-3">
+          Exposes a Model Context Protocol server on port 8081 (default) so LLM-driven agents can
+          introspect the fleet — list devices, check firmware status, read compliance, inspect logs.
+          State-changing operations are deliberately not exposed. Changes here apply on the next
+          container restart.
+        </p>
+
+        {#if settings.mcp_managed_by_env}
+          <div class="alert alert-secondary py-2 small mb-3">
+            <strong>Managed by environment variable.</strong> The
+            <code>SHELLYADMIN_MCP_TOKEN</code>
+            env var is set on this container, so the fields below are ignored at boot. Unset the env var
+            (and restart) to switch to settings-driven configuration.
+          </div>
+        {/if}
+
+        <label class="d-flex gap-2 align-items-center mb-3">
+          <input
+            type="checkbox"
+            class="form-check-input"
+            bind:checked={settings.mcp_enabled}
+            disabled={settings.mcp_managed_by_env}
+          />
+          <span>Enable MCP server on next restart</span>
+        </label>
+
+        <label class="form-label" for="settings-mcp-token">Token</label>
+        <div class="input-group mb-2">
+          <input
+            id="settings-mcp-token"
+            class="form-control font-monospace"
+            type={mcpTokenVisible ? 'text' : 'password'}
+            placeholder="64-character hex recommended"
+            autocomplete="off"
+            spellcheck="false"
+            bind:value={settings.mcp_token}
+            disabled={settings.mcp_managed_by_env}
+          />
+          <button
+            class="btn btn-outline-light"
+            type="button"
+            on:click={() => (mcpTokenVisible = !mcpTokenVisible)}
+            disabled={settings.mcp_managed_by_env || !settings.mcp_token}
+            title={mcpTokenVisible ? 'Hide token' : 'Show token'}
+            aria-label={mcpTokenVisible ? 'Hide token' : 'Show token'}
+          >
+            {mcpTokenVisible ? 'Hide' : 'Show'}
+          </button>
+          <button
+            class="btn btn-outline-light"
+            type="button"
+            on:click={generateMCPToken}
+            disabled={settings.mcp_managed_by_env}
+            title="Replace with a fresh 32-byte CSPRNG token (64 hex chars)"
+          >
+            Generate
+          </button>
+          <button
+            class="btn btn-outline-light"
+            type="button"
+            on:click={copyMCPToken}
+            disabled={settings.mcp_managed_by_env ||
+              !settings.mcp_token ||
+              settings.mcp_token === '<set>'}
+            title="Copy plaintext token to clipboard"
+          >
+            Copy
+          </button>
+          <button
+            class="btn btn-outline-danger"
+            type="button"
+            on:click={clearMCPToken}
+            disabled={settings.mcp_managed_by_env || !settings.mcp_token}
+            title="Clear stored token (will require a fresh one before re-enabling)"
+          >
+            Clear
+          </button>
+        </div>
+        <p class="text-secondary small mb-3">
+          {#if settings.mcp_token === '<set>'}
+            A token is currently configured. Click <em>Generate</em> to rotate it, or
+            <em>Clear</em>
+            to remove it.
+          {:else if settings.mcp_token}
+            Token is set in the form but not yet saved. Use <em>Copy</em> to put it on the clipboard for
+            your MCP client config, then click Save Settings.
+          {:else}
+            No token configured. The MCP server will not start until a token is set and the
+            container is restarted.
+          {/if}
+        </p>
+
+        <button
+          class="btn btn-warning text-dark"
+          on:click={saveSettings}
+          disabled={settings.mcp_managed_by_env}
+        >
+          Save Settings
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Card 4: Display -->
+  <div class="col-lg-6">
+    <div class="card bg-dark border-secondary h-100">
+      <div class="card-body">
+        <h2 class="h5">Display</h2>
+        <p class="text-secondary small mb-3">
+          UI preferences. <em>Advanced mode</em> reveals power-user surfaces such as the raw JSON template
+          editor on the Provision page; off by default so the guided form is the only entry point.
+        </p>
+        <label class="d-flex gap-2 align-items-center mb-3">
           <input
             type="checkbox"
             class="form-check-input"
@@ -278,12 +439,8 @@
           />
           <span>Enable advanced mode</span>
         </label>
-        <p class="text-secondary mt-2 mb-3">
-          When enabled, power-user surfaces such as the raw JSON template editor on the Provision
-          page are shown. Off by default so the guided form is the only entry point.
-        </p>
 
-        <h3 class="h6 mt-4">Generation badge colors</h3>
+        <h3 class="h6 mt-3">Generation badge colors</h3>
         <p class="text-secondary small mb-2">
           Used on the Devices and Firmware pages. Live preview:
           <span class={`badge ${settings.gen2_badge_class || 'bg-warning text-dark'}`}>Gen 2.x</span

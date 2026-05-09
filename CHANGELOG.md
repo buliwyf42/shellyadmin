@@ -4,6 +4,91 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.20] - 2026-05-09 — Settings UI for MCP + page reorganization
+
+Brings the v0.1.19 MCP server out of env-only territory: operators can
+now enable, disable, and rotate the MCP token from the Settings page,
+without touching the container's `docker run` line. The env var
+(`SHELLYADMIN_MCP_TOKEN`) still takes precedence, preserving the
+operator-override path for headless / CI / Compose-managed deploys —
+when it's set, the UI fields render read-only with a "managed by
+environment variable" notice. The Settings page itself was
+reorganized as part of the same change: 3 mixed cards became 5
+focused cards (Discovery & Refresh, Firmware, MCP, Display, Backup).
+
+### Added
+- `models.AppSettings` gains `MCPEnabled bool` and `MCPToken string`,
+  plus a read-only `MCPManagedByEnv bool` populated by the API GET
+  handler. Persisted token is encrypted at rest via
+  `internal/core/secretbox` (NaCl secretbox; same envelope used for
+  credential passwords and HA1 hashes).
+- `services.SaveSettings` seals the plaintext token before writing;
+  `services.GetSettings` opens it for internal callers. The API GET
+  handler in `internal/api/handler.go` re-redacts the token to a
+  `<set>` placeholder (exposed as `services.MCPTokenRedacted`) before
+  the response leaves the process — plaintext never crosses the wire
+  to the SPA. `<set>` round-trips as "preserve the existing stored
+  token" on save, so the SPA can re-submit settings without exposing
+  or accidentally clobbering the secret.
+- `cmd/shellyctl/main.go` MCP-startup block now consults
+  `services.GetSettings()` when `SHELLYADMIN_MCP_TOKEN` is unset, and
+  enables the listener with the persisted token if
+  `MCPEnabled && MCPToken != ""`. Startup logs which path activated:
+  `MCP enabled via settings (env var not set)` for the new path,
+  `MCP server starting addr=…` for both. When neither source supplies
+  a token, the existing `MCP disabled (no token in env or settings)`
+  log line fires.
+- `ValidateSettings` rejects `MCPEnabled=true` with a token shorter
+  than 16 characters.
+- New MCP card on the Settings page (`web/src/pages/Settings.svelte`):
+  Enable toggle, password-style token input with **Show / Hide /
+  Generate / Copy / Clear** buttons. Generate uses
+  `crypto.getRandomValues` to produce 64 hex chars (same length as
+  `openssl rand -hex 32`). Per-state hint text guides the operator
+  through "no token" → "token in form, not saved" → "token configured
+  (`<set>`)". When `mcp_managed_by_env` comes back true, all controls
+  on the card are disabled and the override notice replaces the
+  hint text. UI cleanup: the Settings page reorganized from 3 cards
+  (Discovery+Refresh+Firmware mixed, UI Preferences, Backup) into 5
+  (Discovery & Refresh, Firmware, MCP, Display, Backup) with `h-100`
+  on each card so the column heights line up. UI Preferences renamed
+  to **Display** for accuracy.
+- ADR-0011 amended with a "v0.1.20 follow-up — Settings-driven
+  configuration" section documenting the precedence rule, encryption
+  approach, redaction boundary, validation, and the explicit
+  restart-required-vs-live-toggle decision.
+
+### Tests
+- `internal/services/app_test.go`:
+  `TestSaveSettingsEncryptsMCPTokenAndRoundTripsPlaintext` confirms
+  the persisted form differs from plaintext but `GetSettings` returns
+  the original;
+  `TestSaveSettingsPreservesTokenWhenSentRedactedPlaceholder` confirms
+  the SPA can round-trip settings without clobbering the stored
+  token; `TestValidateSettingsRejectsShortMCPToken` and
+  `TestValidateSettingsAllowsEmptyTokenWhenMCPDisabled` cover the new
+  validation rule.
+
+### Live verification (44-device fleet)
+- API GET with env set returns `mcp_managed_by_env: true`,
+  `mcp_token: "<set>"`.
+- API POST with a fresh plaintext token persists encrypted; restart
+  without the env var brings up MCP using the persisted token
+  (`MCP enabled via settings (env var not set)`); both header and
+  URL-path auth succeed with the new token. The previously valid
+  env-var token is correctly rejected once the env is unset.
+- Restoring the env var brings precedence back to the env path
+  immediately on next restart.
+
+### Migration notes
+None. Existing deployments using `SHELLYADMIN_MCP_TOKEN` continue to
+work unchanged — the env var still wins. Operators who want to migrate
+to settings-driven config can: configure the token in the Settings UI
+and verify Save shows `<set>`, drop the env var from `docker run` /
+compose, restart. The persisted token then drives MCP startup. The
+DB schema is unchanged (settings are stored as JSON), so downgrades
+to v0.1.19 silently ignore the new fields.
+
 ## [0.1.19] - 2026-05-09 — Optional read-only MCP server
 
 First feature-surface expansion since v0.1.12. Adds an opt-in,

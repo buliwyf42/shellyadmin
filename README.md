@@ -211,7 +211,7 @@ See [docs/DEPLOYMENT.md](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/sh
 
 ShellyAdmin can expose a read-only [Model Context Protocol](https://modelcontextprotocol.io) server so LLM-driven agents (Claude Desktop, Claude Code, custom MCP clients) can introspect the fleet — list devices, check scan/firmware status, read compliance, inspect logs — without scraping the SPA. State-changing operations (refresh, scan, firmware update, provision, settings writes) are deliberately not exposed in v1; see [docs/adr/0011-mcp-read-only-server.md](docs/adr/0011-mcp-read-only-server.md).
 
-The listener is **off by default**. Set `SHELLYADMIN_MCP_TOKEN` to enable it. Clients can authenticate either via the standard `Authorization: Bearer <token>` header **or** by putting the token as the first URL path segment (e.g. `http://host:8081/<token>/`) — convenient for clients like `mcp-remote` where a header arg is awkward.
+The listener is **off by default** and can be enabled either by setting `SHELLYADMIN_MCP_TOKEN` (env var; takes precedence — useful for headless / CI / Compose-managed deploys) or by toggling **MCP Server → Enable** on the Settings page and entering a token there (since v0.1.20; encrypted at rest). When both are set, the env var wins and the Settings UI shows a "managed by environment variable" notice. Clients can authenticate either via the standard `Authorization: Bearer <token>` header **or** by putting the token as the first URL path segment (e.g. `http://host:8081/<token>/`) — convenient for clients like `mcp-remote` where a header arg is awkward.
 
 | Env var | Default | Purpose |
 |---------|---------|---------|

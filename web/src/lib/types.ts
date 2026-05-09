@@ -147,6 +147,12 @@ export interface AppSettings {
   /** Scheduled firmware check cadence in seconds. 0 = disabled. */
   firmware_check_interval?: number;
   compliance: ComplianceRules;
+  /** Enables the read-only MCP server at next container restart, when no SHELLYADMIN_MCP_TOKEN env var is set. */
+  mcp_enabled?: boolean;
+  /** Token used to authenticate MCP clients. Stored encrypted at rest. The API GET response substitutes "<set>" if a token is configured (never plaintext). Send "<set>" verbatim to leave the persisted token unchanged on save. */
+  mcp_token?: string;
+  /** True when SHELLYADMIN_MCP_TOKEN is set in the environment, in which case mcp_enabled / mcp_token in this struct are ignored at boot and the UI should show fields read-only. Read-only — never persisted. */
+  mcp_managed_by_env?: boolean;
 }
 
 export interface FWResult {

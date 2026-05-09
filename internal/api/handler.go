@@ -11,6 +11,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -398,6 +399,18 @@ func (h *Handler) GetSettings(c *gin.Context) {
 	if err != nil {
 		h.respondError(c, http.StatusInternalServerError, "internal error", err)
 		return
+	}
+	// Redact the MCP token before it crosses the wire — service layer
+	// returns it decrypted for internal callers, but the SPA must never
+	// see plaintext. The "<set>" placeholder lets the UI show "configured"
+	// state and round-trip the field on save without exposing the secret.
+	if settings.MCPToken != "" {
+		settings.MCPToken = services.MCPTokenRedacted
+	}
+	// Tell the UI when the env var is overriding the persisted settings,
+	// so the MCP fields render read-only with an override notice.
+	if os.Getenv("SHELLYADMIN_MCP_TOKEN") != "" {
+		settings.MCPManagedByEnv = true
 	}
 	c.JSON(http.StatusOK, settings)
 }
