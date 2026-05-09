@@ -34,6 +34,20 @@ threat model and deployment expectations see [SECURITY.md](./SECURITY.md).
 
 ### 2026-05-09
 
+- **v0.1.21** — Live MCP toggle (no restart required).
+  v0.1.20's restart-required posture lifted: enabling, disabling, or
+  rotating the MCP token in Settings applies in-process without
+  restarting the container. New `MCPController` on `services.AppService`
+  serializes start/stop/rotate transitions. `models.AppSettings.MCPRunning`
+  (read-only) drives a Running/Stopped badge on the MCP card. Came
+  with one architectural fix: `api.Config.Service` lets `main.go`
+  hand its `*services.AppService` to the router so HTTP handlers and
+  background workers share state — the MCP controller surfacing
+  forced this; previously each had its own service. 5 new lifecycle
+  tests using a `MCPBuilder` test seam (returns httptest listeners
+  so parallel test runs don't collide on real ports). ADR-0011
+  amended with a v0.1.21 follow-up section.
+
 - **v0.1.20** — Settings UI for MCP + page reorganization.
   `models.AppSettings` gains `MCPEnabled` and `MCPToken` (encrypted at
   rest via `internal/core/secretbox`); the SPA's Settings page can now

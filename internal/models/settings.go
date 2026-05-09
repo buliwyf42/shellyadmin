@@ -40,6 +40,11 @@ type AppSettings struct {
 	// Tells the UI to disable the MCP fields and show an override notice.
 	// Never persisted.
 	MCPManagedByEnv bool `json:"mcp_managed_by_env,omitempty"`
+	// MCPRunning is a read-only flag the API GET handler sets to true
+	// when an MCP listener goroutine is currently active. The UI uses
+	// it for a live status badge (Running / Stopped) on the MCP card.
+	// Never persisted.
+	MCPRunning bool `json:"mcp_running,omitempty"`
 }
 
 type ComplianceRules struct {
@@ -157,9 +162,10 @@ func (s *AppSettings) Normalize() {
 		s.FirmwareCheckInterval = 0
 	}
 	s.MCPToken = strings.TrimSpace(s.MCPToken)
-	// MCPManagedByEnv is a runtime overlay set by the API layer at GET
-	// time; never persist it.
+	// MCPManagedByEnv and MCPRunning are runtime overlays set by the API
+	// layer at GET time; never persist them.
 	s.MCPManagedByEnv = false
+	s.MCPRunning = false
 	s.Compliance.Normalize()
 }
 

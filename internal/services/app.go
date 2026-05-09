@@ -48,6 +48,11 @@ type AppService struct {
 	// stopOnce guards Stop so repeated invocations (e.g. from overlapping
 	// signal handlers) don't double-cancel or re-mark interrupted jobs.
 	stopOnce sync.Once
+
+	// mcp owns the live MCP listener lifecycle when SetMCPParams has
+	// been called. nil for tests / callers that never wire MCP up;
+	// see internal/services/app_mcp.go for the controller type.
+	mcp *MCPController
 }
 
 type TemplateRecord struct {
@@ -86,6 +91,11 @@ func (s *AppService) StartBackgroundWorkers() {
 // call once; subsequent calls are no-ops.
 func (s *AppService) Stop(shutdownCtx context.Context) {
 	s.stopOnce.Do(func() {
+		// Shut the MCP listener down first — it's an externally-visible
+		// surface and we'd rather drop new MCP requests at the listener
+		// than have them race the background-job drain below.
+		s.stopMCP(shutdownCtx)
+
 		s.cancel()
 		done := make(chan struct{})
 		go func() {
@@ -562,7 +572,14 @@ func (s *AppService) SaveSettings(settings models.AppSettings) error {
 		}
 		settings.MCPToken = sealed
 	}
-	return s.db.SaveSettings(settings)
+	if err := s.db.SaveSettings(settings); err != nil {
+		return err
+	}
+	// Reconcile the live MCP listener to match the new settings.
+	// No-op when env-locked or when SetMCPParams was never called
+	// (e.g. unit tests that don't exercise MCP).
+	s.ReconcileMCPFromSettings()
+	return nil
 }
 
 func (s *AppService) ListTemplates() ([]string, error) {

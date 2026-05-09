@@ -11,7 +11,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -59,7 +58,15 @@ func NewHandler(database *db.DB, cfg Config) *Handler {
 	handler.logFn = func(ctx context.Context, level, msg string) {
 		handler.auditSinkAttrs(level, msg, middleware.FromContext(ctx), services.RiskFromContext(ctx))
 	}
-	handler.service = services.NewAppService(database, cfg.DataDir, handler.logFn)
+	if cfg.Service != nil {
+		// Reuse the externally-supplied AppService so background workers
+		// (firmware-check scheduler) and the MCP controller share state
+		// with HTTP handlers. The shared service was already constructed
+		// with its own logFn; we leave it untouched.
+		handler.service = cfg.Service
+	} else {
+		handler.service = services.NewAppService(database, cfg.DataDir, handler.logFn)
+	}
 	return handler
 }
 
@@ -408,10 +415,10 @@ func (h *Handler) GetSettings(c *gin.Context) {
 		settings.MCPToken = services.MCPTokenRedacted
 	}
 	// Tell the UI when the env var is overriding the persisted settings,
-	// so the MCP fields render read-only with an override notice.
-	if os.Getenv("SHELLYADMIN_MCP_TOKEN") != "" {
-		settings.MCPManagedByEnv = true
-	}
+	// so the MCP fields render read-only with an override notice. Plus
+	// surface live listener status for the running/stopped badge.
+	settings.MCPManagedByEnv = h.service.MCPManagedByEnv()
+	settings.MCPRunning = h.service.MCPRunning()
 	c.JSON(http.StatusOK, settings)
 }
 
