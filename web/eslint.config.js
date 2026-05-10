@@ -81,8 +81,6 @@ export default [
       //     across conditional branches in `autoSelectedCredentialRef` writes
       'svelte/require-each-key': 'off',
       'svelte/prefer-svelte-reactivity': 'off',
-      'svelte/no-useless-mustaches': 'off',
-      'no-useless-assignment': 'off',
     },
   },
   {
