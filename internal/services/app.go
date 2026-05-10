@@ -157,7 +157,7 @@ func (s *AppService) RefreshDevice(ctx context.Context, target string) ([]models
 
 	var current *models.Device
 	for i := range devices {
-		if devices[i].MAC == target || devices[i].IP == target {
+		if devices[i].MAC == target || devices[i].IP == target || devices[i].Name == target {
 			current = &devices[i]
 			break
 		}

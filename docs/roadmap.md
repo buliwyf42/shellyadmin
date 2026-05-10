@@ -33,6 +33,14 @@ threat model and deployment expectations see [SECURITY.md](./SECURITY.md).
 
 ## Recently shipped
 
+### 2026-05-10
+
+- **v0.1.23** — `services.RefreshDevice` now resolves targets by
+  Name in addition to MAC/IP. Caught by the v0.1.22 live demo when
+  the same `target` worked via `execute_device_action` but failed
+  via `refresh_device`. Single-line fix; new test mirrors the
+  v0.1.19 `TestGetDeviceDetailResolvesByMACOrIPOrName` pattern.
+
 ### 2026-05-09
 
 - **v0.1.22** — State-changing MCP tools, confirm-gated. 8 new tools

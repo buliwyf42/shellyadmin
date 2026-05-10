@@ -1,11 +1,46 @@
 package services
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"shellyadmin/internal/models"
 )
+
+func TestRefreshDeviceResolvesByMACOrIPOrName(t *testing.T) {
+	// Mirrors TestGetDeviceDetailResolvesByMACOrIPOrName but for the
+	// RefreshDevice path, which has its own lookup loop and was missed
+	// by the v0.1.19 fix. Caught by the v0.1.22 live demo when
+	// execute_device_action(reboot) succeeded but refresh_device
+	// returned "device not found" — both used the same name target.
+	database, service := testService(t)
+	_ = database.UpsertDevice(models.Device{
+		MAC:    "AA:BB:CC:DD:EE:99",
+		IP:     "10.0.0.99",
+		Name:   "kitchen-plug",
+		Online: true,
+		Gen:    2,
+	})
+	// Tight refresh timeout so the probe (which won't reach 10.0.0.99)
+	// fails quickly without dragging the test out.
+	_ = database.SaveSettings(models.AppSettings{
+		Subnets: []string{"10.0.0.0/30"}, ScanTimeout: 2, RefreshTimeout: 0.5, ScanConcurrency: 64,
+	})
+
+	for _, target := range []string{"AA:BB:CC:DD:EE:99", "10.0.0.99", "kitchen-plug"} {
+		t.Run(target, func(t *testing.T) {
+			_, err := service.RefreshDevice(context.Background(), target)
+			if err != nil && err.Error() == "device not found" {
+				t.Errorf("RefreshDevice(%q) errored \"device not found\"; lookup should have matched", target)
+			}
+		})
+	}
+
+	if _, err := service.RefreshDevice(context.Background(), "no-such-device"); err == nil || err.Error() != "device not found" {
+		t.Errorf("RefreshDevice(bogus) error = %v, want \"device not found\"", err)
+	}
+}
 
 // firmwareInstallTimeoutFromSettings is the bridge between
 // AppSettings.FirmwareInstallTimeout (operator-facing seconds, with a sane
