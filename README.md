@@ -36,7 +36,7 @@ The target architecture is documented in [docs/ARCHITECTURE.md](/Users/buliwyf/D
 ## Quick Start
 
 Fastest Docker run for a trusted LAN test setup. Generate the argon2id hash with
-`docker run --rm ghcr.io/buliwyf42/shellyadmin:latest shellyctl hash-password <plaintext>`,
+`docker run --rm ghcr.io/buliwyf42/shellyadmin:latest hash-password <plaintext>`,
 then:
 
 ```bash

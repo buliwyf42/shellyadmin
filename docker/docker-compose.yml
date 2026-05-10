@@ -14,7 +14,7 @@ services:
     environment:
       DATA_DIR: /data
       # argon2id PHC string generated with
-      #   docker run --rm ghcr.io/buliwyf42/shellyadmin:latest shellyctl hash-password <plaintext>
+      #   docker run --rm ghcr.io/buliwyf42/shellyadmin:latest hash-password <plaintext>
       # Stored in the secrets/shellyadmin_pass.txt file mounted via the shellyadmin_pass secret below.
       SHELLYADMIN_PASS_HASH_FILE: /run/secrets/shellyadmin_pass
       SHELLYADMIN_SECRET_FILE: /run/secrets/shellyadmin_secret

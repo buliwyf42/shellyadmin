@@ -4,6 +4,56 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-05-10 — Entrypoint args passthrough
+
+One-line bugfix release. The Docker entrypoint script never passed
+`docker run` CMD args through to the binary, so the
+`docker run --rm <image> shellyctl hash-password <plaintext>` recipe
+advertised in README, docs, and CHANGELOGs since v0.0.15 has always
+panicked on missing `SHELLYADMIN_PASS_HASH` instead of printing a hash.
+
+Discovered during the v0.2.0 production deploy when the very first
+operator action — generating a hash — required an `--entrypoint
+/usr/local/bin/shellyctl` workaround.
+
+### Fixed
+
+- `docker/entrypoint.sh` now `exec`s `shellyctl "$@"` so docker-run
+  CMD args reach the binary's subcommand dispatcher at
+  `cmd/shellyctl/main.go:38`. The no-args path (`docker run <image>`
+  with `SHELLYADMIN_PASS_HASH` set on the env) continues to work
+  identically.
+
+### Changed (operator-facing)
+
+- The supported `hash-password` invocation drops the leading `shellyctl`
+  (which was always wrong since the entrypoint already runs `shellyctl`):
+
+  ```
+  # Before (panics on every version v0.0.15 → v0.2.0):
+  docker run --rm ghcr.io/buliwyf42/shellyadmin:vX.Y.Z shellyctl hash-password '<plaintext>'
+
+  # After (v0.2.1+):
+  docker run --rm ghcr.io/buliwyf42/shellyadmin:vX.Y.Z hash-password '<plaintext>'
+  ```
+
+- README.md, docs/SECURITY.md, docs/DEPLOYMENT.md, docker-compose.yml,
+  docker/docker-compose.yml, CLAUDE.md, and the v0.2.0 CHANGELOG entry's
+  migration recipe all updated to the corrected form.
+
+### Verification
+
+Local docker build of v0.2.1 confirms three behaviors:
+- `docker run --rm <image> hash-password 'changeme'` prints a
+  `$argon2id$...` PHC string (was: panicked).
+- `docker run --rm <image>` with no args and no `_HASH` panics on
+  missing `SHELLYADMIN_PASS_HASH` (unchanged baseline).
+- The legacy buggy invocation `docker run --rm <image> shellyctl
+  hash-password '...'` still panics (Docker passes `shellyctl
+  hash-password ...` as CMD; entrypoint passes through; binary sees
+  `os.Args[1] == "shellyctl"` not `"hash-password"`). The panic message
+  points at the corrected recipe via the doc references.
+
 ## [0.2.0] - 2026-05-10 — Plaintext PASS removed + frontend dep major bumps
 
 The first 0.2.x cut. Two bundled chunks the v0.0.15 deprecation window
@@ -22,7 +72,7 @@ and the deprecation overlap protects nobody else.
   admin password. Missing `SHELLYADMIN_PASS_HASH` panics at startup
   with a pointer to the `shellyctl hash-password` helper.
   Operator migration is one-time: run
-  `docker run --rm ghcr.io/buliwyf42/shellyadmin:v0.2.0 shellyctl hash-password <plaintext>`
+  `docker run --rm ghcr.io/buliwyf42/shellyadmin:v0.2.1 hash-password <plaintext>` (use `:v0.2.1` or later — `:v0.2.0` had an entrypoint args bug, see v0.2.1 entry)
   and replace `SHELLYADMIN_PASS=…` with `SHELLYADMIN_PASS_HASH=<PHC>`.
 
 ### Changed
@@ -72,7 +122,7 @@ points at real but substantial work tracked in `docs/roadmap.md`'s
 Before pulling v0.2.0:
 
 1. If you set `SHELLYADMIN_PASS` today, generate a hash:
-   `docker run --rm ghcr.io/buliwyf42/shellyadmin:v0.2.0 shellyctl hash-password <plaintext>`
+   `docker run --rm ghcr.io/buliwyf42/shellyadmin:v0.2.1 hash-password <plaintext>` (use `:v0.2.1` or later — `:v0.2.0` had an entrypoint args bug, see v0.2.1 entry)
 2. Replace `SHELLYADMIN_PASS=…` with `SHELLYADMIN_PASS_HASH=<PHC>` (or
    the `_FILE` indirection) on the container's environment.
 3. Pull and recreate. Missing `_HASH` panics at startup, so misconfigs
