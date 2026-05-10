@@ -4,6 +4,57 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-05-10 — Svelte 5 reactivity migration
+
+Closes the four lint rules deferred during the v0.2.0 frontend dep bump.
+The disable list in `web/eslint.config.js` is empty for the first time
+since the bump landed.
+
+Three small commits in increasing order of risk:
+
+### Fixed (or made fixable)
+
+- **`svelte/no-useless-mustaches`** — `UserCAForm.svelte:139` placeholder
+  was `{'…\n…'}` JS-string mustache; now plain attribute with `&#10;`
+  numeric character references that survive HTML attribute parsing as
+  newlines.
+- **`no-useless-assignment`** — `Provision.svelte:312,319` are false
+  positives. The two `autoSelectedCredentialRef = …` writes look dead to
+  the intra-block analyser but are read on the NEXT reactive run (the
+  `=== autoSelectedCredentialRef` guards above) to decide whether the
+  user has overridden the auto-pick. Inline `eslint-disable-next-line`
+  with a comment block above explaining why ESLint can't see across
+  reactive-block invocations.
+- **`svelte/require-each-key`** — 21 `{#each}` blocks across 11 files
+  now carry stable keys: `device.mac` for device tables, `link.path`
+  for nav, `option.value` for selects, `group.name` for groups,
+  `log.id` for log rows, `capability.id`/`action.id` for device-detail
+  lists, `column.key` for column visibility, `result.ip` for upload
+  results, `s.section` for provision section results, `r.info.ip` for
+  provision per-device rows. Two are intentional index keys: ScriptsForm
+  (entries' `id` field is bound to a user-editable input, so keying by
+  id would confuse Svelte across edits), and Compliance custom_rules
+  (rules are user-editable with no stable identity field).
+- **`svelte/prefer-svelte-reactivity`** — two top-level reactive `Set`
+  fields migrated to `SvelteSet` from `svelte/reactivity`:
+  `Groups.svelte` and `Provision.svelte`'s `selected` selection state.
+  This drops the Svelte-4-era immutable-reassignment idiom
+  (`selected.add(x); selected = new Set(selected)`) — `SvelteSet`
+  mutations trigger reactivity directly via Svelte 5's signal system.
+  Reassignment retained where the whole set is rebuilt from a different
+  iterable (`new SvelteSet(devices.map(...))`); `.clear()` replaces
+  `= new Set()`. `UserCAForm`'s `selected: Set<string>` prop is
+  type-compatible — `SvelteSet extends Set`. Two `new Set()` sites are
+  inline-disabled — local non-reactive helpers inside function bodies
+  (Provision.svelte:269 IIFE dedup, Firmware.svelte:374 toggle-all
+  union helper).
+
+### Bundle
+
+- +5 KB raw / +1 KB gzip from the `svelte/reactivity` runtime helpers
+  (now `297.07 KB` / `83.42 KB`). Still inside the v0.2.0 budget caps
+  of `300 KB` / `86 KB`.
+
 ## [0.2.1] - 2026-05-10 — Entrypoint args passthrough
 
 One-line bugfix release. The Docker entrypoint script never passed
