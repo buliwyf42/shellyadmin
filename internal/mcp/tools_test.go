@@ -7,6 +7,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"shellyadmin/internal/core/firmware"
 	"shellyadmin/internal/db"
 	"shellyadmin/internal/models"
 	"shellyadmin/internal/services"
@@ -196,6 +197,76 @@ func TestScanStatusReturnsSlimPending(t *testing.T) {
 		if contains(body, banned) {
 			t.Errorf("scan_status pending leaked %q: %s", banned, body)
 		}
+	}
+}
+
+func TestFirmwareStatusFiltersAndPages(t *testing.T) {
+	database, session := connectInMemory(t)
+
+	results := []firmware.Result{
+		{MAC: "AA:01", IP: "10.0.0.1", Status: "ok", StableUpdate: true},
+		{MAC: "AA:02", IP: "10.0.0.2", Status: "ok", StableUpdate: false, BetaUpdate: true},
+		{MAC: "AA:03", IP: "10.0.0.3", Status: "ok"},
+		{MAC: "AA:04", IP: "10.0.0.4", Status: "error", Note: "boom"},
+		{MAC: "AA:05", IP: "10.0.0.5", Status: "na"},
+	}
+	payload, err := json.Marshal(services.FirmwareJobResult{Results: results})
+	if err != nil {
+		t.Fatalf("marshal job result: %v", err)
+	}
+	jobID, err := database.CreateJob("firmware_check", "continue", "{}", len(results))
+	if err != nil {
+		t.Fatalf("CreateJob: %v", err)
+	}
+	if err := database.CompleteJob(jobID, "done", string(payload), "", len(results), len(results)); err != nil {
+		t.Fatalf("CompleteJob: %v", err)
+	}
+
+	cases := []struct {
+		name              string
+		args              map[string]any
+		wantTotal         int
+		wantFilteredTotal int
+		wantReturned      int
+	}{
+		{"no filter", map[string]any{}, 5, 5, 5},
+		{"status=error", map[string]any{"status": "error"}, 5, 1, 1},
+		{"has_update=true", map[string]any{"has_update": true}, 5, 2, 2},
+		{"search by ip", map[string]any{"search": "10.0.0.4"}, 5, 1, 1},
+		{"limit caps the slice", map[string]any{"limit": 2}, 5, 5, 2},
+		{"offset skips", map[string]any{"offset": 4}, 5, 5, 1},
+		{"offset past end", map[string]any{"offset": 99}, 5, 5, 0},
+		{"filter+page combined", map[string]any{"status": "ok", "limit": 2, "offset": 1}, 5, 3, 2},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			res, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+				Name:      "firmware_status",
+				Arguments: tc.args,
+			})
+			if err != nil {
+				t.Fatalf("CallTool: %v", err)
+			}
+			if res.IsError {
+				t.Fatalf("tool error: %+v", res)
+			}
+			var out FirmwareStatusOutput
+			if err := remarshal(res.StructuredContent, &out); err != nil {
+				t.Fatalf("remarshal: %v", err)
+			}
+			if out.Total != tc.wantTotal {
+				t.Errorf("Total = %d, want %d", out.Total, tc.wantTotal)
+			}
+			if out.FilteredTotal != tc.wantFilteredTotal {
+				t.Errorf("FilteredTotal = %d, want %d", out.FilteredTotal, tc.wantFilteredTotal)
+			}
+			if out.Returned != tc.wantReturned {
+				t.Errorf("Returned = %d, want %d", out.Returned, tc.wantReturned)
+			}
+			if len(out.Results) != tc.wantReturned {
+				t.Errorf("len(Results) = %d, want %d (results=%+v)", len(out.Results), tc.wantReturned, out.Results)
+			}
+		})
 	}
 }
 

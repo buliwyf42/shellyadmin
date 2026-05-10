@@ -9,6 +9,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"shellyadmin/internal/core/compliance"
+	"shellyadmin/internal/core/firmware"
 	"shellyadmin/internal/db"
 	"shellyadmin/internal/models"
 	"shellyadmin/internal/services"
@@ -155,6 +156,71 @@ type ScanStatusOutput struct {
 	Pending []ScanPendingItem `json:"pending"`
 }
 
+// FirmwareStatusInput adds filter + paging knobs over services.FirmwareStatus
+// so MCP clients can query slices of large fleets without tripping per-tool
+// output caps. ADR-0011's "v0.2.x follow-ups" called this out for fleets
+// past ~200 devices; the unfiltered call is still the default with all
+// fields zero-valued.
+type FirmwareStatusInput struct {
+	Status    string `json:"status,omitempty" jsonschema:"filter by per-device status: 'ok', 'error', or 'na'"`
+	HasUpdate bool   `json:"has_update,omitempty" jsonschema:"return only devices with an update available on either channel"`
+	Search    string `json:"search,omitempty" jsonschema:"substring matched against MAC or IP (case-insensitive)"`
+	Limit     int    `json:"limit,omitempty" jsonschema:"max device results returned; 0 = unlimited"`
+	Offset    int    `json:"offset,omitempty" jsonschema:"skip this many post-filter results before returning"`
+}
+
+// FirmwareStatusOutput preserves the original Running/Done/Total job
+// metrics for backward compatibility and adds FilteredTotal (post-filter,
+// pre-page) and Returned (post-page) so paged clients can stitch results
+// together.
+type FirmwareStatusOutput struct {
+	Running       bool              `json:"running"`
+	Done          int               `json:"done"`
+	Total         int               `json:"total"`
+	FilteredTotal int               `json:"filtered_total"`
+	Returned      int               `json:"returned"`
+	Results       []firmware.Result `json:"results"`
+}
+
+func filterFirmwareResults(in []firmware.Result, q FirmwareStatusInput) []firmware.Result {
+	wantStatus := strings.ToLower(strings.TrimSpace(q.Status))
+	needle := strings.ToLower(strings.TrimSpace(q.Search))
+	out := make([]firmware.Result, 0, len(in))
+	for _, r := range in {
+		if wantStatus != "" && strings.ToLower(r.Status) != wantStatus {
+			continue
+		}
+		if q.HasUpdate && !r.StableUpdate && !r.BetaUpdate {
+			continue
+		}
+		if needle != "" {
+			hay := strings.ToLower(r.MAC + " " + r.IP)
+			if !strings.Contains(hay, needle) {
+				continue
+			}
+		}
+		out = append(out, r)
+	}
+	return out
+}
+
+// pageFirmwareResults returns the [offset, offset+limit) slice plus the
+// resulting length. Negative offset is treated as zero; offset past the
+// end returns empty; limit==0 means "no cap".
+func pageFirmwareResults(in []firmware.Result, limit, offset int) ([]firmware.Result, int) {
+	if offset < 0 {
+		offset = 0
+	}
+	if offset >= len(in) {
+		return []firmware.Result{}, 0
+	}
+	tail := in[offset:]
+	if limit > 0 && len(tail) > limit {
+		tail = tail[:limit]
+	}
+	return tail, len(tail)
+}
+
 func slimScanPending(in []map[string]any) []ScanPendingItem {
 	out := make([]ScanPendingItem, 0, len(in))
 	for _, m := range in {
@@ -192,10 +258,27 @@ func registerJobStatusTools(server *mcp.Server, svc *services.AppService) {
 	}))
 
 	mcp.AddTool(server, &mcp.Tool{
-		Name:        "firmware_status",
-		Description: "Status of the current/last firmware-check job (running flag, progress, per-device results).",
-	}, tool(svc, "firmware_status", func(_ context.Context, _ emptyInput) (services.FirmwareStatus, error) {
-		return svc.FirmwareStatus()
+		Name: "firmware_status",
+		Description: "Status of the current/last firmware-check job (running flag, progress, per-device results). " +
+			"Per-device results can be filtered (status, has_update, search) and paged (limit, offset) — useful past " +
+			"~200 devices where the unfiltered payload approaches MCP per-tool output caps. Job-level fields (running, " +
+			"done, total) are unchanged regardless of filter; filtered_total reports filter-only count, returned reports " +
+			"the post-page slice length.",
+	}, tool(svc, "firmware_status", func(_ context.Context, in FirmwareStatusInput) (FirmwareStatusOutput, error) {
+		raw, err := svc.FirmwareStatus()
+		if err != nil {
+			return FirmwareStatusOutput{}, err
+		}
+		filtered := filterFirmwareResults(raw.Results, in)
+		paged, returned := pageFirmwareResults(filtered, in.Limit, in.Offset)
+		return FirmwareStatusOutput{
+			Running:       raw.Running,
+			Done:          raw.Done,
+			Total:         raw.Total,
+			FilteredTotal: len(filtered),
+			Returned:      returned,
+			Results:       paged,
+		}, nil
 	}))
 
 	mcp.AddTool(server, &mcp.Tool{
