@@ -4,6 +4,36 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.23] - 2026-05-10 — RefreshDevice name lookup
+
+Tiny patch caught by the v0.1.22 live demo. When the LLM ran the
+state-changing flow against a device by name (the natural way for
+an operator to talk about a device), `execute_device_action` worked
+but `refresh_device` errored "device not found" — same target,
+different lookup paths.
+
+`services.RefreshDevice` had its own MAC/IP-only lookup loop
+parallel to the one in `GetDeviceDetail` that we already extended
+with `Name` matching in v0.1.19. Single-line fix at
+[internal/services/app.go:160](internal/services/app.go) plus a
+test mirroring `TestGetDeviceDetailResolvesByMACOrIPOrName`.
+
+### Fixed
+- `services.RefreshDevice` now resolves targets by **MAC, IP, or
+  Name**, matching the contract MCP tools and the HTTP API
+  advertise. No other call sites had the same bug — confirmed via
+  `grep -nE 'devices\[i\]\.MAC == target'` over `internal/`.
+
+### Tests
+- New `TestRefreshDeviceResolvesByMACOrIPOrName` in
+  `internal/services/app_jobs_test.go`. Uses a 0.5-second refresh
+  timeout so the probe (against an unreachable test IP) fails fast
+  without slowing the suite — the assertion is on the lookup loop,
+  not the probe.
+
+### Migration notes
+None.
+
 ## [0.1.22] - 2026-05-09 — State-changing MCP tools, confirm-gated
 
 Lifts the v0.1.19–v0.1.21 read-only restriction on the MCP surface.
