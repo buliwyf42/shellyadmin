@@ -136,7 +136,7 @@
     id="user-ca-pem"
     class="form-control font-monospace"
     rows="6"
-    placeholder={'-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----'}
+    placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
     bind:value={pem}
   ></textarea>
   {#if !pemLooksValid}

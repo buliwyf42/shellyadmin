@@ -303,12 +303,18 @@
     groupResolution.credentialRefs.length === 1 && groupResolution.unresolved === 0
       ? groupResolution.credentialRefs[0]
       : '';
+  // The two `autoSelectedCredentialRef = …` writes look dead to the
+  // intra-block analyser but are read on the NEXT reactive run (the
+  // `=== autoSelectedCredentialRef` guards above) to decide whether the
+  // user has overridden the auto-pick. ESLint can't see that across
+  // reactive-block invocations, so disable on each write.
   $: if (resolvedGroupCredentialRef) {
     if (
       !selectedTemplateCredentialRef ||
       selectedTemplateCredentialRef === autoSelectedCredentialRef
     ) {
       selectedTemplateCredentialRef = resolvedGroupCredentialRef;
+      // eslint-disable-next-line no-useless-assignment
       autoSelectedCredentialRef = resolvedGroupCredentialRef;
     }
   } else if (
@@ -316,6 +322,7 @@
     selectedTemplateCredentialRef === autoSelectedCredentialRef
   ) {
     selectedTemplateCredentialRef = '';
+    // eslint-disable-next-line no-useless-assignment
     autoSelectedCredentialRef = '';
   }
   $: templateOptions = templateNames.map((name) => ({ value: name, label: name }));
