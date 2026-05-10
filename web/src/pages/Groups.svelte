@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { SvelteSet } from 'svelte/reactivity';
   import { APIError, api } from '../lib/api';
   import type { CredentialGroup, Device } from '../lib/types';
   import ErrorNotice from '../components/ErrorNotice.svelte';
@@ -7,7 +8,7 @@
   let groups: CredentialGroup[] = [];
   let devices: Device[] = [];
   let assignments: Record<string, string> = {};
-  let selected = new Set<string>();
+  let selected = new SvelteSet<string>();
 
   let groupName = '';
   let groupPassword = '';
@@ -61,15 +62,14 @@
   function toggle(mac: string, checked: boolean) {
     if (checked) selected.add(mac);
     else selected.delete(mac);
-    selected = new Set(selected);
   }
 
   function selectAll() {
-    selected = new Set(devices.map((device) => device.mac));
+    selected = new SvelteSet(devices.map((device) => device.mac));
   }
 
   function clearSelection() {
-    selected = new Set();
+    selected.clear();
   }
 
   function editGroup(group: CredentialGroup) {

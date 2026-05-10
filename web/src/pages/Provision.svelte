@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { SvelteSet } from 'svelte/reactivity';
   import { APIError, api } from '../lib/api';
   import type { Credential, CredentialGroup, Device, ProvisionResult } from '../lib/types';
   import ErrorNotice from '../components/ErrorNotice.svelte';
@@ -83,7 +84,7 @@
   type PrecheckIssue = { ip: string; label: string; reason: string; category: 'auth' | 'other' };
 
   let devices: Device[] = [];
-  let selected = new Set<string>();
+  let selected = new SvelteSet<string>();
   let loading = false;
   let running = false;
   let error = '';
@@ -168,15 +169,14 @@
   function toggle(mac: string, checked: boolean) {
     if (checked) selected.add(mac);
     else selected.delete(mac);
-    selected = new Set(selected);
   }
 
   function selectAll() {
-    selected = new Set(devices.map((d) => d.mac));
+    selected = new SvelteSet(devices.map((d) => d.mac));
   }
 
   function selectNone() {
-    selected = new Set();
+    selected.clear();
   }
 
   function selectedDevices() {
@@ -213,7 +213,7 @@
   function selectOnlyEligible() {
     if (!precheckTemplate || precheckTemplateError) return;
     const skippedIPs = new Set(precheckIssues.map((issue) => issue.ip));
-    selected = new Set(
+    selected = new SvelteSet(
       selectedDevices()
         .filter((device) => !skippedIPs.has(device.ip))
         .map((device) => device.mac),
@@ -266,6 +266,9 @@
   $: groupResolution = (() => {
     const chosenDevices = selectedDevices();
     let unresolved = 0;
+    // Local dedup-only Set; not reactive state — the IIFE returns a plain
+    // object whose `credentialRefs` is the spread of this set's entries.
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity
     const credentials = new Set<string>();
     for (const device of chosenDevices) {
       const groupName = deviceGroupAssignments[device.mac];

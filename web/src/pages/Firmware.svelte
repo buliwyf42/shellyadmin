@@ -371,6 +371,8 @@
   function toggleAll(e: Event) {
     const target = e.currentTarget as HTMLInputElement;
     if (target.checked) {
+      // Local dedup helper; results spread into selectedMacs (a plain array).
+      // eslint-disable-next-line svelte/prefer-svelte-reactivity
       const set = new Set(selectedMacs);
       for (const m of selectableMacs) set.add(m);
       selectedMacs = [...set];

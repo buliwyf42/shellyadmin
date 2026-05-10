@@ -70,10 +70,6 @@ export default [
       ],
       '@typescript-eslint/no-explicit-any': 'off',
       'no-empty': ['error', { allowEmptyCatch: true }],
-      // svelte/prefer-svelte-reactivity is the last v0.2.0-deferred rule;
-      // re-enabling needs `new Set` → `new SvelteSet` migration at 4 sites
-      // (Firmware, Groups, Provision x2). Tracked for v0.2.x.
-      'svelte/prefer-svelte-reactivity': 'off',
     },
   },
   {
