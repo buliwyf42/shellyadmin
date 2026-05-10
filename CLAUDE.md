@@ -163,7 +163,7 @@ rsync -av --exclude='data/' \
   buliwyf@docker.home.lan:/home/buliwyf/shellyadmin/
 
 # On remote: rebuild and restart. Generate the hash once with
-#   docker run --rm shellyadmin shellyctl hash-password <plaintext>
+#   docker run --rm shellyadmin hash-password <plaintext>
 # and substitute the PHC string for $HASH below.
 ssh buliwyf@docker.home.lan "cd /home/buliwyf/shellyadmin && \
   docker build -t shellyadmin . && \

@@ -56,7 +56,7 @@ Current expected flows:
 Published image — generate the hash with `shellyctl hash-password`, then run:
 
 ```bash
-HASH=$(docker run --rm ghcr.io/buliwyf42/shellyadmin:latest shellyctl hash-password 'change-this-admin-password')
+HASH=$(docker run --rm ghcr.io/buliwyf42/shellyadmin:latest hash-password 'change-this-admin-password')
 docker run -d \
   --name shellyadmin \
   -p 8080:8080 \
@@ -84,7 +84,7 @@ git checkout v0.1.18
 mkdir -p secrets
 # Preferred: write a hash to secrets/shellyadmin_pass.txt and switch the
 # compose file to SHELLYADMIN_PASS_HASH_FILE (commented out by default).
-# docker run --rm ghcr.io/buliwyf42/shellyadmin:latest shellyctl hash-password 'change-this-admin-password' > secrets/shellyadmin_pass.txt
+# docker run --rm ghcr.io/buliwyf42/shellyadmin:latest hash-password 'change-this-admin-password' > secrets/shellyadmin_pass.txt
 # Backward-compat: a plaintext value here still works (deprecation warning).
 openssl rand -base64 24 > secrets/shellyadmin_pass.txt
 openssl rand -base64 32 > secrets/shellyadmin_secret.txt

@@ -20,4 +20,4 @@ chown -R shelly:shelly /data /tmp
 load_secret SHELLYADMIN_PASS_HASH
 load_secret SHELLYADMIN_SECRET
 
-exec su-exec shelly /usr/local/bin/shellyctl
+exec su-exec shelly /usr/local/bin/shellyctl "$@"
