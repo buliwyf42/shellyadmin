@@ -10,7 +10,8 @@ Security fixes are best-effort while the project is in active early development.
 
 | Version                                    | Supported   | Notes                                                                                                                                 |
 | ------------------------------------------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `v0.2.2`                                   | Yes         | Current baseline. Closes the four lint rules deferred during v0.2.0 dep bump (Svelte 5 reactivity migration).                         |
+| `v0.2.3`                                   | Yes         | Current baseline. MCP `shellyctl mcp` stdio subcommand + `firmware_status` paging.                                                    |
+| `v0.2.2`                                   | Best effort | Closes the four lint rules deferred during v0.2.0 dep bump (Svelte 5 reactivity migration).                                           |
 | `v0.2.1`                                   | Best effort | Entrypoint args passthrough fix — `docker run <image> hash-password` now works.                                                       |
 | `v0.2.0`                                   | Best effort | **Breaking**: `SHELLYADMIN_PASS` plaintext removed — use `SHELLYADMIN_PASS_HASH`. Entrypoint bug — see v0.2.1.                        |
 | `v0.1.19` – `v0.1.23`                      | Best effort | Recent v0.1.x sweep (MCP server work)                                                                                                 |

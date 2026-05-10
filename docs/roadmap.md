@@ -19,26 +19,42 @@ threat model and deployment expectations see [SECURITY.md](./SECURITY.md).
   without churn. Will need its own ADR to scope the command surface.
 - Periodic dependency pin review on a regular cadence (next pass: ~3 months
   out, or sooner if a CVE lands).
-- **MCP follow-ups (v0.2.x)**: stdio sub-command (`shellyctl mcp`)
-  for Claude Desktop on the same host; per-token scoping (different
-  tokens granting different tool subsets); result paging / filter on
-  `firmware_status` (currently ~250 B/device, lean enough for a
-  44-device fleet but would approach the per-tool output cap
-  somewhere past 200 devices). Read-only baseline shipped in v0.1.19,
-  Settings UI in v0.1.20, live toggle in v0.1.21, state-changing
-  confirm-gated tools in v0.1.22 (ADR-0011 v0.1.22 follow-up).
-- **Svelte 5 reactivity migration (v0.2.x)**: address the five
-  ESLint 10 / eslint-plugin-svelte 3 rules disabled during the v0.2.0
-  dep bump — `svelte/require-each-key` (~16 sites need stable keys),
-  `svelte/prefer-svelte-reactivity` (4 sites need `Set` → `SvelteSet`,
-  changes the reactivity pattern from immutable-reassignment to
-  mutation), `svelte/no-useless-mustaches` (1 trivial site),
-  `no-useless-assignment` (Provision.svelte:291,298). See the
-  `eslint.config.js` disable block for the full list.
+- **vite.config oxc minifier**: vite 8 made `oxc` the default minifier
+  and unbundled `esbuild`. Currently pinning `minify: 'esbuild'` + the
+  `esbuild` devDep to keep byte-stable build output across the v0.2.0
+  rollup→rolldown jump. Worth a separate task to switch to oxc and
+  drop the devDep.
 
 ## Recently shipped
 
 ### 2026-05-10
+
+- **v0.2.3** — MCP `shellyctl mcp` stdio subcommand for Claude Desktop
+  on the same host (ADR-0011 v0.2.3 follow-up). Same 21-tool surface
+  exposed on stdin/stdout instead of HTTP+token. Trust boundary is
+  the parent process (no transport-level auth); logs to stderr; no
+  background workers (query session, not server). Plus `firmware_status`
+  paging — adds optional `status`/`has_update`/`search`/`limit`/`offset`
+  inputs and `filtered_total`/`returned` outputs so 200+ device fleets
+  don't trip per-tool output caps. Per-token scoping was on the
+  v0.2.x candidate list but dropped: single-operator deployments
+  don't benefit from splitting the surface across multiple tokens.
+
+- **v0.2.2** — Svelte 5 reactivity migration. Closes the four lint
+  rules disabled during the v0.2.0 dep bump: `svelte/require-each-key`
+  (21 sites across 11 files now carry stable keys),
+  `svelte/prefer-svelte-reactivity` (Groups + Provision `selected`
+  migrated from `new Set` to `new SvelteSet`),
+  `svelte/no-useless-mustaches` (UserCAForm placeholder reformatted),
+  `no-useless-assignment` (Provision.svelte 2 false positives
+  inline-disabled with comment). `eslint.config.js` disable list is
+  empty for the first time since v0.2.0.
+
+- **v0.2.1** — `docker/entrypoint.sh` args passthrough fix. The
+  documented `docker run <image> shellyctl hash-password` recipe
+  panicked since the entrypoint script was introduced because the
+  exec line didn't pass `"$@"`. One-line fix; doc sweep dropped the
+  leading `shellyctl` from all docker-run recipes.
 
 - **v0.2.0** — Removes deprecated `SHELLYADMIN_PASS` plaintext env var
   (the v0.0.15 deprecation); `SHELLYADMIN_PASS_HASH` is now the only
