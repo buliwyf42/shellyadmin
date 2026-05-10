@@ -20,8 +20,11 @@ const DIST = path.resolve(HERE, '..', 'dist', 'assets');
 // surfaces (Firmware bulk buttons, Devices column, Provision form, Compliance
 // rule), and the configurable gen-badge settings. Pre-v0.1.6 baseline was
 // 260 kB raw / 75 kB gzip; v0.1.6 measured 263.06 kB raw / 72.62 kB gzip.
+// v0.2.0 prep: vite 6 (rollup) → vite 8 (rolldown) added ~15 KB raw / 5 KB
+// gzip from a different bundler with different code-splitting heuristics
+// and runtime helpers. Measured 292.34 kB raw / 81.86 kB gzip after the jump.
 const BUDGETS = {
-  js: { raw: 280 * 1024, gzip: 80 * 1024 },
+  js: { raw: 300 * 1024, gzip: 86 * 1024 },
   css: { raw: 30 * 1024, gzip: 8 * 1024 },
 };
 
