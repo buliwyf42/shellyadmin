@@ -37,7 +37,7 @@
           </tr>
         </thead>
         <tbody>
-          {#each state.scripts as entry, i}
+          {#each state.scripts as entry, i (i)}
             <tr>
               <td>
                 <input

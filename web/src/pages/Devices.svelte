@@ -415,7 +415,7 @@
     <div class="card-body">
       <h2 class="h5">Visible Columns</h2>
       <div class="row g-3">
-        {#each deviceColumns as column}
+        {#each deviceColumns as column (column.key)}
           <div class="col-md-4">
             <label class="d-flex align-items-center gap-2">
               <input
@@ -704,7 +704,7 @@
       </tr>
     </thead>
     <tbody>
-      {#each sorted as device}
+      {#each sorted as device (device.mac)}
         <tr class:device-stale={refreshState(device) === 'stale'}>
           {#if $colVis.device_num}<td>{String(device.device_num).padStart(2, '0')}</td>{/if}
           {#if $colVis.name}<td>{device.name || device.serial || device.mac}</td>{/if}

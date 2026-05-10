@@ -99,7 +99,7 @@
     ></thead
   >
   <tbody>
-    {#each logs as log}
+    {#each logs as log (log.id)}
       <tr>
         <td>{log.ts}</td>
         <td

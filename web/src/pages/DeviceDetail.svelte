@@ -311,7 +311,7 @@
         <div class="card-body">
           <h2 class="h5">Capabilities</h2>
           <div class="d-flex flex-column gap-2">
-            {#each detail.capabilities as capability}
+            {#each detail.capabilities as capability (capability.id)}
               <div class="capability-row">
                 <span>{capability.label}</span>
                 <span class="badge bg-secondary">{capability.state}</span>
@@ -325,7 +325,7 @@
         <div class="card-body">
           <h2 class="h5">Actions</h2>
           <div class="d-flex flex-column gap-2">
-            {#each detail.actions as action}
+            {#each detail.actions as action (action.id)}
               <div class="action-row">
                 <div>
                   <div class="fw-bold">{action.label}</div>
@@ -356,7 +356,7 @@
           <h2 class="h5">Compliance</h2>
           {#if detail.device.compliance_issues?.length}
             <ul class="mb-0">
-              {#each detail.device.compliance_issues as issue}
+              {#each detail.device.compliance_issues as issue (issue)}
                 <li>{issue}</li>
               {/each}
             </ul>
