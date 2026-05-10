@@ -10,11 +10,12 @@ Security fixes are best-effort while the project is in active early development.
 
 | Version                                    | Supported   | Notes                                                                                                                                 |
 | ------------------------------------------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `v0.1.18`                                  | Yes         | Current baseline                                                                                                                      |
-| `v0.1.17`, `v0.1.16`, `v0.1.15`, `v0.1.13` | Best effort | Recent v0.1.x sweep                                                                                                                   |
+| `v0.2.0`                                   | Yes         | Current baseline. **Breaking**: `SHELLYADMIN_PASS` plaintext removed — use `SHELLYADMIN_PASS_HASH`.                                   |
+| `v0.1.19` – `v0.1.23`                      | Best effort | Recent v0.1.x sweep (MCP server work)                                                                                                 |
+| `v0.1.15` – `v0.1.18`                      | Best effort | Older v0.1.x — prefer the most recent release                                                                                         |
 | `v0.1.14`                                  | **No**      | Broken release — `go.mod` directive forced 1.25 with CI on 1.24, no GHCR image was published. Upgrade directly to `v0.1.15` or later. |
-| `v0.1.7` – `v0.1.12`                       | Best effort | Operational improvements; no known unfixed CVEs                                                                                       |
-| `v0.1.4` – `v0.1.6`                        | Best effort | Older v0.1.x — prefer the most recent release                                                                                         |
+| `v0.1.7` – `v0.1.13`                       | Best effort | Operational improvements; no known unfixed CVEs                                                                                       |
+| `v0.1.4` – `v0.1.6`                        | Best effort | Older v0.1.x                                                                                                                          |
 | `v0.1.0` – `v0.1.3`                        | No          | Scanner false-positive / firmware-page bugs — upgrade                                                                                 |
 | `v0.0.16` and older                        | No          |                                                                                                                                       |
 
@@ -41,6 +42,12 @@ When reporting, include:
 
 ## Hardening notes
 
+- **v0.2.0** — `SHELLYADMIN_PASS` (plaintext admin password) was removed.
+  v0.0.15 added `SHELLYADMIN_PASS_HASH` (argon2id PHC from
+  `shellyctl hash-password`) and started warning on plaintext use; v0.2.0
+  closes the deprecation window. Missing `SHELLYADMIN_PASS_HASH` now panics
+  at startup with a pointer to the helper. The operator-facing migration is:
+  run `shellyctl hash-password <plaintext>` once and replace the env var.
 - **v0.1.0** — Adapts to Shelly firmware **2.0.0-beta1**. Adds an RFC 7616
   Digest auth client (replacing bare unauthenticated probes), per-device HTTPS
   scheme detection with strict TLS-cert-date validation by default (per-device

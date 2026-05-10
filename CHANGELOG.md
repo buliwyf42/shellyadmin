@@ -4,6 +4,80 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-05-10 — Plaintext PASS removed + frontend dep major bumps
+
+The first 0.2.x cut. Two bundled chunks the v0.0.15 deprecation window
+and the v0.1.14 dep rollback always pointed at: drop the deprecated
+`SHELLYADMIN_PASS` plaintext env var and pull the deferred frontend
+major-version bumps. Earliest target in the prior roadmap was
+2026-07-22; cut early because the project still has a single operator
+and the deprecation overlap protects nobody else.
+
+### Breaking
+
+- **Removed** `SHELLYADMIN_PASS` (plaintext admin password) and the
+  matching `SHELLYADMIN_PASS_FILE` indirection. `SHELLYADMIN_PASS_HASH`
+  (argon2id PHC from `shellyctl hash-password`, optionally via
+  `SHELLYADMIN_PASS_HASH_FILE`) is now the only entry point for the
+  admin password. Missing `SHELLYADMIN_PASS_HASH` panics at startup
+  with a pointer to the `shellyctl hash-password` helper.
+  Operator migration is one-time: run
+  `docker run --rm ghcr.io/buliwyf42/shellyadmin:v0.2.0 shellyctl hash-password <plaintext>`
+  and replace `SHELLYADMIN_PASS=…` with `SHELLYADMIN_PASS_HASH=<PHC>`.
+
+### Changed
+
+- **Frontend dep majors** (deferred from v0.1.14):
+  - TypeScript 5.9 → 6.0
+  - Vite 6.4 → 8.0 (rolldown bundler under the hood)
+  - `@sveltejs/vite-plugin-svelte` 5 → 7 (paired; vite 8 requires plugin 7)
+  - ESLint 9 → 10 + `eslint-plugin-svelte` 2 → 3 + `svelte-eslint-parser` 0.43 → 1
+  - `eslint-config-prettier` 9 → 10, new `@eslint/js` ^10
+- **Bundle-size budgets** raised 280 → 300 KB raw / 80 → 86 KB gzip in
+  `web/scripts/check-bundle-size.mjs` to absorb rolldown's larger output
+  versus rollup. New baseline 292 KB raw / 82 KB gzip.
+- **`web/vite.config.ts`** comment updated; `minify: 'esbuild'` is now
+  explicit (vite 8 made oxc the default and unbundled esbuild). New
+  devDep `esbuild ^0.27` keeps build output byte-stable across the
+  rollup → rolldown switch.
+
+### Fixed
+
+- **`Provision.svelte:237`** — real reactivity bug surfaced by
+  `svelte/no-immutable-reactive-statements` (newly default in
+  eslint-plugin-svelte 3). The `$: precheckTemplate = templateForPrecheck()`
+  statement only re-ran when the function reference itself changed, not
+  on the 17 underlying state vars `buildTemplate()` reads. Replaced with
+  an explicit comma-operator dep list so Svelte's compile-time tracker
+  sees every dep.
+
+### Deferred (tracked as v0.2.x follow-ups)
+
+Five new ESLint 10 / eslint-plugin-svelte 3 default rules were disabled
+in `web/eslint.config.js` rather than mass-edited under auto mode. Each
+points at real but substantial work tracked in `docs/roadmap.md`'s
+"Svelte 5 reactivity migration" entry:
+
+- `svelte/require-each-key` — ~16 `{#each}` blocks need stable keys
+- `svelte/prefer-svelte-reactivity` — 4 sites use `new Set` where
+  Svelte 5's `SvelteSet` would track mutations natively (changes the
+  reactivity pattern from immutable-reassignment to mutation)
+- `svelte/no-useless-mustaches` — `UserCAForm.svelte:139`
+- `no-useless-assignment` — `Provision.svelte:291,298` (control-flow
+  analysis across conditional branches in `autoSelectedCredentialRef`
+  writes)
+
+### Migration checklist
+
+Before pulling v0.2.0:
+
+1. If you set `SHELLYADMIN_PASS` today, generate a hash:
+   `docker run --rm ghcr.io/buliwyf42/shellyadmin:v0.2.0 shellyctl hash-password <plaintext>`
+2. Replace `SHELLYADMIN_PASS=…` with `SHELLYADMIN_PASS_HASH=<PHC>` (or
+   the `_FILE` indirection) on the container's environment.
+3. Pull and recreate. Missing `_HASH` panics at startup, so misconfigs
+   fail loudly rather than silently.
+
 ## [0.1.23] - 2026-05-10 — RefreshDevice name lookup
 
 Tiny patch caught by the v0.1.22 live demo. When the LLM ran the
