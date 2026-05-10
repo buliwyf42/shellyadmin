@@ -234,7 +234,28 @@
     }
   }
 
-  $: precheckTemplate = templateForPrecheck();
+  // Reactive deps must appear in the expression Svelte tracks, not behind a
+  // function call. Touching each piece of state buildTemplate() reads makes
+  // the statement re-run when any of them change.
+  $: precheckTemplate =
+    (viewMode,
+    jsonText,
+    sysState,
+    mqttState,
+    wsState,
+    bleState,
+    matterState,
+    autoUpdateState,
+    cloudState,
+    authState,
+    wifiState,
+    wifiAPState,
+    ethState,
+    modbusState,
+    zigbeeState,
+    uiState,
+    scriptsState,
+    templateForPrecheck());
   $: precheckTemplateError =
     viewMode === 'json' && precheckTemplate === null
       ? 'JSON is invalid; precheck is disabled until JSON is valid.'

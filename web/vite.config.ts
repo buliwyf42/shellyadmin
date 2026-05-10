@@ -24,8 +24,9 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    // Explicit minification with esbuild (Vite default) — document the choice
-    // so future maintainers don't accidentally lose it.
+    // Vite 8 made oxc the default minifier and unbundled esbuild. Pinning
+    // esbuild here preserves byte-for-byte output across the v6→v8 jump;
+    // revisit `minify: 'oxc'` as a separate task to drop the esbuild devDep.
     minify: 'esbuild',
     target: 'es2020',
     cssMinify: true,
