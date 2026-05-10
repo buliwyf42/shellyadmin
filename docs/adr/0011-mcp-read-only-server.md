@@ -333,3 +333,56 @@ client + server, real `services.AppService`). They confirm: omitted
 `execute_device_action` surfaces per-action catalog risk in the
 preview output; unknown actions error before any state change; the
 audit log differentiates `mode=preview` from `mode=confirmed`.
+
+## v0.2.3 follow-up — stdio subcommand + firmware_status paging
+
+The "Alternatives Considered" section listed a stdio subcommand for
+v0.2.x; the "Consequences" section noted `firmware_status` paging
+would matter past ~200 devices. v0.2.3 lands both. **Per-token scoping**
+(also listed in the v0.2.x roadmap) was explicitly dropped — single
+operator, the existing single-token + audit-log story is sufficient.
+
+**Stdio transport.** New `shellyctl mcp` subcommand exposes the same
+21-tool surface on stdin/stdout. `cmd/shellyctl/main.go`'s subcommand
+dispatch grew a second case (next to `hash-password`) that calls
+`internal/mcp.RunStdio(ctx, svc, version)`. The SDK already supports
+`StdioTransport`; the new function is a thin wrapper over
+`mcp.NewServer + register(server, svc) + server.Run(ctx, &mcp.StdioTransport{})`.
+
+Stdio mode trust model differs from HTTP intentionally:
+
+- **No transport-level token.** The parent process spawning the
+  binary IS the trust boundary. Operators wire this into Claude
+  Desktop's MCP config block; host filesystem permissions on the
+  data dir are the remaining gate.
+- **No background workers** in the stdio AppService — this is a query
+  session, not a long-running server. Avoids races with a parallel
+  long-running container holding the same data dir.
+- **Logs to stderr only** (stdout carries JSON-RPC frames).
+- **SQLite WAL mode** handles concurrent readers from the long-running
+  server + a stdio subprocess. Concurrent writes serialize per WAL
+  semantics; the existing job-locking code prevents double-starting
+  scans/refreshes regardless of which transport the request came from.
+
+**`firmware_status` paging.** The tool grew five optional input fields
+(all backward-compatible — zero values reproduce the prior behavior):
+
+- `status` — filter by per-device status (`ok` / `error` / `na`)
+- `has_update` — return only devices with a stable or beta update
+- `search` — substring against MAC or IP (case-insensitive)
+- `limit` — cap result slice length
+- `offset` — skip N post-filter results before returning
+
+Output adds `filtered_total` (post-filter count) and `returned`
+(post-page slice length); the original `running`/`done`/`total`
+job-level metrics are unchanged. 8-case test in
+`internal/mcp/tools_test.go` exercises each filter individually plus
+limit / offset / past-end / filter+page combined.
+
+**Per-token scoping deferred indefinitely.** Was on the roadmap as a
+v0.2.x candidate. Single-operator deployments don't benefit from
+splitting the surface across multiple tokens — the audit log already
+attributes calls to a request_id, and the confirm-gated state-changing
+tools require operator approval per call. If multi-tenant or shared
+deployments ever happen, this becomes a real ADR; until then it's
+removed from the roadmap.

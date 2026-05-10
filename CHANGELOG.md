@@ -4,6 +4,62 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-05-10 — MCP stdio subcommand + firmware_status paging
+
+ADR-0011 v0.2.x follow-ups, minus per-token scoping (dropped — single
+operator, audit-log already attributes per-call request_id).
+
+### Added
+
+- **`shellyctl mcp` stdio subcommand** — exposes the same 21-tool MCP
+  surface (read-only + state-changing confirm-gated) on stdin/stdout,
+  for "Claude Desktop on the same host" workflows. Wire into Claude
+  Desktop's MCP config block. The HTTP MCP listener (port 8081) is
+  unchanged for remote-access setups; this is an additive transport.
+
+  Stdio mode trust model:
+  - **No transport-level token** — the parent process spawning the
+    binary IS the trust boundary. Host filesystem permissions on the
+    data dir are the remaining gate.
+  - **No background workers** — query session, not a long-running
+    server. Avoids races with a parallel container holding the same
+    data dir.
+  - **Logs to stderr only** — stdout carries JSON-RPC frames.
+  - **SQLite WAL mode** handles concurrent readers from the long-running
+    server + a stdio subprocess; concurrent writes serialize per WAL
+    semantics. Existing job-locking prevents double-starting jobs
+    regardless of which transport the request came from.
+
+- **`firmware_status` paging + filtering** — five optional inputs, all
+  backward-compatible (zero-valued input reproduces prior behavior):
+  `status` (`ok`/`error`/`na`), `has_update` (boolean), `search`
+  (substring against MAC or IP, case-insensitive), `limit`, `offset`.
+  Output adds `filtered_total` (post-filter count) and `returned`
+  (post-page slice length); `running`/`done`/`total` job-level
+  metrics unchanged. Lets 200+ device fleets stay under MCP per-tool
+  output caps.
+
+### Changed
+
+- **ADR-0011 amended** with a v0.2.3 follow-up section covering the
+  stdio trust model, the paging design, and the explicit removal of
+  per-token scoping from the v0.2.x roadmap.
+- **Roadmap** updates: v0.2.1, v0.2.2, v0.2.3 added to "Recently
+  shipped"; MCP follow-ups + Svelte 5 reactivity migration removed
+  from "Next"; vite.config oxc minifier swap added as remaining
+  v0.2.0 tech-debt.
+
+### Verification
+
+- 8-case unit test in `internal/mcp/tools_test.go` exercises every
+  filter combination + paging behavior through the in-memory MCP
+  transport.
+- Stdio subcommand smoke-tested locally with raw JSON-RPC piped over
+  stdin: initialize handshake announces `shellyadmin v0.2.3`,
+  tools/list returns the full 21-tool catalog, tools/call list_devices
+  returns the empty fleet from a fresh DB, tools/call firmware_status
+  with limit=2 returns the new paged shape.
+
 ## [0.2.2] - 2026-05-10 — Svelte 5 reactivity migration
 
 Closes the four lint rules deferred during the v0.2.0 frontend dep bump.
