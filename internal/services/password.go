@@ -103,9 +103,7 @@ func parseArgonParams(s string) (memory, time uint32, threads uint8, err error) 
 	return memory, time, threads, nil
 }
 
-// IsPasswordHash reports whether s is a PHC-formatted argon2id string. Used
-// to pick between hash-verify and plaintext-compare code paths when both
-// SHELLYADMIN_PASS and SHELLYADMIN_PASS_HASH are accepted.
+// IsPasswordHash reports whether s is a PHC-formatted argon2id string.
 func IsPasswordHash(s string) bool {
 	return strings.HasPrefix(s, "$argon2id$")
 }

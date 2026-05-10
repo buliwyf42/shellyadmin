@@ -23,15 +23,13 @@ It is not designed for:
 
 ### Admin password storage
 
-- Preferred: set `SHELLYADMIN_PASS_HASH` (or `_FILE`) to an argon2id PHC string.
+- Required: set `SHELLYADMIN_PASS_HASH` (or `_FILE`) to an argon2id PHC string.
   Generate with `shellyctl hash-password <plaintext>`. Only the hash sits in
-  env/memory at runtime — constant-time compared on login.
-- Deprecated: `SHELLYADMIN_PASS` still accepts a plaintext password for
-  existing deployments. Startup logs a deprecation warning. Plaintext support
-  is scheduled for removal in **v0.2.0**, no earlier than **2026-07-22** —
-  the 3-month overlap window from the v0.0.15 deprecation (2026-04-22). After
-  removal, missing `SHELLYADMIN_PASS_HASH` will panic at startup with a
-  pointer to `shellyctl hash-password`.
+  env/memory at runtime — constant-time compared on login. Missing
+  `SHELLYADMIN_PASS_HASH` panics at startup with a pointer to the helper.
+- Removed in v0.2.0: the deprecated plaintext `SHELLYADMIN_PASS` env var.
+  v0.0.15 added `_HASH` and started warning on plaintext use; v0.2.0 closes
+  the deprecation window.
 
 ## Session Security
 

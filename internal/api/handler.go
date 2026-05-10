@@ -645,23 +645,19 @@ func (h *Handler) OpenAPIV1(c *gin.Context) {
 	c.JSON(http.StatusOK, openAPIV1Spec())
 }
 
-// verifyAdminPassword accepts either a PHC-formatted argon2id hash from
-// cfg.PassHash or, as a deprecated fallback, the plaintext cfg.Pass. The
-// comparison is constant-time in both branches. Returns false on empty
-// plaintext regardless of config so blank submissions can't squeak through.
+// verifyAdminPassword checks the supplied plaintext against the configured
+// argon2id PHC hash from cfg.PassHash. Returns false on empty plaintext so
+// blank submissions can't squeak through.
 func (h *Handler) verifyAdminPassword(c *gin.Context, plain string) bool {
 	if plain == "" {
 		return false
 	}
-	if h.cfg.PassHash != "" {
-		ok, err := services.VerifyPassword(plain, h.cfg.PassHash)
-		if err != nil {
-			h.logReq(c, "ERROR", fmt.Sprintf("password hash verify failed: %v", err))
-			return false
-		}
-		return ok
+	ok, err := services.VerifyPassword(plain, h.cfg.PassHash)
+	if err != nil {
+		h.logReq(c, "ERROR", fmt.Sprintf("password hash verify failed: %v", err))
+		return false
 	}
-	return subtle.ConstantTimeCompare([]byte(plain), []byte(h.cfg.Pass)) == 1
+	return ok
 }
 
 func RandomSecret() string {

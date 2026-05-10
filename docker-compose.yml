@@ -12,7 +12,9 @@ services:
     environment:
       DATA_DIR: /data
       SHELLYADMIN_USER: ${SHELLYADMIN_USER:-admin}
-      SHELLYADMIN_PASS: ${SHELLYADMIN_PASS:-change-this-admin-password}
+      # Generate the hash with:
+      #   docker run --rm ghcr.io/buliwyf42/shellyadmin:latest shellyctl hash-password <plaintext>
+      SHELLYADMIN_PASS_HASH: ${SHELLYADMIN_PASS_HASH:?SHELLYADMIN_PASS_HASH is required}
       SHELLYADMIN_SECRET: ${SHELLYADMIN_SECRET:-change-this-cookie-secret}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       # Set to enable the read-only MCP listener. Clients send

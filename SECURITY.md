@@ -34,7 +34,7 @@ When reporting, include:
 ## Deployment Expectations
 
 - Keep ShellyAdmin on a trusted LAN or behind a private reverse proxy.
-- **Use `SHELLYADMIN_PASS_HASH`** (argon2id PHC from `shellyctl hash-password`) for the admin password. `SHELLYADMIN_PASS` (plaintext) still works but is scheduled for removal in v0.2.0 (no earlier than 2026-07-22).
+- **Use `SHELLYADMIN_PASS_HASH`** (argon2id PHC from `shellyctl hash-password`) for the admin password. The deprecated plaintext `SHELLYADMIN_PASS` was removed in v0.2.0.
 - Set a strong `SHELLYADMIN_SECRET` for real deployments.
 - Prefer `SHELLYADMIN_PASS_HASH_FILE`, `SHELLYADMIN_SECRET_FILE`, and `SHELLYADMIN_ENCRYPTION_KEY_FILE` for containers — keep cleartext out of environment files and container manifests.
 - Treat the product as a LAN admin tool, not an internet-facing identity system.

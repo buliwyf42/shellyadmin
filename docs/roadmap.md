@@ -27,13 +27,29 @@ threat model and deployment expectations see [SECURITY.md](./SECURITY.md).
   somewhere past 200 devices). Read-only baseline shipped in v0.1.19,
   Settings UI in v0.1.20, live toggle in v0.1.21, state-changing
   confirm-gated tools in v0.1.22 (ADR-0011 v0.1.22 follow-up).
-- **v0.2.0 cut:** removes `SHELLYADMIN_PASS` plaintext support; pulls major
-  dep updates (eslint 10, vite 8, typescript 6, etc.) that were deferred
-  in v0.1.14. Earliest target: 2026-07-22.
+- **Svelte 5 reactivity migration (v0.2.x)**: address the five
+  ESLint 10 / eslint-plugin-svelte 3 rules disabled during the v0.2.0
+  dep bump — `svelte/require-each-key` (~16 sites need stable keys),
+  `svelte/prefer-svelte-reactivity` (4 sites need `Set` → `SvelteSet`,
+  changes the reactivity pattern from immutable-reassignment to
+  mutation), `svelte/no-useless-mustaches` (1 trivial site),
+  `no-useless-assignment` (Provision.svelte:291,298). See the
+  `eslint.config.js` disable block for the full list.
 
 ## Recently shipped
 
 ### 2026-05-10
+
+- **v0.2.0** — Removes deprecated `SHELLYADMIN_PASS` plaintext env var
+  (the v0.0.15 deprecation); `SHELLYADMIN_PASS_HASH` is now the only
+  supported entry point. Pulls the deferred-from-v0.1.14 major frontend
+  dep updates: TypeScript 5.9 → 6.0, Vite 6 → 8 (rolldown bundler),
+  ESLint 9 → 10, plus the matching plugin/parser bumps. Bundle-size
+  budget raised from 280 → 300 KB raw / 80 → 86 KB gzip to absorb the
+  rollup → rolldown switch (~15 KB raw / ~5 KB gzip). One real
+  reactivity bug fixed: `Provision.svelte` `precheckTemplate` reactive
+  statement now lists its 17 state deps explicitly so it actually
+  re-runs.
 
 - **v0.1.23** — `services.RefreshDevice` now resolves targets by
   Name in addition to MAC/IP. Caught by the v0.1.22 live demo when
