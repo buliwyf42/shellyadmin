@@ -162,14 +162,16 @@ rsync -av --exclude='data/' \
   "/Users/buliwyf/Documents/Codex + Code Projects/shellyadmin/" \
   buliwyf@docker.home.lan:/home/buliwyf/shellyadmin/
 
-# On remote: rebuild and restart
+# On remote: rebuild and restart. Generate the hash once with
+#   docker run --rm shellyadmin shellyctl hash-password <plaintext>
+# and substitute the PHC string for $HASH below.
 ssh buliwyf@docker.home.lan "cd /home/buliwyf/shellyadmin && \
   docker build -t shellyadmin . && \
   docker stop shellyadmin && docker rm shellyadmin && \
   docker run -d --name shellyadmin \
     -p 8080:8080 \
     -v /docker/shellyadmin:/data \
-    -e SHELLYADMIN_PASS=changeme \
+    -e SHELLYADMIN_PASS_HASH='\$HASH' \
     -e COOKIE_SECURE=false \
     shellyadmin"
 ```
@@ -242,18 +244,9 @@ The pattern for adding a new knob:
 
 ---
 
-## Plaintext Password Removal Schedule
+## Plaintext Password Removed
 
-`SHELLYADMIN_PASS` (plaintext) is **scheduled for removal in v0.2.0, no earlier than 2026-07-22** — the 3-month overlap window from the v0.0.15 deprecation (2026-04-22). The startup `slog.Warn` in `cmd/shellyctl/main.go` carries this date verbatim; `docs/SECURITY.md` mirrors it.
-
-When v0.2.0 lands, the changes are limited to:
-
-- `cmd/shellyctl/main.go:42-50` — drop the plaintext fallback in env resolution.
-- `internal/api/router.go:18-34` — remove `Config.Pass` field (keep `PassHash`).
-- `internal/api/handler.go:628-645` — drop the plaintext path in `verifyAdminPassword`.
-- Docs: README quick-start, both compose files, `docker/entrypoint.sh`, this file.
-
-`internal/services/password.go` (Argon2id hash/verify) and the `shellyctl hash-password` subcommand stay untouched — they're the migration target, not part of the removal.
+`SHELLYADMIN_PASS` (plaintext) was removed in **v0.2.0**. v0.0.15 added `_HASH` and started warning on plaintext use; v0.2.0 closed the deprecation window. The only supported entry point is `SHELLYADMIN_PASS_HASH` (or `_FILE` indirection) carrying an argon2id PHC string from `shellyctl hash-password`. Missing it panics at startup. `internal/services/password.go` and the `shellyctl hash-password` subcommand are unchanged — they were the migration target, not part of the removal.
 
 ---
 

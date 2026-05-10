@@ -13,12 +13,10 @@ services:
       - shellyadmin-data:/data
     environment:
       DATA_DIR: /data
-      # Preferred: argon2id PHC string generated with
+      # argon2id PHC string generated with
       #   docker run --rm ghcr.io/buliwyf42/shellyadmin:latest shellyctl hash-password <plaintext>
-      # Point the shellyadmin_pass secret at the hash file and uncomment this line.
-      # SHELLYADMIN_PASS_HASH_FILE: /run/secrets/shellyadmin_pass
-      # Deprecated plaintext fallback — still accepted, logs a deprecation warning on startup.
-      SHELLYADMIN_PASS_FILE: /run/secrets/shellyadmin_pass
+      # Stored in the secrets/shellyadmin_pass.txt file mounted via the shellyadmin_pass secret below.
+      SHELLYADMIN_PASS_HASH_FILE: /run/secrets/shellyadmin_pass
       SHELLYADMIN_SECRET_FILE: /run/secrets/shellyadmin_secret
       # Optional: externalise the at-rest encryption key. If omitted, a key is
       # generated on first boot at /data/shellyadmin.key (0600). Back it up

@@ -24,8 +24,7 @@ Supported runtime variables:
 | Variable                               | Purpose                                                                        | Notes                                                                                                                                                                  |
 | -------------------------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `SHELLYADMIN_USER`                     | Admin username                                                                 | Default `admin`                                                                                                                                                        |
-| `SHELLYADMIN_PASS_HASH` / `_FILE`      | **Preferred** — argon2id PHC string from `shellyctl hash-password <plaintext>` | The hash sits in env/memory at runtime; never the cleartext                                                                                                            |
-| `SHELLYADMIN_PASS` / `_FILE`           | Plaintext admin password (deprecated)                                          | Logs a startup warning. **Scheduled for removal in v0.2.0, no earlier than 2026-07-22**. Migrate before then.                                                          |
+| `SHELLYADMIN_PASS_HASH` / `_FILE`      | **Required** — argon2id PHC string from `shellyctl hash-password <plaintext>`  | The hash sits in env/memory at runtime; never the cleartext. Missing this panics at startup.                                                                           |
 | `SHELLYADMIN_SECRET` / `_FILE`         | Cookie/session signing secret                                                  | Auto-generated if unset, but persists only for the process lifetime                                                                                                    |
 | `SHELLYADMIN_ENCRYPTION_KEY` / `_FILE` | base64-encoded 32-byte key for credential at-rest encryption                   | Optional — generated on first boot at `${DATA_DIR}/shellyadmin.key` (mode 0600) if unset. Back it up alongside the database; losing it orphans every stored credential |
 | `DATA_DIR`                             | SQLite + key + log directory                                                   | Default `./data`                                                                                                                                                       |
@@ -34,7 +33,7 @@ Supported runtime variables:
 
 Recommended:
 
-- use the `_HASH` (preferred) or at minimum `_FILE` variants in containers — the cleartext should not sit in environment files or container manifests
+- use the `_HASH_FILE` indirection in containers so the hash itself doesn't sit in environment files or container manifests
 - set `COOKIE_SECURE=true` when behind TLS
 
 ### Configurable knobs surfaced in Settings
@@ -54,7 +53,7 @@ The repo includes:
 
 Current expected flows:
 
-Published image (preferred path uses `SHELLYADMIN_PASS_HASH` — generate with `shellyctl hash-password`):
+Published image — generate the hash with `shellyctl hash-password`, then run:
 
 ```bash
 HASH=$(docker run --rm ghcr.io/buliwyf42/shellyadmin:latest shellyctl hash-password 'change-this-admin-password')
@@ -67,8 +66,6 @@ docker run -d \
   -e COOKIE_SECURE=false \
   ghcr.io/buliwyf42/shellyadmin:latest
 ```
-
-`SHELLYADMIN_PASS` (plaintext) still works for backward compatibility but logs a deprecation warning and is scheduled for removal in v0.2.0 (no earlier than 2026-07-22).
 
 This quick-start example is only for plain HTTP on a trusted LAN. For a more durable deployment, use the `*_FILE` secret variants and set `COOKIE_SECURE=true` when serving through TLS.
 

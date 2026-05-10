@@ -18,11 +18,8 @@ import (
 
 type Config struct {
 	User string
-	// Pass holds a plaintext admin password for deprecated backward compat.
-	// New deployments should set PassHash (argon2id PHC) instead.
-	Pass string
-	// PassHash, when non-empty, takes precedence over Pass. Generate with
-	// `shellyctl hash-password`.
+	// PassHash is the argon2id PHC string for the admin password.
+	// Generate with `shellyctl hash-password`.
 	PassHash       string
 	Secret         string
 	CookieSecure   bool

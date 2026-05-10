@@ -28,7 +28,6 @@ func newTestRouter(t *testing.T, cfg Config) *http.ServeMux {
 	})
 
 	cfg.User = "admin"
-	cfg.Pass = "admin"
 	cfg.Secret = "test-secret"
 	cfg.CookieSecure = false
 	cfg.DataDir = dataDir

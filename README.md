@@ -35,9 +35,9 @@ The target architecture is documented in [docs/ARCHITECTURE.md](/Users/buliwyf/D
 
 ## Quick Start
 
-Fastest Docker run for a trusted LAN test setup. Prefer
-`SHELLYADMIN_PASS_HASH` (argon2id) — generate one with
-`docker run --rm ghcr.io/buliwyf42/shellyadmin:latest shellyctl hash-password <plaintext>`:
+Fastest Docker run for a trusted LAN test setup. Generate the argon2id hash with
+`docker run --rm ghcr.io/buliwyf42/shellyadmin:latest shellyctl hash-password <plaintext>`,
+then:
 
 ```bash
 docker run -d \
@@ -49,9 +49,6 @@ docker run -d \
   -e COOKIE_SECURE=false \
   ghcr.io/buliwyf42/shellyadmin:latest
 ```
-
-`SHELLYADMIN_PASS` (plaintext) still works for backward compatibility but logs
-a deprecation warning on startup.
 
 Then open `http://localhost:8080`.
 
