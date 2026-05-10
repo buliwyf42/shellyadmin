@@ -708,7 +708,7 @@
                   <tr><th>IP</th><th>Device</th><th>Type</th><th>Reason</th></tr>
                 </thead>
                 <tbody>
-                  {#each precheckIssues as issue}
+                  {#each precheckIssues as issue (issue.ip + '|' + issue.category)}
                     <tr>
                       <td>{issue.ip}</td>
                       <td>{issue.label}</td>
@@ -753,7 +753,7 @@
                 </tr>
               </thead>
               <tbody>
-                {#each devices as device}
+                {#each devices as device (device.mac)}
                   <tr>
                     <td
                       ><input
@@ -946,7 +946,7 @@
             </tr>
           </thead>
           <tbody>
-            {#each results as r}
+            {#each results as r (r.info.ip)}
               {@const overallOk = r.results.every(
                 (s) => s.status === 'ok' || s.status === 'skipped',
               )}
@@ -970,7 +970,7 @@
                 </td>
                 <td>
                   <div class="d-flex flex-wrap gap-1">
-                    {#each r.results as s}
+                    {#each r.results as s (s.section)}
                       <span
                         class="badge {s.status === 'ok'
                           ? 'bg-success'

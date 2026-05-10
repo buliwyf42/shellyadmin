@@ -188,7 +188,7 @@
           {#if groups.length === 0}
             <div class="text-secondary">No groups created yet.</div>
           {:else}
-            {#each groups as group}
+            {#each groups as group (group.name)}
               <div class="settings-section-card">
                 <div class="d-flex justify-content-between align-items-center gap-2">
                   <strong>{group.name}</strong>
@@ -288,7 +288,7 @@
         <div class="d-flex gap-2 align-items-center flex-wrap mb-3">
           <select class="form-select toolbar-select-lg" bind:value={assignGroupName}>
             <option value="">select group</option>
-            {#each groups as group}
+            {#each groups as group (group.name)}
               <option value={group.name}>{group.name}</option>
             {/each}
           </select>
@@ -322,7 +322,7 @@
                 </tr>
               </thead>
               <tbody>
-                {#each devices as device}
+                {#each devices as device (device.mac)}
                   {@const groupName = assignments[device.mac] || ''}
                   {@const group = groups.find((item) => item.name === groupName)}
                   <tr>

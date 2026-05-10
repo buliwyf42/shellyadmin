@@ -151,7 +151,7 @@
     <div class="card bg-dark border-warning">
       <div class="card-header">New Devices</div>
       <div class="list-group list-group-flush">
-        {#each status.pending.filter((d) => d.is_new) as device}
+        {#each status.pending.filter((d) => d.is_new) as device (device.mac)}
           <div class="list-group-item list-group-item-dark">
             {device.ip} · {device.name || device.mac}
           </div>
@@ -163,7 +163,7 @@
     <div class="card bg-dark border-secondary">
       <div class="card-header">Known Devices</div>
       <div class="list-group list-group-flush">
-        {#each status.pending.filter((d) => !d.is_new) as device}
+        {#each status.pending.filter((d) => !d.is_new) as device (device.mac)}
           <div class="list-group-item list-group-item-dark">
             {device.ip} · {device.name || device.mac}
           </div>

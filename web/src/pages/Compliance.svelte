@@ -1011,7 +1011,7 @@
               source = <code>device | config | status</code>. Example paths:
               <code>mqtt.server</code>, <code>sys.location.tz</code>, <code>cloud.connected</code>.
             </p>
-            {#each settings.compliance.custom_rules || [] as rule, idx}
+            {#each settings.compliance.custom_rules || [] as rule, idx (idx)}
               <div class="sa-custom-rule">
                 <div class="sa-form-grid">
                   <div data-span="3">
@@ -1109,7 +1109,7 @@
                 </tr>
               </thead>
               <tbody>
-                {#each $devices as device}
+                {#each $devices as device (device.mac)}
                   <tr>
                     <td>{device.name || device.serial || device.mac}</td>
                     <td>{device.ip}</td>

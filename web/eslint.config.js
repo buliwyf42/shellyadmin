@@ -70,16 +70,9 @@ export default [
       ],
       '@typescript-eslint/no-explicit-any': 'off',
       'no-empty': ['error', { allowEmptyCatch: true }],
-      // v0.2.0-prep: rules below newly-default in ESLint 10 / eslint-plugin-svelte 3.
-      // Disabled here to keep the dep-bump pass mechanical; each surfaces real
-      // migration work tracked as separate follow-ups:
-      //   - svelte/require-each-key (~16 sites): add stable keys to {#each} blocks
-      //   - svelte/prefer-svelte-reactivity (4 sites): migrate `new Set` → SvelteSet
-      //     (changes reactivity pattern from immutable-reassignment to mutation)
-      //   - svelte/no-useless-mustaches (UserCAForm.svelte:139): trivial cleanup
-      //   - no-useless-assignment (Provision.svelte:291,298): control-flow analysis
-      //     across conditional branches in `autoSelectedCredentialRef` writes
-      'svelte/require-each-key': 'off',
+      // svelte/prefer-svelte-reactivity is the last v0.2.0-deferred rule;
+      // re-enabling needs `new Set` → `new SvelteSet` migration at 4 sites
+      // (Firmware, Groups, Provision x2). Tracked for v0.2.x.
       'svelte/prefer-svelte-reactivity': 'off',
     },
   },

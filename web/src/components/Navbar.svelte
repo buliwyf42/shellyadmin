@@ -80,7 +80,7 @@
       <span class="brand-version">v{navVersion}</span>
     </a>
     <div class="topnav-main">
-      {#each links as link}
+      {#each links as link (link.path)}
         <a href={link.path} class={`topnav-link ${isActive(link.path) ? 'is-active' : ''}`}>
           <span class="topnav-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" role="img">

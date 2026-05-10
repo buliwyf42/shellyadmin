@@ -125,7 +125,7 @@
   </button>
   {#if open}
     <div class="sa-select-panel" role="listbox" bind:this={listEl}>
-      {#each options as option, idx}
+      {#each options as option, idx (option.value)}
         <button
           type="button"
           class="sa-select-option"

@@ -174,7 +174,7 @@
           <tr><th>IP</th><th>Status</th><th>Chunks</th><th>Bytes</th><th>Detail</th></tr>
         </thead>
         <tbody>
-          {#each results as result}
+          {#each results as result (result.ip)}
             <tr>
               <td>{result.ip}</td>
               <td><span class={`badge ${statusClass(result.status)}`}>{result.status}</span></td>
