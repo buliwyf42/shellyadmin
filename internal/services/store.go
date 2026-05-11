@@ -63,6 +63,10 @@ type Store interface {
 	GetLogsForExport(level, search string, limit int) ([]db.LogEntry, error)
 	GetLogsForExportFiltered(level, search, risk string, limit int) ([]db.LogEntry, error)
 	ClearLogs() (int64, error)
+
+	// Login state (per-account lockout, Q20)
+	GetLoginState(username string) (db.LoginState, error)
+	SetLoginState(state db.LoginState) error
 }
 
 // Compile-time assertion that *db.DB satisfies Store. If a method is added or

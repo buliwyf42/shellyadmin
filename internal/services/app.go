@@ -74,6 +74,59 @@ func NewAppService(database Store, dataDir string, logf func(ctx context.Context
 	}
 }
 
+// Account-lockout knobs (Q20). Triggered by RecordLoginFailure when the
+// rolling counter reaches LoginMaxFailures. The DB row's locked_until is
+// the authoritative timestamp; in-memory state would reset on container
+// restart, which the security review flagged as a bypass vector.
+const (
+	LoginMaxFailures = 20
+	LoginLockoutDur  = 15 * time.Minute
+)
+
+// IsAccountLocked reports whether username is currently locked out from
+// login attempts. The returned time is the wall-clock instant the lockout
+// expires; meaningful only when locked == true.
+func (s *AppService) IsAccountLocked(username string) (bool, time.Time) {
+	state, err := s.db.GetLoginState(username)
+	if err != nil || state.LockedUntil == "" {
+		return false, time.Time{}
+	}
+	until, err := time.Parse(time.RFC3339, state.LockedUntil)
+	if err != nil {
+		return false, time.Time{}
+	}
+	if time.Now().UTC().Before(until) {
+		return true, until
+	}
+	return false, time.Time{}
+}
+
+// RecordLoginFailure increments the rolling failure counter for username.
+// At LoginMaxFailures consecutive failures the account is locked for
+// LoginLockoutDur. A successful login (RecordLoginSuccess) is the only
+// thing that resets the counter; an expired lockout does NOT reset it,
+// because the next failure should re-lock immediately.
+func (s *AppService) RecordLoginFailure(username string) error {
+	state, err := s.db.GetLoginState(username)
+	if err != nil {
+		return err
+	}
+	state.Username = username
+	state.FailedCount++
+	nowStr := time.Now().UTC().Format(time.RFC3339)
+	state.LastFailedAt = nowStr
+	if state.FailedCount >= LoginMaxFailures {
+		state.LockedUntil = time.Now().UTC().Add(LoginLockoutDur).Format(time.RFC3339)
+	}
+	return s.db.SetLoginState(state)
+}
+
+// RecordLoginSuccess clears the failure counter and lockout window for
+// username so the next failure starts a fresh budget.
+func (s *AppService) RecordLoginSuccess(username string) error {
+	return s.db.SetLoginState(db.LoginState{Username: username})
+}
+
 // StartBackgroundWorkers spawns the long-lived background goroutines owned
 // by this service (currently just the firmware-check scheduler). Called once
 // at startup from main.go after RecoverInterruptedJobs. Goroutines exit on

@@ -58,13 +58,13 @@ export class APIError extends Error {
   }
 }
 
-function updateCSRFToken(res: Response) {
-  const token = res.headers.get('X-CSRF-Token');
-  if (token) {
-    csrfToken = token;
-  }
-}
-
+// CSRF token used to be readable from every authenticated response's
+// X-CSRF-Token header; the backend stopped echoing it (Phase 1 Q12) so an
+// XSS sink can no longer scrape a token from `fetch('/api/devices')`.
+// The token now flows ONLY through two response bodies: POST /api/login
+// (initial login) and GET /api/csrf-token (refresh after 401 / page
+// reload). Both require the session cookie, which a cross-site attacker
+// cannot send under SameSite=Lax/Strict.
 async function ensureCSRFToken(): Promise<void> {
   if (csrfToken || csrfFetchInFlight) {
     return csrfFetchInFlight ?? Promise.resolve();
@@ -74,7 +74,6 @@ async function ensureCSRFToken(): Promise<void> {
       method: 'GET',
       credentials: 'same-origin',
     });
-    updateCSRFToken(res);
     if (res.ok) {
       const payload = (await res.json().catch(() => null)) as { csrf_token?: string } | null;
       if (payload?.csrf_token) {
@@ -121,7 +120,6 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
       throw err;
     }
   }
-  updateCSRFToken(res);
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     const message = (err as { error?: string }).error || res.statusText;
@@ -145,12 +143,23 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
       { content_type: contentType || 'unknown', body_snippet: snippet },
     );
   }
-  return res.json();
+  const payload = (await res.json()) as T;
+  // The login response carries the freshly-rotated CSRF nonce in its body so
+  // the first state-changing call after sign-in can include the header
+  // without an extra GET /api/csrf-token round-trip. The backend no longer
+  // echoes the header on every response (Phase 1 Q12), so this is the only
+  // place during a fresh login that the token is delivered.
+  if (path === '/api/login' && res.ok) {
+    const tokenCarrier = payload as unknown as { csrf_token?: unknown };
+    if (typeof tokenCarrier.csrf_token === 'string' && tokenCarrier.csrf_token) {
+      csrfToken = tokenCarrier.csrf_token;
+    }
+  }
+  return payload;
 }
 
 async function fetchBlob(path: string): Promise<Blob> {
   const res = await fetch(path, { method: 'GET', credentials: 'same-origin' });
-  updateCSRFToken(res);
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }));
     const message = (err as { error?: string }).error || res.statusText;
