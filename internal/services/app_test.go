@@ -190,8 +190,12 @@ func TestIsProvisionTargetAllowed(t *testing.T) {
 		{"192.168.1.1", true},
 		{"10.0.0.1", true},
 		{"172.16.0.1", true},
-		// Allowed: link-local
+		// Allowed: link-local (general)
 		{"169.254.1.1", true},
+		// Blocked: cloud metadata endpoint (M5 — explicit deny inside
+		// the link-local /16 because reaching it would be SSRF to the
+		// AWS/GCP/Azure/DO instance metadata service).
+		{"169.254.169.254", false},
 		// Allowed: IPv6 ULA
 		{"fd00::1", true},
 		// Allowed: IPv6 link-local

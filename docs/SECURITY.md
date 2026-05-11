@@ -118,6 +118,93 @@ Recommended pattern:
 - optional reverse proxy terminates TLS
 - app remains private and internal
 
+## Network Segmentation (M13)
+
+ShellyAdmin's threat model assumes the LAN is hostile (ADR-0012 from
+the consolidated review, post-v0.2.10). A compromised IoT device, a
+visitor's phone on guest Wi-Fi, or a vulnerable smart appliance on
+the same flat subnet is the highest-probability initial-access
+vector. Operators are expected to mitigate at the network layer:
+
+**Minimum recommended segmentation:**
+
+- **Admin VLAN** — the operator workstation reaching the ShellyAdmin
+  SPA at `:8100`. Restricted, MFA-protected if possible.
+- **IoT VLAN** — Shelly devices, smart speakers, TVs, anything that
+  speaks an unauthenticated LAN protocol. Egress to the Admin VLAN
+  is blocked at the firewall (`deny inter-vlan` for source=IoT,
+  dest=Admin). The ShellyAdmin container's outbound rules allow it
+  to reach this VLAN; the reverse path is closed.
+- **Guest VLAN** — visitor devices. No reach to Admin or IoT.
+
+**Per-firewall examples:**
+
+- *OPNsense*: separate interfaces per VLAN, "block from IoT_net to
+  Admin_net" firewall rule before the default-allow rule.
+- *UniFi*: traffic rules in the "LAN In" pipeline; assign each VLAN
+  to its own network with `Inter-VLAN routing: disabled`.
+- *Pure-Linux router*: `iptables -A FORWARD -i iot0 -o admin0 -j DROP`
+  before the FORWARD-ACCEPT.
+
+**Reverse-proxy posture:**
+
+When ShellyAdmin sits behind a reverse proxy (typical homelab),
+configure:
+
+- TLS termination on the proxy (`COOKIE_SECURE=true` in compose).
+- Operator-IP allowlist on the proxy if the SPA is reachable from
+  outside the Admin VLAN.
+- `SHELLYADMIN_TRUSTED_PROXIES=<proxy CIDR>` so the binary's
+  `ClientIP()` reads `X-Forwarded-For` correctly (per-IP rate-
+  limit accounting depends on this).
+
+## Off-Host Log Forwarding (M12)
+
+The audit log is persisted in `audit_log` with the v0.2.11 hash
+chain + append-only trigger. Tamper-evidence is on; tamper-
+prevention against an attacker with filesystem access is not.
+Forward logs off-host for a true append-only audit trail.
+
+**Container stdout → Loki via Promtail:**
+
+```yaml
+# promtail-config.yaml fragment — pick up shellyadmin's structured
+# slog output that v0.2.11 tees to stderr.
+scrape_configs:
+  - job_name: shellyadmin
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        filters:
+          - name: name
+            values: [shellyadmin]
+    relabel_configs:
+      - source_labels: [__meta_docker_container_name]
+        target_label: container
+    pipeline_stages:
+      - json:
+          expressions:
+            level: level
+            request_id: request_id
+            risk_level: risk_level
+            msg: msg
+      - labels:
+          level:
+          risk_level:
+```
+
+**Useful Grafana panels / Loki alerts:**
+
+- `count_over_time({container="shellyadmin"} |~ "login blocked: account locked" [1h])`
+  — alert on >0 means brute-force attempt cleared rate-limit.
+- `count_over_time({container="shellyadmin"} | json | risk_level="high" [24h])`
+  — daily count of high-risk MCP/API actions; spike = investigate.
+- `{container="shellyadmin"} | json | request_id="<id>"`
+  — full forensic trace by correlation ID, paired with the
+  matching `audit_log` row in SQLite.
+
+The same approach works with Splunk, ELK, or any sink that consumes
+Docker stdout JSON.
+
 ## Explicit Constraints
 
 The current design intentionally does not include:

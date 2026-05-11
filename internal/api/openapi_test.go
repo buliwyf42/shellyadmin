@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+
+	"shellyadmin/internal/db"
 )
 
 func TestDocumentedAPIRoutesMatchExpectedRouteSet(t *testing.T) {
@@ -94,4 +96,66 @@ func TestOpenAPIV1SpecIncludesEveryDocumentedRoute(t *testing.T) {
 			t.Fatalf("summary for %s %s = %v, want %q", route.Method, route.Path, operation["summary"], route.Summary)
 		}
 	}
+}
+
+// TestEveryAPIRouteIsDocumented locks in M9: every route the live gin
+// router serves under `/api/`, `/health`, or `/ready` must appear in
+// `documentedAPIRoutes()`. The reverse direction (every documented
+// route is registered) is covered by the route-set test above; together
+// they guarantee the OpenAPI spec, the registered routes, and the test
+// allowlist stay in sync. Adding a route without documenting it now
+// fails CI rather than silently shipping an undocumented surface.
+func TestEveryAPIRouteIsDocumented(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	dataDir := t.TempDir()
+	database, err := db.Open(dataDir)
+	if err != nil {
+		t.Fatalf("db.Open() error = %v", err)
+	}
+	t.Cleanup(func() { _ = database.Close() })
+	engine := NewRouter(database, Config{
+		User:    "admin",
+		Secret:  "test-secret",
+		DataDir: dataDir,
+	})
+
+	documented := make(map[string]bool)
+	for _, r := range documentedAPIRoutes() {
+		// gin renders path params as `:name` internally; convert
+		// the OpenAPI `{name}` form to match.
+		key := r.Method + " " + openAPIToGinPath(r.Path)
+		documented[key] = true
+	}
+
+	for _, r := range engine.Routes() {
+		path := r.Path
+		// Skip routes outside the documented surface (SPA fallthrough,
+		// static assets, login GET, app-shell routes for client-side
+		// navigation). These are intentionally NOT API endpoints.
+		if !strings.HasPrefix(path, "/api/") && path != "/health" && path != "/ready" {
+			continue
+		}
+		// The /api/logout path is registered as a top-level POST, not
+		// inside the auth group's documented set with the same prefix —
+		// already in documentedAPIRoutes, just normalize.
+		key := r.Method + " " + path
+		if !documented[key] {
+			t.Errorf("undocumented route: %s %s — add it to documentedAPIRoutes() in internal/api/openapi.go", r.Method, path)
+		}
+	}
+}
+
+// openAPIToGinPath converts `/api/{name}` → `/api/:name` so the gin
+// router output matches the OpenAPI path templates.
+func openAPIToGinPath(p string) string {
+	// Cheap two-pass replace; both sides are static so no need for regex.
+	for strings.Contains(p, "{") {
+		open := strings.Index(p, "{")
+		close := strings.Index(p, "}")
+		if close <= open {
+			break
+		}
+		p = p[:open] + ":" + p[open+1:close] + p[close+1:]
+	}
+	return p
 }
