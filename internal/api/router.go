@@ -94,6 +94,18 @@ func NewRouter(database *db.DB, cfg Config) *gin.Engine {
 
 	h := NewHandler(database, cfg)
 
+	// S5 — RequireAuth now consults the server-side session store via
+	// AppService.SessionValidator(). Cookie alone is no longer
+	// sufficient; the session id baked into the cookie must point to
+	// an un-revoked, un-expired row in `sessions`. Tests that build a
+	// router without an AppService (Service == nil) fall back to
+	// cookie-only auth via a nil validator, keeping the regression
+	// surface manageable.
+	var validator middleware.SessionValidator
+	if h.service != nil {
+		validator = h.service.SessionValidator()
+	}
+
 	r.GET("/login", func(c *gin.Context) {
 		session := sessions.Default(c)
 		if session.Get("user") != nil {
@@ -103,10 +115,10 @@ func NewRouter(database *db.DB, cfg Config) *gin.Engine {
 		serveSPAIndex(c, cfg)
 	})
 	r.POST("/login", middleware.LoginRateLimit(), h.Login)
-	r.POST("/logout", middleware.RequireAuth(), middleware.RequireCSRF(), h.Logout)
+	r.POST("/logout", middleware.RequireAuth(validator), middleware.RequireCSRF(), h.Logout)
 
 	auth := r.Group("/")
-	auth.Use(middleware.RequireAuth())
+	auth.Use(middleware.RequireAuth(validator))
 	auth.Use(middleware.APIRateLimit())
 	auth.Use(middleware.RequireCSRF())
 	registerDocumentedAPIRoutes(r, auth, h)

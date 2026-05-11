@@ -184,8 +184,24 @@ func (h *Handler) Login(c *gin.Context) {
 	session.Set("user", req.Username)
 	nonce := RandomSecret()
 	session.Set("nonce", nonce)
+	// S5 — every successful login issues a fresh server-side session
+	// row. The cookie carries only the opaque id; the authoritative
+	// state (revoked? expired? owner?) lives in the DB. RequireAuth on
+	// every subsequent request consults the row, so a stolen cookie
+	// is invalidated by the operator clicking Logout — pre-S5 the
+	// cookie remained valid for its full 7-day MaxAge.
+	sessionID := RandomSecret()
+	session.Set("session_id", sessionID)
+	if _, err := h.service.IssueSession(sessionID, req.Username); err != nil {
+		h.logReq(c, "ERROR", fmt.Sprintf("login: issue session row failed: %v", err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "session persistence failed"})
+		return
+	}
 	if err := session.Save(); err != nil {
 		h.logReq(c, "ERROR", fmt.Sprintf("login: session save failed: %v", err))
+		// Roll back the row we just inserted so a half-saved login
+		// does not leave an orphan active row.
+		_ = h.service.RevokeSession(sessionID)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "session persistence failed"})
 		return
 	}
@@ -199,6 +215,16 @@ func (h *Handler) Login(c *gin.Context) {
 
 func (h *Handler) Logout(c *gin.Context) {
 	session := sessions.Default(c)
+	// S5 — revoke the server-side row BEFORE clearing the cookie. A
+	// race where the cookie clears but the row stays active would
+	// leave a stolen cookie valid; the reverse (row revoked but
+	// cookie still present) means the next request gets rejected by
+	// RequireAuth, which is the desired behaviour.
+	if sid, ok := session.Get("session_id").(string); ok && sid != "" && h.service != nil {
+		if err := h.service.RevokeSession(sid); err != nil {
+			h.logReq(c, "WARN", fmt.Sprintf("logout: revoke session failed: %v", err))
+		}
+	}
 	session.Clear()
 	session.Options(sessions.Options{Path: "/", MaxAge: -1, HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: h.cfg.CookieSecure})
 	if err := session.Save(); err != nil {
