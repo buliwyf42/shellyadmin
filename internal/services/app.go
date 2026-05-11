@@ -627,9 +627,23 @@ func (s *AppService) Provision(ctx context.Context, ips []string, template map[s
 	return out, nil
 }
 
+// cloudMetadataAddr is the AWS/GCP/Azure/DO cloud metadata endpoint at
+// 169.254.169.254 — RFC3927 link-local space, so it would slip past
+// `addr.IsLinkLocalUnicast()` even though leaking a request to it from
+// ShellyAdmin would be a credential-disclosure SSRF (M5 in the
+// consolidated review). The container never has a legitimate reason to
+// reach it; explicitly deny.
+var cloudMetadataAddr = netip.MustParseAddr("169.254.169.254")
+
 func isProvisionTargetAllowed(addr netip.Addr) bool {
 	// Block clearly unsafe destinations for server-side network calls.
 	if addr.IsLoopback() || addr.IsMulticast() || addr.IsUnspecified() {
+		return false
+	}
+	// Hard-deny the cloud metadata endpoint — see comment on
+	// cloudMetadataAddr. Sits inside the link-local /16 so it has to
+	// be filtered explicitly.
+	if addr == cloudMetadataAddr {
 		return false
 	}
 	// Allow only local network targets (RFC1918/ULA and link-local).
