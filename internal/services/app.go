@@ -23,6 +23,7 @@ import (
 	"shellyadmin/internal/middleware"
 	"shellyadmin/internal/models"
 	"shellyadmin/internal/services/credentials"
+	"shellyadmin/internal/services/jobs"
 	"shellyadmin/internal/services/sessions"
 )
 
@@ -81,6 +82,13 @@ type AppService struct {
 	// internal/services/app_credentials.go.
 	creds *credentials.Service
 
+	// jobsSvc owns the long-running job orchestration (refresh / scan /
+	// firmware_check / firmware_install). Extracted to internal/services/jobs
+	// in v0.3.0 (M7); methods are migrated job-family at a time and
+	// AppService keeps a delegator per migrated method. See
+	// internal/services/app_jobs.go.
+	jobsSvc *jobs.Service
+
 	// metrics is the Prometheus-format counter/gauge registry. nil for
 	// callers that don't wire it up (tests, MCP-only stdio mode); the
 	// service-layer Inc/Set helpers tolerate nil so the metrics path is
@@ -131,7 +139,7 @@ type TemplateRecord struct {
 
 func NewAppService(database Store, dataDir string, logf func(ctx context.Context, level, msg string)) *AppService {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &AppService{
+	svc := &AppService{
 		db:              database,
 		dataDir:         dataDir,
 		logf:            logf,
@@ -142,6 +150,11 @@ func NewAppService(database Store, dataDir string, logf func(ctx context.Context
 		sessions:        sessions.New(database),
 		creds:           credentials.New(database),
 	}
+	// jobs.Service needs two halves: Store (raw DB) and Host (AppService
+	// itself, supplying lifecycle + RPC factories). Wire after the rest of
+	// svc is built so the Host pointer is non-nil.
+	svc.jobsSvc = jobs.New(database, svc)
+	return svc
 }
 
 // Account-lockout knobs (Q20). Triggered by RecordLoginFailure when the
