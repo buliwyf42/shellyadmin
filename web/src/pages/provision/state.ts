@@ -21,6 +21,7 @@ import type {
   WifiStaEntry,
   WifiState,
   WsState,
+  ZigbeeOpsState,
   ZigbeeState,
 } from './types';
 
@@ -1511,4 +1512,90 @@ export function hydrateCover(record: Record<string, unknown>): HydrateResult<Cov
   }
 
   return { ok: true, state };
+}
+
+// --- zigbee operations (write-mostly form, emits gen2_rpc section) ---
+//
+// gen2_rpc is keyed by method name so each method appears at most once
+// per template. The form exposes one of each: Zigbee.SendCommand /
+// Zigbee.ReadAttr / Zigbee.WriteAttr. Templates that already contain a
+// gen2_rpc section won't load into the form view (Provision's hydrate
+// path rejects gen2_rpc with the existing default-branch error pointing
+// at JSON view) — this form is explicitly write-mostly. Saving and
+// re-loading a template built with this form requires JSON view to inspect.
+
+export function createZigbeeOpsState(): ZigbeeOpsState {
+  return {
+    sendCommandEnabled: false,
+    sendCommand: { eui64: '', ep: 1, cluster: 0, cmd: 0, payload: '' },
+    readAttrEnabled: false,
+    readAttr: { eui64: '', ep: 1, cluster: 0, attrs: '' },
+    writeAttrEnabled: false,
+    writeAttr: { eui64: '', ep: 1, cluster: 0, attrsJSON: '[]' },
+    open: false,
+  };
+}
+
+function buildZigbeeSendCommand(s: ZigbeeOpsState['sendCommand']): Record<string, unknown> | null {
+  if (s.eui64.trim() === '') return null;
+  const out: Record<string, unknown> = {
+    eui64: s.eui64.trim(),
+    ep: s.ep,
+    cluster: s.cluster,
+    cmd: s.cmd,
+  };
+  if (s.payload.trim() !== '') out.payload = s.payload.trim();
+  return out;
+}
+
+function buildZigbeeReadAttr(s: ZigbeeOpsState['readAttr']): Record<string, unknown> | null {
+  if (s.eui64.trim() === '') return null;
+  const ids: number[] = [];
+  for (const piece of s.attrs.split(/[\s,]+/)) {
+    const trimmed = piece.trim();
+    if (trimmed === '') continue;
+    const n = Number(trimmed);
+    if (Number.isInteger(n) && n >= 0) ids.push(n);
+  }
+  if (ids.length === 0) return null;
+  return {
+    eui64: s.eui64.trim(),
+    ep: s.ep,
+    cluster: s.cluster,
+    attrs: ids,
+  };
+}
+
+function buildZigbeeWriteAttr(s: ZigbeeOpsState['writeAttr']): Record<string, unknown> | null {
+  if (s.eui64.trim() === '') return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(s.attrsJSON);
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(parsed) || parsed.length === 0) return null;
+  return {
+    eui64: s.eui64.trim(),
+    ep: s.ep,
+    cluster: s.cluster,
+    attrs: parsed,
+  };
+}
+
+export function buildZigbeeOps(s: ZigbeeOpsState): Record<string, unknown> | null {
+  const out: Record<string, unknown> = {};
+  if (s.sendCommandEnabled) {
+    const v = buildZigbeeSendCommand(s.sendCommand);
+    if (v) out['Zigbee.SendCommand'] = v;
+  }
+  if (s.readAttrEnabled) {
+    const v = buildZigbeeReadAttr(s.readAttr);
+    if (v) out['Zigbee.ReadAttr'] = v;
+  }
+  if (s.writeAttrEnabled) {
+    const v = buildZigbeeWriteAttr(s.writeAttr);
+    if (v) out['Zigbee.WriteAttr'] = v;
+  }
+  return Object.keys(out).length > 0 ? out : null;
 }
