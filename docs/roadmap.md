@@ -19,13 +19,34 @@ threat model and deployment expectations see [SECURITY.md](./SECURITY.md).
   without churn. Will need its own ADR to scope the command surface.
 - Periodic dependency pin review on a regular cadence (next pass: ~3 months
   out, or sooner if a CVE lands).
-- **vite.config oxc minifier**: vite 8 made `oxc` the default minifier
-  and unbundled `esbuild`. Currently pinning `minify: 'esbuild'` + the
-  `esbuild` devDep to keep byte-stable build output across the v0.2.0
-  rollup→rolldown jump. Worth a separate task to switch to oxc and
-  drop the devDep.
 
 ## Recently shipped
+
+### 2026-05-11
+
+- **v0.2.7** — `vite.config.ts` switched from `minify: 'esbuild'` to
+  `minify: 'oxc'`; dropped the `esbuild` devDep added in v0.2.0.
+  Single-tooled build pipeline now (rolldown bundler + oxc minifier
+  both from the same vite-8 family). Bundle output shrank ~13 KB raw /
+  ~9 KB gzip — oxc squeezes more out of this codebase than esbuild did.
+  Closes the v0.2.0 tech-debt item.
+
+- **v0.2.6** — Zigbee operations form (write-mostly). Three optional
+  cards: `Zigbee.SendCommand` / `Zigbee.ReadAttr` / `Zigbee.WriteAttr`.
+  Builds a `gen2_rpc` template section. Hydrate not implemented (the
+  Provision form view doesn't load `gen2_rpc` templates back; the JSON
+  view does). Closes the third "no first-class UI for X" gap from the
+  v0.2.x queue.
+
+- **v0.2.5** — Cover (slat-tilt) provisioner form. Surfaces id, name,
+  maxtime_open/close, swap_inputs, power_limit, and the FW 2.0.0-beta1
+  `slat` sub-object for venetian-blind tilt. Advanced fields
+  (obstruction_detection, motor, safety_switch) stay JSON-editor only.
+
+- **v0.2.4** — Webhooks provisioner form. delete_all + delete-by-id +
+  new-webhook entries (cid/event/name/enable/URLs). `update` blocks
+  remain JSON-editor only since they require per-device knowledge of
+  existing webhook ids.
 
 ### 2026-05-10
 

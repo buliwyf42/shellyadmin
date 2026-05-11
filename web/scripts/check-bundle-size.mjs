@@ -30,8 +30,13 @@ const DIST = path.resolve(HERE, '..', 'dist', 'assets');
 // + 6 slat sub-fields). Measured 314.29 kB raw / 88.32 kB gzip.
 // v0.2.6: ZigbeeOpsForm added ~8 KB raw / 1 KB gzip (3 op cards with
 // many fields). Measured 321.95 kB raw / 89.76 kB gzip.
+// v0.2.7: minify swapped esbuild → oxc (vite 8 native; dropped the
+// esbuild devDep added in v0.2.0). Bundle SHRANK ~13 KB raw / ~9 KB
+// gzip — oxc squeezes more out than esbuild on this codebase. New
+// baseline 309.18 kB raw / 81.10 kB gzip; tightened budgets to leave
+// ~5% headroom rather than carrying the v0.2.6 ceiling.
 const BUDGETS = {
-  js: { raw: 328 * 1024, gzip: 92 * 1024 },
+  js: { raw: 320 * 1024, gzip: 86 * 1024 },
   css: { raw: 30 * 1024, gzip: 8 * 1024 },
 };
 
