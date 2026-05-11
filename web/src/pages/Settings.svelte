@@ -3,6 +3,7 @@
   import { APIError, api } from '../lib/api';
   import type { AppSettings, BackupExport, Credential, ImportReport } from '../lib/types';
   import ErrorNotice from '../components/ErrorNotice.svelte';
+  import TOTPCard from './settings/TOTPCard.svelte';
 
   let settings: AppSettings = {
     subnets: [],
@@ -434,7 +435,12 @@
     </div>
   </div>
 
-  <!-- Card 4: Display -->
+  <!-- Card 4: Two-Factor Authentication (T1, v0.3.0) -->
+  <div class="col-lg-6">
+    <TOTPCard />
+  </div>
+
+  <!-- Card 5: Display -->
   <div class="col-lg-6">
     <div class="card bg-dark border-secondary h-100">
       <div class="card-body">

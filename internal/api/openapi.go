@@ -259,6 +259,46 @@ func documentedAPIRoutes() []apiRouteDoc {
 			},
 		},
 		{
+			Method:      http.MethodGet,
+			Path:        "/api/totp/status",
+			Summary:     "Read operator TOTP enrollment status",
+			Description: "Returns whether the authenticated operator has an active TOTP row, plus the remaining backup-code count. Used by the Settings 2FA card to switch between the Enroll and Disable controls.",
+			Auth:        true,
+			Register: func(routes gin.IRoutes, h *Handler) {
+				routes.GET("/api/totp/status", h.GetTOTPStatus)
+			},
+		},
+		{
+			Method:      http.MethodPost,
+			Path:        "/api/totp/enroll",
+			Summary:     "Begin TOTP enrollment",
+			Description: "Mints a fresh TOTP secret + 10 single-use backup codes for the authenticated operator and stashes the pending material in the session cookie. The secret + recovery codes are surfaced exactly once in the response body. Call /api/totp/verify-enroll with a code from the operator's authenticator app to commit. Returns 409 when the operator already has an active enrollment.",
+			Auth:        true,
+			Register: func(routes gin.IRoutes, h *Handler) {
+				routes.POST("/api/totp/enroll", h.EnrollTOTP)
+			},
+		},
+		{
+			Method:      http.MethodPost,
+			Path:        "/api/totp/verify-enroll",
+			Summary:     "Commit pending TOTP enrollment",
+			Description: "Verifies the operator-supplied TOTP code against the in-flight secret stashed by /api/totp/enroll, secretbox-seals the secret + hashed backup codes, and persists the row. The pending session fields are cleared on success.",
+			Auth:        true,
+			Register: func(routes gin.IRoutes, h *Handler) {
+				routes.POST("/api/totp/verify-enroll", h.VerifyEnrollTOTP)
+			},
+		},
+		{
+			Method:      http.MethodPost,
+			Path:        "/api/totp/disable",
+			Summary:     "Disable TOTP for the authenticated operator",
+			Description: "Requires a fresh TOTP code or unused backup code so a stolen session cookie cannot quietly turn 2FA off. Deletes the row on success.",
+			Auth:        true,
+			Register: func(routes gin.IRoutes, h *Handler) {
+				routes.POST("/api/totp/disable", h.DisableTOTP)
+			},
+		},
+		{
 			Method:  http.MethodGet,
 			Path:    "/api/templates",
 			Summary: "List provisioning templates",

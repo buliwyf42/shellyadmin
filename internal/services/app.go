@@ -20,6 +20,7 @@ import (
 	"shellyadmin/internal/services/sessions"
 	servicessettings "shellyadmin/internal/services/settings"
 	"shellyadmin/internal/services/templates"
+	"shellyadmin/internal/services/totp"
 	"shellyadmin/internal/services/validation"
 	"shellyadmin/internal/services/workers"
 	"shellyadmin/internal/util"
@@ -138,6 +139,13 @@ type AppService struct {
 	// delegate here.
 	settings *servicessettings.Service
 
+	// totp owns the TOTP 2FA orchestration (enrollment / verify / disable /
+	// login-verify). T1 in v0.3.0 (docs/plans/phase-4c-auth-strategics.md,
+	// Block 4c.1); the *AppService delegators in internal/services/totp.go
+	// preserve the public surface so api/handler_totp.go stays free of the
+	// totp sub-package import.
+	totp *totp.Service
+
 	// metrics is the Prometheus-format counter/gauge registry. nil for
 	// callers that don't wire it up (tests, MCP-only stdio mode); the
 	// service-layer Inc/Set helpers tolerate nil so the metrics path is
@@ -227,6 +235,10 @@ func NewAppService(database Store, dataDir string, logf func(ctx context.Context
 	// pipeline. The onSaved callback fires ReconcileMCPFromSettings so a
 	// token rotation rebuilds the live MCP listener.
 	svc.settings = servicessettings.New(database, svc.ReconcileMCPFromSettings)
+	// totp.Service handles the per-operator enrollment + verify flows.
+	// Store-only dependency; secretbox key is read at the package level
+	// during seal/open so no key wiring is needed here.
+	svc.totp = totp.New(database)
 	return svc
 }
 

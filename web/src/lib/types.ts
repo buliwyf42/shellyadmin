@@ -162,6 +162,27 @@ export interface AppSettings {
   mcp_managed_by_env?: boolean;
   /** True when an MCP listener goroutine is currently active. Surfaced in the API GET response so the UI can render a live status badge. Read-only — never persisted. */
   mcp_running?: boolean;
+  /** When true AND the operator has an active TOTP enrollment, the login handler refuses password-only auth. Non-enrolled operators can still log in password-only (escape hatch for the first-time enrollment flow). T1 in v0.3.0. */
+  totp_required?: boolean;
+}
+
+/** GET /api/totp/status response — drives the Settings 2FA card's
+ *  Enroll-vs-Disable controls and the "X of N backup codes left" line. */
+export interface TOTPStatus {
+  enrolled: boolean;
+  enrolled_at?: string;
+  last_verified_at?: string;
+  backup_codes_left?: number;
+}
+
+/** POST /api/totp/enroll response — the plaintext secret + 10 recovery
+ *  codes surface exactly once on the wire. The SPA flashes them at the
+ *  operator and clears them from memory after Verify-Enroll succeeds. */
+export interface TOTPEnrollResponse {
+  secret: string;
+  otpauth_uri: string;
+  backup_codes: string[];
+  qrcode_format: string;
 }
 
 export interface FWResult {
