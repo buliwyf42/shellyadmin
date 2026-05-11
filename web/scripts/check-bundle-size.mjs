@@ -28,8 +28,10 @@ const DIST = path.resolve(HERE, '..', 'dist', 'assets');
 // v0.2.5: CoverForm provisioner section added ~11 KB raw / 3 KB gzip
 // (more fields than Webhooks: id + name + 2 maxtimes + swap + power_limit
 // + 6 slat sub-fields). Measured 314.29 kB raw / 88.32 kB gzip.
+// v0.2.6: ZigbeeOpsForm added ~8 KB raw / 1 KB gzip (3 op cards with
+// many fields). Measured 321.95 kB raw / 89.76 kB gzip.
 const BUDGETS = {
-  js: { raw: 320 * 1024, gzip: 90 * 1024 },
+  js: { raw: 328 * 1024, gzip: 92 * 1024 },
   css: { raw: 30 * 1024, gzip: 8 * 1024 },
 };
 

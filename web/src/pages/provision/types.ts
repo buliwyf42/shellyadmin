@@ -207,6 +207,45 @@ export type ScriptsState = {
   open: boolean;
 };
 
+// Zigbee operations form. Generates a `gen2_rpc` section containing at
+// most one of each of Zigbee.SendCommand / Zigbee.ReadAttr /
+// Zigbee.WriteAttr. The gen2_rpc section is keyed by method name so a
+// template can carry one entry per method — that's the limit the form
+// exposes. The Provision hydrate path doesn't load `gen2_rpc` templates
+// back into the form view today (form is write-mostly for Zigbee ops);
+// switch to JSON view to inspect/edit a saved template.
+export type ZigbeeSendCommandState = {
+  eui64: string;
+  ep: number;
+  cluster: number;
+  cmd: number;
+  payload: string;
+};
+
+export type ZigbeeReadAttrState = {
+  eui64: string;
+  ep: number;
+  cluster: number;
+  attrs: string;
+};
+
+export type ZigbeeWriteAttrState = {
+  eui64: string;
+  ep: number;
+  cluster: number;
+  attrsJSON: string;
+};
+
+export type ZigbeeOpsState = {
+  sendCommandEnabled: boolean;
+  sendCommand: ZigbeeSendCommandState;
+  readAttrEnabled: boolean;
+  readAttr: ZigbeeReadAttrState;
+  writeAttrEnabled: boolean;
+  writeAttr: ZigbeeWriteAttrState;
+  open: boolean;
+};
+
 // Cover form covers Cover.SetConfig including the FW 2.0.0-beta1 `slat`
 // sub-object for venetian-blind tilt control. Edge-case fields
 // (obstruction_detection, motor, safety_switch) stay JSON-editor only —

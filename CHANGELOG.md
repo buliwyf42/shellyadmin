@@ -4,6 +4,57 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-05-11 — Zigbee operations form (write-mostly)
+
+Closes the third "no first-class UI for X" gap. Direct ZCL operations
+(`Zigbee.SendCommand` / `Zigbee.ReadAttr` / `Zigbee.WriteAttr`) against
+paired Zigbee devices have been routable via the generic `gen2_rpc`
+template section since the wave gateway support landed, but operators
+had to construct the JSON by hand including the `eui64` (64-bit
+device address), endpoint, cluster, and ZCL command/attr arguments.
+
+### Added
+
+- **`web/src/pages/provision/ZigbeeOpsForm.svelte`** — three optional
+  operation cards. Each can be toggled on independently; multiple ops
+  in the same template build a `gen2_rpc` section with one entry per
+  Zigbee.* method (the `gen2_rpc` shape is keyed by method name, so at
+  most one of each per template).
+  - **Zigbee.SendCommand** — `eui64`, `ep`, `cluster`, `cmd`, optional
+    hex `payload`. Empty payload is omitted from the output.
+  - **Zigbee.ReadAttr** — `eui64`, `ep`, `cluster`, `attrs` parsed
+    from a comma- or whitespace-separated list of integer ids; junk
+    values silently dropped.
+  - **Zigbee.WriteAttr** — `eui64`, `ep`, `cluster`, `attrs` accepted
+    as a raw JSON array of `{id, type, value}` records (the type/value
+    pairing is too varied to flatten into a form). Invalid JSON or
+    non-array shapes drop the operation.
+- State surface in `web/src/pages/provision/state.ts`:
+  `createZigbeeOpsState`, `buildZigbeeOps`. Build merges into any
+  existing `gen2_rpc` section from `buildTemplate` rather than
+  overwriting.
+- 9 new vitest cases in
+  `web/src/pages/provision/state.test.ts` covering each operation's
+  build path, edge cases (empty eui64, empty payload, malformed
+  attrs), and the multi-op combination path.
+
+### Constraints
+
+- **Write-mostly form.** The Provision hydrate path doesn't load
+  `gen2_rpc` templates back into the form view (existing default-branch
+  rejection unchanged). Saving and re-opening a template built with
+  this form requires JSON view to inspect — the form is unchecked and
+  the `gen2_rpc` section is intact in the JSON.
+- **One Zigbee.* method per template.** `gen2_rpc` is method-keyed.
+  Operators who need multiple Zigbee.SendCommand calls in one template
+  still need JSON view; the form is for the common single-op case.
+
+### Changed
+
+- Bundle-size budget raised 320 → 328 KB raw / 90 → 92 KB gzip for
+  the form's ~8 KB raw footprint. New baseline 321.95 KB raw /
+  89.16 KB gzip.
+
 ## [0.2.5] - 2026-05-11 — Cover (slat-tilt) provisioner form
 
 Closes the second of the "no first-class UI for X provisioner section"

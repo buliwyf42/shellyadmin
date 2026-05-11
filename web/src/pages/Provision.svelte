@@ -18,6 +18,7 @@
   import CoverForm from './provision/CoverForm.svelte';
   import ScriptsForm from './provision/ScriptsForm.svelte';
   import WebhooksForm from './provision/WebhooksForm.svelte';
+  import ZigbeeOpsForm from './provision/ZigbeeOpsForm.svelte';
   import type {
     AuthState,
     AutoUpdateState,
@@ -35,6 +36,7 @@
     WifiAPState,
     WifiState,
     WsState,
+    ZigbeeOpsState,
     ZigbeeState,
   } from './provision/types';
   import {
@@ -55,6 +57,7 @@
     buildWifiAP,
     buildWs,
     buildZigbee,
+    buildZigbeeOps,
     createAuthState,
     createAutoUpdateState,
     createBleState,
@@ -71,6 +74,7 @@
     createWifiAPState,
     createWifiState,
     createWsState,
+    createZigbeeOpsState,
     createZigbeeState,
     hydrateAuth,
     hydrateAutoUpdate,
@@ -131,6 +135,7 @@
   let scriptsState: ScriptsState = createScriptsState();
   let webhooksState: WebhooksState = createWebhooksState();
   let coverState: CoverState = createCoverState();
+  let zigbeeOpsState: ZigbeeOpsState = createZigbeeOpsState();
 
   function captureError(err: unknown) {
     if (err instanceof APIError) {
@@ -269,6 +274,7 @@
     scriptsState,
     webhooksState,
     coverState,
+    zigbeeOpsState,
     templateForPrecheck());
   $: precheckTemplateError =
     viewMode === 'json' && precheckTemplate === null
@@ -388,6 +394,7 @@
     scriptsState = createScriptsState();
     webhooksState = createWebhooksState();
     coverState = createCoverState();
+    zigbeeOpsState = createZigbeeOpsState();
   }
 
   function asRecord(value: unknown): Record<string, unknown> | null {
@@ -590,6 +597,11 @@
     if (webhooks) out.webhooks = webhooks;
     const cover = buildCover(coverState);
     if (cover) out.cover = cover;
+    const zigbeeOps = buildZigbeeOps(zigbeeOpsState);
+    if (zigbeeOps) {
+      const existing = (out.gen2_rpc as Record<string, unknown> | undefined) ?? {};
+      out.gen2_rpc = { ...existing, ...zigbeeOps };
+    }
     return out;
   }
 
@@ -923,6 +935,7 @@
             <ScriptsForm bind:state={scriptsState} />
             <WebhooksForm bind:state={webhooksState} />
             <CoverForm bind:state={coverState} />
+            <ZigbeeOpsForm bind:state={zigbeeOpsState} />
             <UserCAForm {devices} {selected} />
           </div>
         {/if}

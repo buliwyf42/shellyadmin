@@ -10,7 +10,8 @@ Security fixes are best-effort while the project is in active early development.
 
 | Version                                    | Supported   | Notes                                                                                                                                 |
 | ------------------------------------------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `v0.2.5`                                   | Yes         | Current baseline. Cover (slat-tilt) provisioner form (UI-only).                                                                       |
+| `v0.2.6`                                   | Yes         | Current baseline. Zigbee operations form (UI-only; write-mostly).                                                                     |
+| `v0.2.5`                                   | Best effort | Cover (slat-tilt) provisioner form (UI-only).                                                                                         |
 | `v0.2.4`                                   | Best effort | Webhooks provisioner form (UI-only).                                                                                                  |
 | `v0.2.3`                                   | Best effort | MCP `shellyctl mcp` stdio subcommand + `firmware_status` paging.                                                                      |
 | `v0.2.2`                                   | Best effort | Closes the four lint rules deferred during v0.2.0 dep bump (Svelte 5 reactivity migration).                                           |

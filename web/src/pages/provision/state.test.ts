@@ -3,9 +3,11 @@ import {
   buildCover,
   buildSys,
   buildWebhooks,
+  buildZigbeeOps,
   createCoverState,
   createSysState,
   createWebhooksState,
+  createZigbeeOpsState,
   hydrateCover,
   hydrateSys,
   hydrateWebhooks,
@@ -329,5 +331,105 @@ describe('hydrateCover', () => {
     const r = hydrateCover({ id: 1.5 });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.reason).toMatch(/non-negative integer/i);
+  });
+});
+
+describe('buildZigbeeOps', () => {
+  it('returns null when no operations are enabled', () => {
+    expect(buildZigbeeOps(createZigbeeOpsState())).toBeNull();
+  });
+
+  it('returns null when an operation is enabled but eui64 is empty', () => {
+    const s = createZigbeeOpsState();
+    s.sendCommandEnabled = true;
+    expect(buildZigbeeOps(s)).toBeNull();
+  });
+
+  it('builds Zigbee.SendCommand with optional payload', () => {
+    const s = createZigbeeOpsState();
+    s.sendCommandEnabled = true;
+    s.sendCommand = {
+      eui64: '0x00158d0001abcd1234',
+      ep: 1,
+      cluster: 6,
+      cmd: 1,
+      payload: '0102',
+    };
+    expect(buildZigbeeOps(s)).toEqual({
+      'Zigbee.SendCommand': {
+        eui64: '0x00158d0001abcd1234',
+        ep: 1,
+        cluster: 6,
+        cmd: 1,
+        payload: '0102',
+      },
+    });
+  });
+
+  it('omits Zigbee.SendCommand payload when blank', () => {
+    const s = createZigbeeOpsState();
+    s.sendCommandEnabled = true;
+    s.sendCommand = { eui64: '0xAA', ep: 1, cluster: 0, cmd: 0, payload: '   ' };
+    expect(buildZigbeeOps(s)).toEqual({
+      'Zigbee.SendCommand': { eui64: '0xAA', ep: 1, cluster: 0, cmd: 0 },
+    });
+  });
+
+  it('parses ReadAttr attrs from comma- or whitespace-separated input', () => {
+    const s = createZigbeeOpsState();
+    s.readAttrEnabled = true;
+    s.readAttr = { eui64: '0xBB', ep: 1, cluster: 4, attrs: ' 0, 4 5,, 1024' };
+    expect(buildZigbeeOps(s)).toEqual({
+      'Zigbee.ReadAttr': { eui64: '0xBB', ep: 1, cluster: 4, attrs: [0, 4, 5, 1024] },
+    });
+  });
+
+  it('drops ReadAttr when no valid attribute ids parsed', () => {
+    const s = createZigbeeOpsState();
+    s.readAttrEnabled = true;
+    s.readAttr = { eui64: '0xBB', ep: 1, cluster: 0, attrs: 'abc, -1' };
+    expect(buildZigbeeOps(s)).toBeNull();
+  });
+
+  it('builds WriteAttr from valid attrs JSON array', () => {
+    const s = createZigbeeOpsState();
+    s.writeAttrEnabled = true;
+    s.writeAttr = {
+      eui64: '0xCC',
+      ep: 1,
+      cluster: 6,
+      attrsJSON: '[{"id":0,"type":"uint8","value":1}]',
+    };
+    expect(buildZigbeeOps(s)).toEqual({
+      'Zigbee.WriteAttr': {
+        eui64: '0xCC',
+        ep: 1,
+        cluster: 6,
+        attrs: [{ id: 0, type: 'uint8', value: 1 }],
+      },
+    });
+  });
+
+  it('drops WriteAttr when attrs JSON is invalid or non-array', () => {
+    const s = createZigbeeOpsState();
+    s.writeAttrEnabled = true;
+    s.writeAttr = { eui64: '0xCC', ep: 1, cluster: 0, attrsJSON: 'not-json' };
+    expect(buildZigbeeOps(s)).toBeNull();
+
+    s.writeAttr.attrsJSON = '{"not":"array"}';
+    expect(buildZigbeeOps(s)).toBeNull();
+
+    s.writeAttr.attrsJSON = '[]';
+    expect(buildZigbeeOps(s)).toBeNull();
+  });
+
+  it('combines multiple ops in one gen2_rpc-shaped output', () => {
+    const s = createZigbeeOpsState();
+    s.sendCommandEnabled = true;
+    s.sendCommand = { eui64: '0xAA', ep: 1, cluster: 0, cmd: 0, payload: '' };
+    s.readAttrEnabled = true;
+    s.readAttr = { eui64: '0xAA', ep: 1, cluster: 0, attrs: '0' };
+    const out = buildZigbeeOps(s) as Record<string, unknown>;
+    expect(Object.keys(out).sort()).toEqual(['Zigbee.ReadAttr', 'Zigbee.SendCommand']);
   });
 });
