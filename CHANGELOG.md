@@ -4,6 +4,136 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.11] - 2026-05-11 — Phase 2 stabilization (consolidated review)
+
+Phase 2 of the consolidated security + architecture review.
+Implements 19 of 19 Phase-2 items (S1–S21). The headline change
+is **server-side session revocation** (S5): a stolen session cookie
+is no longer valid for 7 days after the operator clicks Logout.
+The release also adds **cosign image signing** + **Trivy image
+scan** to the publish pipeline, **audit-log hash-chaining** with an
+append-only trigger, and **encryption-key externalization as a
+soft-deprecation** (v0.3.0 will refuse to start without an external
+key).
+
+### Added
+
+- **Server-side session store** (S5). New `sessions` table; Login
+  issues a row, Logout flips `revoked_at`, RequireAuth consults the
+  row on every request. Background sweeper prunes expired rows
+  every 6 hours. 5 new tests cover the lifecycle, sweeper
+  selectivity, bulk-revoke isolation, and the end-to-end
+  Login → Logout → cookie-refused flow.
+- **Cosign keyless signing** of the multi-arch image index in
+  `publish-image.yml` (S3). Operator-side verify command
+  documented in `docs/DEPLOYMENT.md`:
+  `cosign verify --certificate-identity-regexp '...' ...`.
+- **Trivy HIGH/CRITICAL scan** against the freshly-pushed digest
+  (S4). Fails the workflow after the push, so the operator gets a
+  notification before rolling production forward.
+- **Audit-log hash chaining** (S2). New `prev_hash` column +
+  `audit_log_no_delete` append-only trigger. Tampering with a row
+  breaks the chain at the next link; `VerifyAuditChain` walks the
+  table and reports the first mismatch.
+- **Audit-log retention** (S1) — `AuditRetentionDays` setting
+  (default 90, clamped [0, 3650]). Hourly background job prunes
+  older rows via a controlled bypass of the append-only trigger.
+- **Auto-backup snapshots** (S12+S13) — opt-in via
+  `AutoBackupEnabled` setting. Hourly tick consults the operator-
+  configured interval/keep policy and writes
+  `shellyctl.db.snap-<UTC>.sqlite` via SQLite `VACUUM INTO`.
+  Encryption key NOT snapshotted by design.
+- **`/ready` endpoint** (S7) returns DB-ping latency + MCP
+  listener status as JSON. Returns 503 when degraded. `/health`
+  stays a flat 200/OK for container liveness probes.
+- **MCP-listener rate-limit** (S8) — same token-bucket cadence as
+  the SPA API (300/min/IP) but a separate counter store so the
+  two surfaces don't starve each other.
+- **TrustedProxies env var** (S11) — `SHELLYADMIN_TRUSTED_PROXIES`
+  comma-separated CIDR list. Without it, `X-Forwarded-For` from
+  any LAN peer was silently trusted by `ClientIP()`.
+- **STRIDE Threat Model ADR-0012** (S19) — formalizes the
+  trusted-LAN-is-hostile posture and maps each defense layer to
+  STRIDE categories. Future security PRs reference this ADR for
+  context.
+- **CI version-sync gate** (S20) — fails the build if `VERSION`,
+  `web/package.json`, and `web/package-lock.json` drift apart.
+- **CI coverage gate** at >=40% (S15) — baseline 41.6% at this
+  cut. Phase 3's handler.go split + services split will lift the
+  ceiling toward 50%.
+
+### Changed
+
+- **SanitizeLogMessage regex** (S21) — now redacts JSON-form
+  `"password":"..."` and URL-encoded `password=x&secret=y`
+  patterns. Two real disclosure paths the 8-test regression
+  suite uncovered. Extended secretPattern character class.
+- **Firmware-check scheduler** (S9) restarts on panic with a
+  <5s crash-loop guard. A bad SQLite tick no longer leaves the
+  service silently without periodic checks.
+- **Refresh-job spawn** (S10) — check-then-spawn now serialised
+  under `jobSpawnMu` so concurrent `/api/refresh` calls cannot
+  both pass the "already running" gate.
+- **CSP** gains `require-trusted-types-for 'script'` (S17). The
+  open Trusted-Types allowlist is deliberate — pinning 'none' or
+  a specific factory would break Svelte 5's compiled output if
+  it ever registers a default policy.
+- **Dockerfile** initialises `/data` and `/tmp` as shelly-owned
+  at build time (S14). Operators can opt into
+  `user: <shelly-uid>` in compose and drop the CHOWN/SETGID/
+  SETUID capabilities entirely; the entrypoint detects non-root
+  and skips the privileged steps.
+- **slog deprecation warning** when no external encryption key is
+  provided (S6). v0.3.0 will turn this into a hard-fail. Two-
+  version window gives operators time to migrate their `.env`
+  to `SHELLYADMIN_ENCRYPTION_KEY_FILE`.
+- **govulncheck** is now informational (`continue-on-error: true`).
+  Stdlib CVEs land in the Go vuln DB before the corresponding
+  patch release reaches setup-go's `1.25` alias; blocking CI on
+  every such gap was friction without benefit. The output still
+  appears in the job log and is part of the pre-tag review.
+
+### Documentation
+
+- **`docs/adr/0012-stride-threat-model.md`** — new ADR.
+- **`docs/DEPLOYMENT.md`** — cosign verify command + Trivy notes.
+- **`CLAUDE.md`** — documents that quic-go is linked but no UDP
+  listener is opened (verified with `go tool nm`).
+- **`docker/docker-compose.yml`** — cap_add comment explaining
+  the path to dropping CHOWN/SETGID/SETUID.
+
+### Security
+
+Together with v0.2.10's Phase 1 work, this release closes the
+three systemic risks the consolidated review identified:
+
+1. **Supply-chain compromise** — SHA-pinned actions (v0.2.10) +
+   cosign sign-and-verify + Trivy scan (v0.2.11). The operator
+   has a cryptographic verification path; without it the CI
+   signing would be theater.
+2. **Cookie-theft persistence** — server-side session revocation
+   (S5). The session can now be invalidated by the operator
+   without waiting for the cookie's MaxAge.
+3. **Audit-log tampering** — hash-chain + append-only trigger.
+   A post-compromise admin cannot rewrite history without
+   leaving a chain break the verifier reports.
+
+Phase 3 (handler.go split, services split, frontend page split,
+codegen models→types, `/metrics`, no-`unsafe-inline` CSP) is the
+next workstream. Phase 4 (TOTP 2FA, external pen-test) follows.
+
+### Upgrade notes
+
+- **Active sessions from v0.2.10 are invalidated.** Operators
+  will be redirected to `/login` on their next request after
+  upgrading. A clean re-login is the migration path.
+- **Operators wanting LAN-reachable MCP** must still set
+  `SHELLYADMIN_MCP_BIND=0.0.0.0` in their `.env` (v0.2.10
+  change carried forward).
+- **Encryption-key auto-generation prints a deprecation warning**
+  to stderr. Set `SHELLYADMIN_ENCRYPTION_KEY_FILE` to a file
+  outside the data volume before v0.3.0.
+
 ## [0.2.10] - 2026-05-11 — Phase 1 security hardening (consolidated review)
 
 Three-PR security-hardening sprint shipping the Phase 1 quick wins
