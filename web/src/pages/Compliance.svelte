@@ -8,6 +8,8 @@
   import FieldRow from '../components/FieldRow.svelte';
   import Toggle from '../components/Toggle.svelte';
   import Select from '../components/Select.svelte';
+  import CustomRulesList from './compliance/CustomRulesList.svelte';
+  import DeviceMatrix from './compliance/DeviceMatrix.svelte';
 
   let settings: AppSettings = {
     subnets: [],
@@ -506,20 +508,10 @@
     );
   }
 
-  $: compliantDevices = $devices.filter((device: Device) => device.compliant);
-  $: nonCompliantDevices = $devices.filter((device: Device) => !device.compliant);
-
-  function complianceBadgeClass(device: Device): string {
-    return device.compliant ? 'bg-success' : 'bg-danger';
-  }
-
-  function complianceText(device: Device): string {
-    if (device.compliant) return 'Compliant';
-    if (device.compliance_issues && device.compliance_issues.length > 0) {
-      return device.compliance_issues[0];
-    }
-    return 'Non-compliant';
-  }
+  // Compliant / non-compliant filters + the per-device status badges
+  // moved with the right-column view into compliance/DeviceMatrix.svelte
+  // (M2 — Block 4b.3). Anything that consumed them on this page
+  // re-derives off the shared $devices store via the child.
 
   onMount(() => void load());
 </script>
@@ -1006,66 +998,15 @@
             </div>
           </SectionCard>
 
-          <SectionCard tag="custom rules" bind:open={customOpen} forceOpen={customExpanded}>
-            <p class="text-secondary mb-2" style="font-size: 0.82rem;">
-              source = <code>device | config | status</code>. Example paths:
-              <code>mqtt.server</code>, <code>sys.location.tz</code>, <code>cloud.connected</code>.
-            </p>
-            {#each settings.compliance.custom_rules || [] as rule, idx (idx)}
-              <div class="sa-custom-rule">
-                <div class="sa-form-grid">
-                  <div data-span="3">
-                    <input class="form-control" placeholder="Label" bind:value={rule.label} />
-                  </div>
-                  <div data-span="2">
-                    <Select bind:value={rule.source} options={sourceOptions} ariaLabel="Source" />
-                  </div>
-                  <div data-span="3">
-                    <input
-                      class="form-control font-monospace"
-                      placeholder="path.to.field"
-                      bind:value={rule.path}
-                    />
-                  </div>
-                  <div data-span="2">
-                    <Select bind:value={rule.op} options={opOptions} ariaLabel="Operator" />
-                  </div>
-                  <div data-span="2">
-                    <input
-                      class="form-control"
-                      placeholder="Expected value"
-                      bind:value={rule.value}
-                      disabled={rule.op === 'exists'}
-                    />
-                  </div>
-                  <div data-span="2">
-                    <input
-                      class="form-control"
-                      type="number"
-                      min="0"
-                      placeholder="Gen min"
-                      bind:value={rule.gen_min}
-                    />
-                  </div>
-                  <div data-span="2">
-                    <input
-                      class="form-control"
-                      type="number"
-                      min="0"
-                      placeholder="Gen max"
-                      bind:value={rule.gen_max}
-                    />
-                  </div>
-                  <div data-span="2">
-                    <button class="btn btn-sm btn-outline-danger" on:click={() => removeRule(idx)}
-                      >Remove</button
-                    >
-                  </div>
-                </div>
-              </div>
-            {/each}
-            <button class="btn btn-sm btn-outline-light mt-2" on:click={addRule}>Add Rule</button>
-          </SectionCard>
+          <CustomRulesList
+            rules={settings.compliance.custom_rules || []}
+            bind:open={customOpen}
+            forceOpen={customExpanded}
+            {sourceOptions}
+            {opOptions}
+            onAdd={addRule}
+            onRemove={removeRule}
+          />
         </div>
 
         <button class="btn btn-warning text-dark mt-3" on:click={save}>Save Compliance</button>
@@ -1075,67 +1016,9 @@
   </div>
 
   <div class="col-lg-6">
-    <div class="card bg-dark border-info">
-      <div class="card-body">
-        <h2 class="h6">Summary</h2>
-        <p class="mb-2">
-          <span class="badge bg-success me-2">{compliantDevices.length}</span> compliant
-        </p>
-        <p class="mb-2">
-          <span class="badge bg-danger me-2">{nonCompliantDevices.length}</span> non-compliant
-        </p>
-        <p class="text-secondary mb-2">
-          Token <code class="font-monospace">{'{device_name}'}</code> is substituted during provisioning.
-        </p>
-      </div>
-    </div>
-
-    <div class="card bg-dark border-secondary mt-3">
-      <div class="card-body">
-        <h2 class="h5">Device Compliance</h2>
-        {#if loading}
-          <div class="text-secondary">Loading device statuses...</div>
-        {:else if $devices.length === 0}
-          <div class="alert alert-secondary mb-0">No enrolled devices available yet.</div>
-        {:else}
-          <div class="table-responsive device-list-scroll">
-            <table class="table table-dark table-striped table-nowrap mb-0">
-              <thead>
-                <tr>
-                  <th>Device</th>
-                  <th>IP</th>
-                  <th>Gen</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {#each $devices as device (device.mac)}
-                  <tr>
-                    <td>{device.name || device.serial || device.mac}</td>
-                    <td>{device.ip}</td>
-                    <td>Gen{device.gen}</td>
-                    <td
-                      ><span class={`badge ${complianceBadgeClass(device)}`}
-                        >{complianceText(device)}</span
-                      ></td
-                    >
-                  </tr>
-                {/each}
-              </tbody>
-            </table>
-          </div>
-        {/if}
-      </div>
-    </div>
+    <DeviceMatrix {loading} />
   </div>
 </div>
 
-<style>
-  .sa-custom-rule {
-    border: 1px solid var(--border-soft);
-    border-radius: var(--radius-md);
-    padding: var(--space-3);
-    margin-bottom: var(--space-3);
-    background: rgba(255, 255, 255, 0.012);
-  }
-</style>
+<!-- Styles moved with extracted children:
+     .sa-custom-rule → compliance/CustomRulesList.svelte. -->
