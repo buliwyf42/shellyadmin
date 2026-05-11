@@ -199,8 +199,13 @@ stack** named `shellyadmin` (environment id 1 in Dockhand's
 - Env in `.env` (managed via Dockhand UI, never committed):
   `SHELLYADMIN_PASS_HASH` (argon2id PHC from `shellyctl hash-password`),
   `SHELLYADMIN_SECRET` (cookie secret), `COOKIE_SECURE=false`
-  (trusted-LAN posture). `SHELLYADMIN_USER` is **not** set —
-  v0.2.0 removed the user concept.
+  (trusted-LAN posture). `SHELLYADMIN_USER` is **not** set in
+  the stack `.env` — it defaults to `admin` from
+  [main.go](cmd/shellyctl/main.go) (`getenv("SHELLYADMIN_USER",
+  "admin")`). v0.2.0 removed the **plaintext-password** env var
+  (`SHELLYADMIN_PASS`), not the username concept. The login
+  handler still compares against `cfg.User` —
+  override `SHELLYADMIN_USER` if `admin` is too predictable.
 
 ### Pre-deploy snapshot (rollback point)
 
