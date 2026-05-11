@@ -48,6 +48,14 @@ jobs:
       - name: Run tests with coverage
         run: go test ./... -coverprofile=coverage.out -covermode=atomic
 
+      # M3 — drift check between `internal/models.*` and the canonical
+      # snapshot in `internal/models/schema.gen.json`. A new field on a
+      # struct that the SPA serialises has to be regenerated with
+      # `go run ./cmd/modelschema` and committed alongside the matching
+      # `web/src/lib/types.ts` update. Non-zero exit on drift.
+      - name: Model schema drift check
+        run: go run ./cmd/modelschema --check
+
       # S15 — coverage gate. Baseline at the v0.2.10 cut is 41.6%;
       # 40% gate guards against regression while Phase 3 (handler.go
       # split + services split + frontend page tests) lifts the

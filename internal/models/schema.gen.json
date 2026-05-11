@@ -1,0 +1,996 @@
+{
+  "structs": {
+    "AppSettings": {
+      "fields": [
+        {
+          "name": "AdvancedModeEnabled",
+          "json_name": "advanced_mode_enabled",
+          "go_type": "bool",
+          "tag": "advanced_mode_enabled"
+        },
+        {
+          "name": "AuditRetentionDays",
+          "json_name": "audit_retention_days",
+          "go_type": "int",
+          "tag": "audit_retention_days,omitempty",
+          "options": [
+            "omitempty"
+          ]
+        },
+        {
+          "name": "AutoBackupEnabled",
+          "json_name": "auto_backup_enabled",
+          "go_type": "bool",
+          "tag": "auto_backup_enabled,omitempty",
+          "options": [
+            "omitempty"
+          ]
+        },
+        {
+          "name": "AutoBackupIntervalHours",
+          "json_name": "auto_backup_interval_hours",
+          "go_type": "int",
+          "tag": "auto_backup_interval_hours,omitempty",
+          "options": [
+            "omitempty"
+          ]
+        },
+        {
+          "name": "AutoBackupKeep",
+          "json_name": "auto_backup_keep",
+          "go_type": "int",
+          "tag": "auto_backup_keep,omitempty",
+          "options": [
+            "omitempty"
+          ]
+        },
+        {
+          "name": "Compliance",
+          "json_name": "compliance",
+          "go_type": "shellyadmin/internal/models.ComplianceRules",
+          "tag": "compliance"
+        },
+        {
+          "name": "EnableMDNS",
+          "json_name": "enable_mdns",
+          "go_type": "bool",
+          "tag": "enable_mdns"
+        },
+        {
+          "name": "FirmwareCheckInterval",
+          "json_name": "firmware_check_interval",
+          "go_type": "int",
+          "tag": "firmware_check_interval"
+        },
+        {
+          "name": "FirmwareInstallPollInterval",
+          "json_name": "firmware_install_poll_interval",
+          "go_type": "float64",
+          "tag": "firmware_install_poll_interval"
+        },
+        {
+          "name": "FirmwareInstallTimeout",
+          "json_name": "firmware_install_timeout",
+          "go_type": "float64",
+          "tag": "firmware_install_timeout"
+        },
+        {
+          "name": "Gen2BadgeClass",
+          "json_name": "gen2_badge_class",
+          "go_type": "string",
+          "tag": "gen2_badge_class"
+        },
+        {
+          "name": "Gen3BadgeClass",
+          "json_name": "gen3_badge_class",
+          "go_type": "string",
+          "tag": "gen3_badge_class"
+        },
+        {
+          "name": "Gen4BadgeClass",
+          "json_name": "gen4_badge_class",
+          "go_type": "string",
+          "tag": "gen4_badge_class"
+        },
+        {
+          "name": "MCPEnabled",
+          "json_name": "mcp_enabled",
+          "go_type": "bool",
+          "tag": "mcp_enabled,omitempty",
+          "options": [
+            "omitempty"
+          ]
+        },
+        {
+          "name": "MCPManagedByEnv",
+          "json_name": "mcp_managed_by_env",
+          "go_type": "bool",
+          "tag": "mcp_managed_by_env,omitempty",
+          "options": [
+            "omitempty"
+          ]
+        },
+        {
+          "name": "MCPRunning",
+          "json_name": "mcp_running",
+          "go_type": "bool",
+          "tag": "mcp_running,omitempty",
+          "options": [
+            "omitempty"
+          ]
+        },
+        {
+          "name": "MCPToken",
+          "json_name": "mcp_token",
+          "go_type": "string",
+          "tag": "mcp_token,omitempty",
+          "options": [
+            "omitempty"
+          ]
+        },
+        {
+          "name": "RefreshTimeout",
+          "json_name": "refresh_timeout",
+          "go_type": "float64",
+          "tag": "refresh_timeout"
+        },
+        {
+          "name": "ScanConcurrency",
+          "json_name": "scan_concurrency",
+          "go_type": "int",
+          "tag": "scan_concurrency"
+        },
+        {
+          "name": "ScanTimeout",
+          "json_name": "scan_timeout",
+          "go_type": "float64",
+          "tag": "scan_timeout"
+        },
+        {
+          "name": "Subnets",
+          "json_name": "subnets",
+          "go_type": "[]string",
+          "tag": "subnets"
+        }
+      ]
+    },
+    "ComplianceRules": {
+      "fields": [
+        {
+          "name": "AutoUpdateStage",
+          "json_name": "auto_update_stage",
+          "go_type": "string",
+          "tag": "auto_update_stage"
+        },
+        {
+          "name": "BLEGWEnabled",
+          "json_name": "ble_gw_enabled",
+          "go_type": "*bool",
+          "tag": "ble_gw_enabled"
+        },
+        {
+          "name": "BLEObserver",
+          "json_name": "ble_observer_enable",
+          "go_type": "*bool",
+          "tag": "ble_observer_enable"
+        },
+        {
+          "name": "BLEPaired",
+          "json_name": "ble_paired",
+          "go_type": "*bool",
+          "tag": "ble_paired"
+        },
+        {
+          "name": "BLERPCEnabled",
+          "json_name": "ble_rpc_enable",
+          "go_type": "*bool",
+          "tag": "ble_rpc_enable"
+        },
+        {
+          "name": "CloudConnected",
+          "json_name": "cloud_connected",
+          "go_type": "*bool",
+          "tag": "cloud_connected"
+        },
+        {
+          "name": "CloudEnabled",
+          "json_name": "cloud_enabled",
+          "go_type": "*bool",
+          "tag": "cloud_enabled"
+        },
+        {
+          "name": "CustomRules",
+          "json_name": "custom_rules",
+          "go_type": "[]shellyadmin/internal/models.CustomRule",
+          "tag": "custom_rules"
+        },
+        {
+          "name": "Discoverable",
+          "json_name": "discoverable",
+          "go_type": "*bool",
+          "tag": "discoverable"
+        },
+        {
+          "name": "EcoMode",
+          "json_name": "eco_mode",
+          "go_type": "*bool",
+          "tag": "eco_mode"
+        },
+        {
+          "name": "EnhancedSecurity",
+          "json_name": "enhanced_security",
+          "go_type": "*bool",
+          "tag": "enhanced_security"
+        },
+        {
+          "name": "EthEnabled",
+          "json_name": "eth_enabled",
+          "go_type": "*bool",
+          "tag": "eth_enabled"
+        },
+        {
+          "name": "EthIPv4Mode",
+          "json_name": "eth_ipv4mode",
+          "go_type": "string",
+          "tag": "eth_ipv4mode"
+        },
+        {
+          "name": "Lat",
+          "json_name": "lat",
+          "go_type": "*float64",
+          "tag": "lat"
+        },
+        {
+          "name": "Lon",
+          "json_name": "lon",
+          "go_type": "*float64",
+          "tag": "lon"
+        },
+        {
+          "name": "MatterEnabled",
+          "json_name": "matter_enabled",
+          "go_type": "*bool",
+          "tag": "matter_enabled"
+        },
+        {
+          "name": "ModbusEnabled",
+          "json_name": "modbus_enabled",
+          "go_type": "*bool",
+          "tag": "modbus_enabled"
+        },
+        {
+          "name": "MQTTClientID",
+          "json_name": "mqtt_client_id",
+          "go_type": "string",
+          "tag": "mqtt_client_id"
+        },
+        {
+          "name": "MQTTConnected",
+          "json_name": "mqtt_connected",
+          "go_type": "*bool",
+          "tag": "mqtt_connected"
+        },
+        {
+          "name": "MQTTEnableCtrl",
+          "json_name": "mqtt_enable_control",
+          "go_type": "*bool",
+          "tag": "mqtt_enable_control"
+        },
+        {
+          "name": "MQTTEnableRPC",
+          "json_name": "mqtt_enable_rpc",
+          "go_type": "*bool",
+          "tag": "mqtt_enable_rpc"
+        },
+        {
+          "name": "MQTTEnabled",
+          "json_name": "mqtt_enabled",
+          "go_type": "*bool",
+          "tag": "mqtt_enabled"
+        },
+        {
+          "name": "MQTTRPCNtf",
+          "json_name": "mqtt_rpc_ntf",
+          "go_type": "*bool",
+          "tag": "mqtt_rpc_ntf"
+        },
+        {
+          "name": "MQTTServer",
+          "json_name": "mqtt_server",
+          "go_type": "string",
+          "tag": "mqtt_server"
+        },
+        {
+          "name": "MQTTStatusNtf",
+          "json_name": "mqtt_status_ntf",
+          "go_type": "*bool",
+          "tag": "mqtt_status_ntf"
+        },
+        {
+          "name": "MQTTTopicPrefix",
+          "json_name": "mqtt_topic_prefix",
+          "go_type": "string",
+          "tag": "mqtt_topic_prefix"
+        },
+        {
+          "name": "SNTPServer",
+          "json_name": "sntp_server",
+          "go_type": "string",
+          "tag": "sntp_server"
+        },
+        {
+          "name": "DebugMQTT",
+          "json_name": "sys_debug_mqtt",
+          "go_type": "*bool",
+          "tag": "sys_debug_mqtt"
+        },
+        {
+          "name": "DebugUDPHost",
+          "json_name": "sys_debug_udp_host",
+          "go_type": "string",
+          "tag": "sys_debug_udp_host"
+        },
+        {
+          "name": "DebugWebSocket",
+          "json_name": "sys_debug_websocket",
+          "go_type": "*bool",
+          "tag": "sys_debug_websocket"
+        },
+        {
+          "name": "RPCUDPPort",
+          "json_name": "sys_rpc_udp_port",
+          "go_type": "*int",
+          "tag": "sys_rpc_udp_port"
+        },
+        {
+          "name": "TLSCertValid",
+          "json_name": "tls_cert_valid",
+          "go_type": "*bool",
+          "tag": "tls_cert_valid"
+        },
+        {
+          "name": "TZ",
+          "json_name": "tz",
+          "go_type": "string",
+          "tag": "tz"
+        },
+        {
+          "name": "WebhooksConfig",
+          "json_name": "webhooks_configured",
+          "go_type": "*bool",
+          "tag": "webhooks_configured"
+        },
+        {
+          "name": "WiFiAPEnabled",
+          "json_name": "wifi_ap_enabled",
+          "go_type": "*bool",
+          "tag": "wifi_ap_enabled"
+        },
+        {
+          "name": "WiFiAPIsOpen",
+          "json_name": "wifi_ap_is_open",
+          "go_type": "*bool",
+          "tag": "wifi_ap_is_open"
+        },
+        {
+          "name": "WiFiHostname",
+          "json_name": "wifi_hostname",
+          "go_type": "string",
+          "tag": "wifi_hostname"
+        },
+        {
+          "name": "WiFiSSID",
+          "json_name": "wifi_ssid",
+          "go_type": "string",
+          "tag": "wifi_ssid"
+        },
+        {
+          "name": "WSConnected",
+          "json_name": "ws_connected",
+          "go_type": "*bool",
+          "tag": "ws_connected"
+        },
+        {
+          "name": "WSEnabled",
+          "json_name": "ws_enabled",
+          "go_type": "*bool",
+          "tag": "ws_enabled"
+        },
+        {
+          "name": "WSServer",
+          "json_name": "ws_server",
+          "go_type": "string",
+          "tag": "ws_server"
+        },
+        {
+          "name": "WSSSLCa",
+          "json_name": "ws_ssl_ca",
+          "go_type": "string",
+          "tag": "ws_ssl_ca"
+        },
+        {
+          "name": "WSTLSMode",
+          "json_name": "ws_tls_mode",
+          "go_type": "string",
+          "tag": "ws_tls_mode"
+        },
+        {
+          "name": "ZigbeeEnabled",
+          "json_name": "zigbee_enabled",
+          "go_type": "*bool",
+          "tag": "zigbee_enabled"
+        }
+      ]
+    },
+    "Credential": {
+      "fields": [
+        {
+          "name": "HA1",
+          "json_name": "ha1",
+          "go_type": "string",
+          "tag": "ha1"
+        },
+        {
+          "name": "Name",
+          "json_name": "name",
+          "go_type": "string",
+          "tag": "name"
+        },
+        {
+          "name": "Password",
+          "json_name": "password",
+          "go_type": "string",
+          "tag": "password"
+        },
+        {
+          "name": "Tags",
+          "json_name": "tags",
+          "go_type": "[]string",
+          "tag": "tags"
+        },
+        {
+          "name": "Username",
+          "json_name": "username",
+          "go_type": "string",
+          "tag": "username"
+        }
+      ]
+    },
+    "CredentialGroup": {
+      "fields": [
+        {
+          "name": "HA1",
+          "json_name": "ha1",
+          "go_type": "string",
+          "tag": "ha1"
+        },
+        {
+          "name": "Name",
+          "json_name": "name",
+          "go_type": "string",
+          "tag": "name"
+        },
+        {
+          "name": "Password",
+          "json_name": "password",
+          "go_type": "string",
+          "tag": "password"
+        },
+        {
+          "name": "Tags",
+          "json_name": "tags",
+          "go_type": "[]string",
+          "tag": "tags"
+        }
+      ]
+    },
+    "CustomRule": {
+      "fields": [
+        {
+          "name": "GenMax",
+          "json_name": "gen_max",
+          "go_type": "int",
+          "tag": "gen_max"
+        },
+        {
+          "name": "GenMin",
+          "json_name": "gen_min",
+          "go_type": "int",
+          "tag": "gen_min"
+        },
+        {
+          "name": "Label",
+          "json_name": "label",
+          "go_type": "string",
+          "tag": "label"
+        },
+        {
+          "name": "Op",
+          "json_name": "op",
+          "go_type": "string",
+          "tag": "op"
+        },
+        {
+          "name": "Path",
+          "json_name": "path",
+          "go_type": "string",
+          "tag": "path"
+        },
+        {
+          "name": "Source",
+          "json_name": "source",
+          "go_type": "string",
+          "tag": "source"
+        },
+        {
+          "name": "Value",
+          "json_name": "value",
+          "go_type": "string",
+          "tag": "value"
+        }
+      ]
+    },
+    "Device": {
+      "fields": [
+        {
+          "name": "App",
+          "json_name": "app",
+          "go_type": "string",
+          "tag": "app"
+        },
+        {
+          "name": "AuthError",
+          "json_name": "auth_error",
+          "go_type": "string",
+          "tag": "auth_error"
+        },
+        {
+          "name": "AuthLockedUntil",
+          "json_name": "auth_locked_until",
+          "go_type": "string",
+          "tag": "auth_locked_until"
+        },
+        {
+          "name": "AuthRequired",
+          "json_name": "auth_required",
+          "go_type": "bool",
+          "tag": "auth_required"
+        },
+        {
+          "name": "Batch",
+          "json_name": "batch",
+          "go_type": "string",
+          "tag": "batch"
+        },
+        {
+          "name": "BLEGWEnabled",
+          "json_name": "ble_gw_enabled",
+          "go_type": "*bool",
+          "tag": "ble_gw_enabled"
+        },
+        {
+          "name": "BLEObserverEnabled",
+          "json_name": "ble_observer_enabled",
+          "go_type": "*bool",
+          "tag": "ble_observer_enabled"
+        },
+        {
+          "name": "BLERPCEnabled",
+          "json_name": "ble_rpc_enabled",
+          "go_type": "*bool",
+          "tag": "ble_rpc_enabled"
+        },
+        {
+          "name": "CloudConnected",
+          "json_name": "cloud_connected",
+          "go_type": "bool",
+          "tag": "cloud_connected"
+        },
+        {
+          "name": "CloudEnabled",
+          "json_name": "cloud_enabled",
+          "go_type": "*bool",
+          "tag": "cloud_enabled"
+        },
+        {
+          "name": "ComplianceIssues",
+          "json_name": "compliance_issues",
+          "go_type": "[]string",
+          "tag": "compliance_issues"
+        },
+        {
+          "name": "Compliant",
+          "json_name": "compliant",
+          "go_type": "bool",
+          "tag": "compliant"
+        },
+        {
+          "name": "ConsecutiveMisses",
+          "json_name": "consecutive_misses",
+          "go_type": "int",
+          "tag": "consecutive_misses"
+        },
+        {
+          "name": "CoverCount",
+          "json_name": "cover_count",
+          "go_type": "int",
+          "tag": "cover_count"
+        },
+        {
+          "name": "CurrentA",
+          "json_name": "current_a",
+          "go_type": "*float64",
+          "tag": "current_a"
+        },
+        {
+          "name": "DeviceNum",
+          "json_name": "device_num",
+          "go_type": "int",
+          "tag": "device_num"
+        },
+        {
+          "name": "Discoverable",
+          "json_name": "discoverable",
+          "go_type": "*bool",
+          "tag": "discoverable"
+        },
+        {
+          "name": "EcoMode",
+          "json_name": "eco_mode",
+          "go_type": "*bool",
+          "tag": "eco_mode"
+        },
+        {
+          "name": "EnhancedSecurity",
+          "json_name": "enhanced_security",
+          "go_type": "*bool",
+          "tag": "enhanced_security"
+        },
+        {
+          "name": "FirstSeen",
+          "json_name": "first_seen",
+          "go_type": "string",
+          "tag": "first_seen"
+        },
+        {
+          "name": "FW",
+          "json_name": "fw",
+          "go_type": "string",
+          "tag": "fw"
+        },
+        {
+          "name": "FWAutoUpdate",
+          "json_name": "fw_auto_update",
+          "go_type": "string",
+          "tag": "fw_auto_update"
+        },
+        {
+          "name": "FWAvailableBeta",
+          "json_name": "fw_available_beta",
+          "go_type": "string",
+          "tag": "fw_available_beta"
+        },
+        {
+          "name": "FWAvailableStable",
+          "json_name": "fw_available_stable",
+          "go_type": "string",
+          "tag": "fw_available_stable"
+        },
+        {
+          "name": "FWCheckedAt",
+          "json_name": "fw_checked_at",
+          "go_type": "string",
+          "tag": "fw_checked_at"
+        },
+        {
+          "name": "FWID",
+          "json_name": "fw_id",
+          "go_type": "string",
+          "tag": "fw_id"
+        },
+        {
+          "name": "Gen",
+          "json_name": "gen",
+          "go_type": "int",
+          "tag": "gen"
+        },
+        {
+          "name": "IP",
+          "json_name": "ip",
+          "go_type": "string",
+          "tag": "ip"
+        },
+        {
+          "name": "LastRefreshAttempt",
+          "json_name": "last_refresh_attempt",
+          "go_type": "string",
+          "tag": "last_refresh_attempt"
+        },
+        {
+          "name": "LastRefreshError",
+          "json_name": "last_refresh_error",
+          "go_type": "string",
+          "tag": "last_refresh_error"
+        },
+        {
+          "name": "LastRefreshOK",
+          "json_name": "last_refresh_ok",
+          "go_type": "bool",
+          "tag": "last_refresh_ok"
+        },
+        {
+          "name": "LastSeen",
+          "json_name": "last_seen",
+          "go_type": "string",
+          "tag": "last_seen"
+        },
+        {
+          "name": "Lat",
+          "json_name": "lat",
+          "go_type": "*float64",
+          "tag": "lat"
+        },
+        {
+          "name": "LightCount",
+          "json_name": "light_count",
+          "go_type": "int",
+          "tag": "light_count"
+        },
+        {
+          "name": "Lon",
+          "json_name": "lon",
+          "go_type": "*float64",
+          "tag": "lon"
+        },
+        {
+          "name": "MAC",
+          "json_name": "mac",
+          "go_type": "string",
+          "tag": "mac"
+        },
+        {
+          "name": "MatterEnabled",
+          "json_name": "matter_enabled",
+          "go_type": "*bool",
+          "tag": "matter_enabled"
+        },
+        {
+          "name": "Model",
+          "json_name": "model",
+          "go_type": "string",
+          "tag": "model"
+        },
+        {
+          "name": "MQTTClientID",
+          "json_name": "mqtt_client_id",
+          "go_type": "string",
+          "tag": "mqtt_client_id"
+        },
+        {
+          "name": "MQTTConnected",
+          "json_name": "mqtt_connected",
+          "go_type": "bool",
+          "tag": "mqtt_connected"
+        },
+        {
+          "name": "MQTTEnabled",
+          "json_name": "mqtt_enabled",
+          "go_type": "*bool",
+          "tag": "mqtt_enabled"
+        },
+        {
+          "name": "MQTTFlagsNA",
+          "json_name": "mqtt_flags_na",
+          "go_type": "string",
+          "tag": "mqtt_flags_na"
+        },
+        {
+          "name": "MQTTServer",
+          "json_name": "mqtt_server",
+          "go_type": "string",
+          "tag": "mqtt_server"
+        },
+        {
+          "name": "MQTTTopicPrefix",
+          "json_name": "mqtt_topic_prefix",
+          "go_type": "string",
+          "tag": "mqtt_topic_prefix"
+        },
+        {
+          "name": "Name",
+          "json_name": "name",
+          "go_type": "string",
+          "tag": "name"
+        },
+        {
+          "name": "Online",
+          "json_name": "online",
+          "go_type": "bool",
+          "tag": "online"
+        },
+        {
+          "name": "PowerW",
+          "json_name": "power_w",
+          "go_type": "*float64",
+          "tag": "power_w"
+        },
+        {
+          "name": "Scheme",
+          "json_name": "scheme",
+          "go_type": "string",
+          "tag": "scheme"
+        },
+        {
+          "name": "Serial",
+          "json_name": "serial",
+          "go_type": "string",
+          "tag": "serial"
+        },
+        {
+          "name": "SNTPServer",
+          "json_name": "sntp_server",
+          "go_type": "string",
+          "tag": "sntp_server"
+        },
+        {
+          "name": "SupportedMethods",
+          "json_name": "supported_methods",
+          "go_type": "[]string",
+          "tag": "supported_methods"
+        },
+        {
+          "name": "SwitchCount",
+          "json_name": "switch_count",
+          "go_type": "int",
+          "tag": "switch_count"
+        },
+        {
+          "name": "TLSAllowInsecure",
+          "json_name": "tls_allow_insecure",
+          "go_type": "*bool",
+          "tag": "tls_allow_insecure"
+        },
+        {
+          "name": "TLSCertValid",
+          "json_name": "tls_cert_valid",
+          "go_type": "*bool",
+          "tag": "tls_cert_valid"
+        },
+        {
+          "name": "TZ",
+          "json_name": "tz",
+          "go_type": "string",
+          "tag": "tz"
+        },
+        {
+          "name": "VoltageV",
+          "json_name": "voltage_v",
+          "go_type": "*float64",
+          "tag": "voltage_v"
+        },
+        {
+          "name": "WiFiChannel",
+          "json_name": "wifi_channel",
+          "go_type": "int",
+          "tag": "wifi_channel"
+        },
+        {
+          "name": "WiFiHostname",
+          "json_name": "wifi_hostname",
+          "go_type": "string",
+          "tag": "wifi_hostname"
+        },
+        {
+          "name": "WiFiSSID",
+          "json_name": "wifi_ssid",
+          "go_type": "string",
+          "tag": "wifi_ssid"
+        },
+        {
+          "name": "WSConnected",
+          "json_name": "ws_connected",
+          "go_type": "bool",
+          "tag": "ws_connected"
+        },
+        {
+          "name": "WSEnabled",
+          "json_name": "ws_enabled",
+          "go_type": "*bool",
+          "tag": "ws_enabled"
+        },
+        {
+          "name": "WSServer",
+          "json_name": "ws_server",
+          "go_type": "string",
+          "tag": "ws_server"
+        }
+      ]
+    },
+    "DeviceCredentialGroupAssignment": {
+      "fields": [
+        {
+          "name": "GroupName",
+          "json_name": "group_name",
+          "go_type": "string",
+          "tag": "group_name"
+        },
+        {
+          "name": "MAC",
+          "json_name": "mac",
+          "go_type": "string",
+          "tag": "mac"
+        }
+      ]
+    },
+    "Job": {
+      "fields": [
+        {
+          "name": "CreatedAt",
+          "json_name": "created_at",
+          "go_type": "string",
+          "tag": "created_at"
+        },
+        {
+          "name": "Done",
+          "json_name": "done",
+          "go_type": "int",
+          "tag": "done"
+        },
+        {
+          "name": "Error",
+          "json_name": "error",
+          "go_type": "string",
+          "tag": "error"
+        },
+        {
+          "name": "ID",
+          "json_name": "id",
+          "go_type": "int64",
+          "tag": "id"
+        },
+        {
+          "name": "Payload",
+          "json_name": "payload",
+          "go_type": "string",
+          "tag": "payload"
+        },
+        {
+          "name": "RestartPolicy",
+          "json_name": "restart_policy",
+          "go_type": "string",
+          "tag": "restart_policy"
+        },
+        {
+          "name": "Result",
+          "json_name": "result",
+          "go_type": "string",
+          "tag": "result"
+        },
+        {
+          "name": "Status",
+          "json_name": "status",
+          "go_type": "string",
+          "tag": "status"
+        },
+        {
+          "name": "Total",
+          "json_name": "total",
+          "go_type": "int",
+          "tag": "total"
+        },
+        {
+          "name": "Type",
+          "json_name": "type",
+          "go_type": "string",
+          "tag": "type"
+        },
+        {
+          "name": "UpdatedAt",
+          "json_name": "updated_at",
+          "go_type": "string",
+          "tag": "updated_at"
+        }
+      ]
+    }
+  }
+}
