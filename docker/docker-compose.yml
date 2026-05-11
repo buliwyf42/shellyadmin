@@ -34,6 +34,14 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    # S14 — these caps are needed for the default root+su-exec startup
+    # path: CHOWN to fix /data permissions on first volume attach,
+    # SETGID/SETUID to drop privileges via su-exec, DAC_OVERRIDE to read
+    # root-owned /run/secrets files. Operators who pre-chown the host
+    # path and add `user: "<shelly-uid>"` below can drop CHOWN +
+    # SETGID + SETUID entirely (entrypoint detects non-root and skips
+    # the privileged steps). DAC_OVERRIDE always required if reading
+    # Docker-managed secrets.
     cap_add:
       - CHOWN
       - DAC_OVERRIDE

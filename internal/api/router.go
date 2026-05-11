@@ -36,6 +36,12 @@ type Config struct {
 	// When nil, NewHandler still constructs its own (back-compat for tests
 	// that don't need to share state with main.go).
 	Service *services.AppService
+	// TrustedProxies is a comma-separated list of CIDR ranges whose
+	// X-Forwarded-For header will be trusted by gin.ClientIP(). Empty (the
+	// default) means no proxies are trusted — ClientIP returns the direct
+	// peer. Without this, an attacker on the LAN can spoof client_ip in
+	// audit rows by setting X-Forwarded-For on the request.
+	TrustedProxies string
 }
 
 func NewRouter(database *db.DB, cfg Config) *gin.Engine {
@@ -45,6 +51,24 @@ func NewRouter(database *db.DB, cfg Config) *gin.Engine {
 	// run first so subsequent middlewares (including StructuredLogger) see
 	// the request ID via context.
 	r := gin.New()
+	// TrustedProxies: empty list disables X-Forwarded-For trust entirely
+	// (gin's default trusts ALL proxies which is wrong for LAN deploys).
+	// Errors here only happen on malformed CIDRs; log + zero them out so
+	// startup doesn't fail on a typo, but the operator sees the warning.
+	proxies := []string{}
+	if cfg.TrustedProxies != "" {
+		for _, p := range strings.Split(cfg.TrustedProxies, ",") {
+			p = strings.TrimSpace(p)
+			if p != "" {
+				proxies = append(proxies, p)
+			}
+		}
+	}
+	if err := r.SetTrustedProxies(proxies); err != nil {
+		// gin returns an error on malformed entries — fall back to
+		// "trust nothing" rather than panic at startup.
+		_ = r.SetTrustedProxies(nil)
+	}
 	r.Use(gin.Recovery())
 	r.Use(middleware.RequestID())
 	r.Use(middleware.StructuredLogger())

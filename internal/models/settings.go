@@ -45,6 +45,21 @@ type AppSettings struct {
 	// it for a live status badge (Running / Stopped) on the MCP card.
 	// Never persisted.
 	MCPRunning bool `json:"mcp_running,omitempty"`
+	// AuditRetentionDays caps how long audit_log rows are kept before
+	// the background pruner removes them. 0 disables pruning (rows are
+	// kept indefinitely). Default 90 days; clamped to [0, 3650] in
+	// Normalize. The pruner runs hourly and uses the audit_log
+	// append-only trigger's controlled bypass to actually delete rows.
+	AuditRetentionDays int `json:"audit_retention_days,omitempty"`
+	// AutoBackupEnabled toggles the background SQLite snapshot job.
+	// When true, every AutoBackupIntervalHours the service writes
+	// shellyctl.db.snap-<unix>.sqlite into the data directory via
+	// `VACUUM INTO` (atomic, online-safe), keeping only
+	// AutoBackupKeep most recent files. Encryption-key file is NOT
+	// snapshotted — that is a deliberate operator step.
+	AutoBackupEnabled       bool `json:"auto_backup_enabled,omitempty"`
+	AutoBackupIntervalHours int  `json:"auto_backup_interval_hours,omitempty"`
+	AutoBackupKeep          int  `json:"auto_backup_keep,omitempty"`
 }
 
 type ComplianceRules struct {
@@ -118,6 +133,10 @@ func DefaultSettings() AppSettings {
 		FirmwareInstallTimeout:      300,
 		FirmwareInstallPollInterval: 5,
 		FirmwareCheckInterval:       0,
+		AuditRetentionDays:          90,
+		AutoBackupEnabled:           false,
+		AutoBackupIntervalHours:     24,
+		AutoBackupKeep:              7,
 	}
 }
 
@@ -160,6 +179,24 @@ func (s *AppSettings) Normalize() {
 	}
 	if s.FirmwareCheckInterval < 0 {
 		s.FirmwareCheckInterval = 0
+	}
+	// Audit retention: 0 disables, otherwise clamp to [1, 3650] (10 years).
+	if s.AuditRetentionDays < 0 {
+		s.AuditRetentionDays = 0
+	} else if s.AuditRetentionDays > 3650 {
+		s.AuditRetentionDays = 3650
+	}
+	// Auto-backup bounds. Interval [1, 168]h (hourly to weekly); keep
+	// [1, 100] snapshots.
+	if s.AutoBackupIntervalHours <= 0 {
+		s.AutoBackupIntervalHours = 24
+	} else if s.AutoBackupIntervalHours > 168 {
+		s.AutoBackupIntervalHours = 168
+	}
+	if s.AutoBackupKeep <= 0 {
+		s.AutoBackupKeep = 7
+	} else if s.AutoBackupKeep > 100 {
+		s.AutoBackupKeep = 100
 	}
 	s.MCPToken = strings.TrimSpace(s.MCPToken)
 	// MCPManagedByEnv and MCPRunning are runtime overlays set by the API

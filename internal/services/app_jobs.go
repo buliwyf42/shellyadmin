@@ -68,6 +68,10 @@ func refreshJobStale(job models.Job, now time.Time) (bool, error) {
 // --- Refresh ---
 
 func (s *AppService) RefreshDevices(ctx context.Context) ([]models.Device, error) {
+	// S10 — serialize the check-then-spawn so two concurrent refresh
+	// requests cannot both pass the "already running" gate.
+	s.jobSpawnMu.Lock()
+	defer s.jobSpawnMu.Unlock()
 	if latest, err := s.db.GetLatestJob("refresh"); err == nil && latest.Status == "running" {
 		stale, staleErr := refreshJobStale(latest, time.Now())
 		if staleErr == nil && stale {

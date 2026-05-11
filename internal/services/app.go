@@ -8,7 +8,9 @@ import (
 	"net/http"
 	"net/netip"
 	"os"
+	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -37,6 +39,16 @@ type AppService struct {
 	mu              sync.Mutex
 	activeProvision map[string]bool
 	activeFirmware  map[string]bool
+
+	// jobSpawnMu serialises the "is a job of this type still running" check
+	// against the actual spawn so two concurrent requests cannot both
+	// observe "no job running" between GetLatestJob and CreateJob. Each
+	// job-type uses a separate goroutine-safe path under this lock.
+	// S10 closes this race; before, two near-simultaneous /api/refresh
+	// requests could both create a refresh job (the second would notice
+	// during the next stale check, but two were already counted in the
+	// jobs table).
+	jobSpawnMu sync.Mutex
 
 	// ctx is cancelled by Stop; background jobs check it at progress points
 	// and mark their DB row as "interrupted" before exiting.
@@ -128,15 +140,161 @@ func (s *AppService) RecordLoginSuccess(username string) error {
 }
 
 // StartBackgroundWorkers spawns the long-lived background goroutines owned
-// by this service (currently just the firmware-check scheduler). Called once
-// at startup from main.go after RecoverInterruptedJobs. Goroutines exit on
-// service Stop and are awaited via s.bgJobs.
+// by this service (currently the firmware-check scheduler and the audit-log
+// retention pruner). Called once at startup from main.go after
+// RecoverInterruptedJobs. Goroutines exit on service Stop and are awaited
+// via s.bgJobs.
+//
+// S9 — the firmware-check scheduler is restarted on panic so a single bad
+// tick (e.g. SQLite "database is locked" turning into a divide-by-zero in
+// a future tweak) doesn't leave the service silently without periodic
+// checks until the next container restart. Panic is logged + audited.
+// Restart is throttled: if the scheduler panics every <5s, we give up to
+// avoid a hot loop.
+//
+// S1 — the audit retention pruner runs hourly. It reads AuditRetentionDays
+// from AppSettings, computes the cutoff, and calls PruneAuditLogOlderThan.
+// A retention of 0 disables pruning entirely (rows kept indefinitely).
 func (s *AppService) StartBackgroundWorkers() {
 	s.bgJobs.Add(1)
-	go func() {
-		defer s.bgJobs.Done()
-		s.runFirmwareCheckScheduler()
+	go s.firmwareSchedulerWithRecover()
+	s.bgJobs.Add(1)
+	go s.auditRetentionLoop()
+	s.bgJobs.Add(1)
+	go s.autoBackupLoop()
+}
+
+const auditRetentionTick = time.Hour
+
+func (s *AppService) auditRetentionLoop() {
+	defer s.bgJobs.Done()
+	t := time.NewTicker(auditRetentionTick)
+	defer t.Stop()
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		case <-t.C:
+			s.runAuditRetentionOnce()
+		}
+	}
+}
+
+// autoBackupLoop runs the SQLite snapshot job at the operator-configured
+// cadence. S12+S13 from the consolidated review — gives operators an
+// "I forgot to back up before recreating the container" recovery path
+// without relying on the manual pre-deploy `cp` workflow.
+//
+// The loop ticks every minute and consults the latest settings each
+// time, so changing AutoBackupIntervalHours via the UI applies on the
+// next tick without a service restart.
+func (s *AppService) autoBackupLoop() {
+	defer s.bgJobs.Done()
+	t := time.NewTicker(time.Minute)
+	defer t.Stop()
+	var lastRun time.Time
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		case <-t.C:
+			settings, err := s.db.GetSettings()
+			if err != nil {
+				continue
+			}
+			if !settings.AutoBackupEnabled {
+				continue
+			}
+			interval := time.Duration(settings.AutoBackupIntervalHours) * time.Hour
+			if !lastRun.IsZero() && time.Since(lastRun) < interval {
+				continue
+			}
+			if err := s.runAutoBackupOnce(settings); err != nil {
+				s.logf(s.ctx, "ERROR", fmt.Sprintf("auto-backup: %v", err))
+				continue
+			}
+			lastRun = time.Now()
+		}
+	}
+}
+
+func (s *AppService) runAutoBackupOnce(settings models.AppSettings) error {
+	stamp := time.Now().UTC().Format("20060102-150405")
+	path := filepath.Join(s.dataDir, fmt.Sprintf("shellyctl.db.snap-%s.sqlite", stamp))
+	if err := s.db.SnapshotTo(path); err != nil {
+		return fmt.Errorf("snapshot: %w", err)
+	}
+	s.logf(s.ctx, "INFO", fmt.Sprintf("auto-backup: wrote %s", path))
+	// Prune older snapshots beyond AutoBackupKeep.
+	pattern := filepath.Join(s.dataDir, "shellyctl.db.snap-*.sqlite")
+	matches, err := filepath.Glob(pattern)
+	if err != nil {
+		return fmt.Errorf("glob: %w", err)
+	}
+	if len(matches) <= settings.AutoBackupKeep {
+		return nil
+	}
+	// Filenames embed UTC timestamp in fixed-width format → lexical sort
+	// equals chronological. Newest at end; keep the tail.
+	sort.Strings(matches)
+	for _, old := range matches[:len(matches)-settings.AutoBackupKeep] {
+		if err := os.Remove(old); err != nil {
+			s.logf(s.ctx, "WARN", fmt.Sprintf("auto-backup: prune %s failed: %v", old, err))
+			continue
+		}
+	}
+	return nil
+}
+
+func (s *AppService) runAuditRetentionOnce() {
+	defer func() {
+		if r := recover(); r != nil {
+			s.logf(s.ctx, "ERROR", fmt.Sprintf("audit retention pruner panic: %v", r))
+		}
 	}()
+	settings, err := s.db.GetSettings()
+	if err != nil {
+		s.logf(s.ctx, "ERROR", fmt.Sprintf("audit retention: read settings: %v", err))
+		return
+	}
+	if settings.AuditRetentionDays <= 0 {
+		return
+	}
+	cutoff := time.Now().UTC().Add(-time.Duration(settings.AuditRetentionDays) * 24 * time.Hour)
+	n, err := s.db.PruneAuditLogOlderThan(cutoff)
+	if err != nil {
+		s.logf(s.ctx, "ERROR", fmt.Sprintf("audit retention: prune failed: %v", err))
+		return
+	}
+	if n > 0 {
+		s.logf(s.ctx, "INFO", fmt.Sprintf("audit retention: pruned %d rows older than %s", n, cutoff.Format(time.RFC3339)))
+	}
+}
+
+func (s *AppService) firmwareSchedulerWithRecover() {
+	defer s.bgJobs.Done()
+	const minLifetime = 5 * time.Second
+	for {
+		startedAt := time.Now()
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					msg := fmt.Sprintf("firmware-check scheduler panic: %v", r)
+					s.logf(s.ctx, "ERROR", msg)
+				}
+			}()
+			s.runFirmwareCheckScheduler()
+		}()
+		// Clean exit (ctx cancelled): leave the loop.
+		if s.ctx.Err() != nil {
+			return
+		}
+		// Crash-loop guard.
+		if time.Since(startedAt) < minLifetime {
+			s.logf(s.ctx, "ERROR", "firmware-check scheduler crashed twice in <5s, giving up; restart container to recover")
+			return
+		}
+	}
 }
 
 // Stop signals background jobs to exit, waits for them to drain (bounded by
@@ -807,7 +965,13 @@ func ValidateTemplate(template map[string]interface{}) error {
 	return nil
 }
 
-var secretPattern = regexp.MustCompile(`(?i)(password|pass|secret|ha1)\s*[:=]\s*("[^"]*"|[^,\s]+)`)
+// secretPattern matches the three forms credentials appear in our log
+// pipeline: `password=plain`, `password: plain`, and JSON-quoted
+// `"password":"plain"`. The optional `["']?` after the key handles the
+// JSON case where the quote follows the field name. S21 added regression
+// tests in sanitize_log_test.go — extending the keyword set requires a
+// matching test case there.
+var secretPattern = regexp.MustCompile(`(?i)(password|pass|secret|ha1)["']?\s*[:=]\s*("[^"]*"|[^,\s\}\)&]+)`)
 
 func SanitizeLogMessage(msg string) string {
 	return secretPattern.ReplaceAllString(msg, `$1=[redacted]`)

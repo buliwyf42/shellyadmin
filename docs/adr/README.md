@@ -22,3 +22,4 @@ Status key:
 - [ADR-0009 Firmware Auto-Update via `Schedule.*` Synthesis](./0009-firmware-auto-update-via-schedule.md) (`Accepted`)
 - [ADR-0010 Per-Device Action Discovery via `Shelly.ListMethods`](./0010-per-device-action-discovery-via-listmethods.md) (`Accepted`)
 - [ADR-0011 Read-Only MCP Server (Embedded HTTP, Bearer-Token Gated)](./0011-mcp-read-only-server.md) (`Accepted`)
+- [ADR-0012 STRIDE Threat Model + Defense-in-Depth Posture](./0012-stride-threat-model.md) (`Accepted`)

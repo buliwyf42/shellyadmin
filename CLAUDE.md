@@ -6,7 +6,7 @@ This file is a persistent memory aid for AI-assisted development. Keep it up to 
 
 ## Architecture
 
-- **Backend**: Go 1.25 (single binary, `cmd/shellyctl/main.go`). The Go floor moved from 1.24 → 1.25 in v0.1.16 — gin v1.12.0 pulls `quic-go/quic-go` for HTTP/3, which requires Go 1.25.0 in its `go.mod`. CI is pinned to Go 1.25 in `.github/workflows/test.yml`; the Dockerfile backend stage uses `golang:1.25-alpine`.
+- **Backend**: Go 1.25 (single binary, `cmd/shellyctl/main.go`). The Go floor moved from 1.24 → 1.25 in v0.1.16 — gin v1.12.0 pulls `quic-go/quic-go` for HTTP/3, which requires Go 1.25.0 in its `go.mod`. CI is pinned to Go 1.25 in `.github/workflows/test.yml`; the Dockerfile backend stage uses `golang:1.25-alpine`. **The binary links quic-go but does NOT open any UDP/QUIC listener** — the HTTP server in main.go is plain `net/http` over TCP. Phase 2 (v0.2.11) verified this; the QUIC code paths in the binary are dead weight at runtime, not an attack surface.
 - **Frontend**: Svelte + TypeScript SPA (`web/src/`)
 - **Database**: SQLite via `modernc.org/sqlite` (no CGO required)
 - **Deployment**: Multi-stage Docker image — Node 20 builds frontend, Go 1.25 builds backend, Alpine 3.19 is the runtime

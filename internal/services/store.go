@@ -1,6 +1,8 @@
 package services
 
 import (
+	"time"
+
 	"shellyadmin/internal/db"
 	"shellyadmin/internal/models"
 )
@@ -67,6 +69,13 @@ type Store interface {
 	// Login state (per-account lockout, Q20)
 	GetLoginState(username string) (db.LoginState, error)
 	SetLoginState(state db.LoginState) error
+
+	// Audit-log retention + chain verification (S1+S2)
+	PruneAuditLogOlderThan(cutoff time.Time) (int64, error)
+	VerifyAuditChain() (int64, error)
+
+	// Auto-backup snapshot (S12)
+	SnapshotTo(path string) error
 }
 
 // Compile-time assertion that *db.DB satisfies Store. If a method is added or
