@@ -14,6 +14,8 @@ import type {
   FirmwareInstallStatus,
   FirmwareStatus,
   ImportReport,
+  CreateTokenResponse,
+  ListTokensResponse,
   LogEntry,
   ProvisionResult,
   ScanStatus,
@@ -296,5 +298,15 @@ export const api = {
     enroll: () => req<TOTPEnrollResponse>('POST', '/api/totp/enroll', {}),
     verifyEnroll: (code: string) => req<{ ok: true }>('POST', '/api/totp/verify-enroll', { code }),
     disable: (code: string) => req<{ ok: true }>('POST', '/api/totp/disable', { code }),
+  },
+  tokens: {
+    list: () => req<ListTokensResponse>('GET', '/api/tokens'),
+    create: (name: string, scopes: string[], expiresInDays: number) =>
+      req<CreateTokenResponse>('POST', '/api/tokens', {
+        name,
+        scopes,
+        expires_in_days: expiresInDays,
+      }),
+    revoke: (id: string) => req<{ ok: true }>('DELETE', `/api/tokens/${encodeURIComponent(id)}`),
   },
 };

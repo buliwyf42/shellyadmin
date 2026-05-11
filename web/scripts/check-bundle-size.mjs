@@ -40,8 +40,12 @@ const DIST = path.resolve(HERE, '..', 'dist', 'assets');
 // step prompt added negligible. Measured 320.87 kB raw / 84.21 kB
 // gzip — bumped js raw budget +5 KB to leave headroom for the upcoming
 // T3 PAT card.
+// v0.3.0 T3: TokensCard.svelte (PAT mint/list/revoke + scope checkbox
+// matrix) added ~15 KB raw / ~5 KB gzip. Measured 335.54 kB raw /
+// 88.91 kB gzip — bumped both axes to leave ~3% headroom for the
+// remaining v0.3.0 work (Settings page split, audit-webhook UI).
 const BUDGETS = {
-  js: { raw: 325 * 1024, gzip: 86 * 1024 },
+  js: { raw: 345 * 1024, gzip: 92 * 1024 },
   css: { raw: 30 * 1024, gzip: 8 * 1024 },
 };
 

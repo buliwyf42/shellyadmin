@@ -120,6 +120,12 @@ func (f *fakeStore) GetTOTP(string) (db.TOTPState, error) {
 func (f *fakeStore) SetTOTP(db.TOTPState) error { return nil }
 func (f *fakeStore) DeleteTOTP(string) error    { return nil }
 
+func (f *fakeStore) CreatePAT(db.PAT) error            { return nil }
+func (f *fakeStore) GetPAT(string) (db.PAT, error)     { return db.PAT{}, sql.ErrNoRows }
+func (f *fakeStore) ListPATs(string) ([]db.PAT, error) { return nil, nil }
+func (f *fakeStore) TouchPAT(string) error             { return nil }
+func (f *fakeStore) RevokePAT(string) error            { return nil }
+
 func (f *fakeStore) PruneAuditLogOlderThan(time.Time) (int64, error) { return 0, nil }
 func (f *fakeStore) VerifyAuditChain() (int64, error)                { return 0, nil }
 func (f *fakeStore) SnapshotTo(string) error                         { return nil }
