@@ -164,31 +164,66 @@ Template variable substitution: `{device_name}` is replaced with the device's co
 
 ## Deployment Workflow
 
-All edits are made **locally on macOS**, then deployed to `docker.home.lan`:
+All edits are made **locally on macOS**. Production homelab
+(`docker.home.lan`) runs the image as a **Dockhand-managed compose
+stack** named `shellyadmin` (environment id 1 in Dockhand's
+`list_environments`). The stack files live on the Dockhand host at
+`/app/data/stacks/docker.home.lan/shellyadmin/{compose.yaml,.env}`.
 
-```bash
-# Sync code (exclude data/ — owned by container user)
-rsync -av --exclude='data/' \
-  "/Users/buliwyf/Documents/Codex + Code Projects/shellyadmin/" \
-  buliwyf@docker.home.lan:/home/buliwyf/shellyadmin/
+### Release path
 
-# On remote: rebuild and restart. Generate the hash once with
-#   docker run --rm shellyadmin hash-password <plaintext>
-# and substitute the PHC string for $HASH below.
-ssh buliwyf@docker.home.lan "cd /home/buliwyf/shellyadmin && \
-  docker build -t shellyadmin . && \
-  docker stop shellyadmin && docker rm shellyadmin && \
-  docker run -d --name shellyadmin \
-    -p 8080:8080 \
-    -v /docker/shellyadmin:/data \
-    -e SHELLYADMIN_PASS_HASH='\$HASH' \
-    -e COOKIE_SECURE=false \
-    shellyadmin"
-```
+1. Bump `VERSION` + `web/package.json` + lockfile, update
+   `CHANGELOG.md`, commit, lightweight-tag `vX.Y.Z`, push
+   `git push origin main vX.Y.Z`.
+2. `publish-image.yml` builds and pushes `ghcr.io/buliwyf42/shellyadmin:vX.Y.Z`
+   and `:latest` (~17–22 min) and auto-creates the GitHub Release.
+3. In Dockhand: pull the new image, then "deploy" / "recreate" the
+   `shellyadmin` stack. The stack pins `:latest`, so a pull + recreate
+   is the full upgrade. Via the MCP server this is
+   `pull_image(image="ghcr.io/buliwyf42/shellyadmin:latest")` followed
+   by `start_stack(name="shellyadmin")` (or restart_stack if already
+   up). SQLite persists across recreates because of the
+   `/docker/shellyadmin → /data` bind mount.
 
-The container uses a bind-mounted `data/` directory so SQLite persists across rebuilds.
+### Stack shape
 
-The Dockerfile reads the `VERSION` file at the repo root as the default version when no `--build-arg VERSION=` is passed. This means local builds show the real version in the navbar and About page. **On each release, update both `VERSION` and `web/package.json` to the new version number.**
+- Image: `ghcr.io/buliwyf42/shellyadmin:latest` (pinned by tag mover,
+  not by digest — operator pulls explicitly before recreate).
+- Ports: `8100:8080` (SPA + HTTP API), `8101:8081` (MCP listener;
+  only binds when enabled in Settings UI or env-overridden).
+- Volumes: `/docker/shellyadmin → /data` bind mount.
+- Networks: `homestack_docker` external network.
+- Hardening: `read_only: true` + `tmpfs: /tmp`, `cap_drop: [ALL]`
+  with `cap_add: [CHOWN, DAC_OVERRIDE, SETGID, SETUID]`,
+  `no-new-privileges:true`, `pids_limit: 256`, `init: true`.
+- Env in `.env` (managed via Dockhand UI, never committed):
+  `SHELLYADMIN_PASS_HASH` (argon2id PHC from `shellyctl hash-password`),
+  `SHELLYADMIN_SECRET` (cookie secret), `COOKIE_SECURE=false`
+  (trusted-LAN posture). `SHELLYADMIN_USER` is **not** set —
+  v0.2.0 removed the user concept.
+
+### Pre-deploy snapshot (rollback point)
+
+Before recreating the stack on a release, copy the SQLite file:
+`cp /docker/shellyadmin/shellyctl.db /docker/shellyadmin/shellyctl.db.pre-vX.Y.Z-$(date +%s)`.
+These pile up by design as rollback points.
+
+### Historical (pre-v0.2.8)
+
+Before 2026-05-11 the homelab ran the image as a standalone container
+via `docker run` driven by `rsync + ssh docker build` from the mac.
+That recipe still works for a one-off dev rebuild, but production has
+moved to the Dockhand stack. Don't reintroduce the standalone path
+as the default deploy in this doc — it would conflict on ports
+`8100/8101` with the stack-managed container.
+
+### Versioning at build time
+
+The Dockerfile reads the `VERSION` file at the repo root as the
+default version when no `--build-arg VERSION=` is passed. Local
+builds show the real version in the navbar and About page. GHCR
+builds receive `--build-arg VERSION=` from the git tag.
+**On each release, update both `VERSION` and `web/package.json`.**
 
 ---
 
