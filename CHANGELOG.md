@@ -4,6 +4,127 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.14] - 2026-05-11 — Phase 4b (services split + Device payload + CSP hardening)
+
+Phase 4b from the consolidated review — the architectural refactor block
+(M7 services internal split, M8 Device list-view payload reduction, M2
+frontend page split, M6 CSP hardening). No DB migration, no operator-
+visible breaking change. Drop-in upgrade from v0.2.13.
+
+The breaking v0.3.0 cut (Phase 4c — TOTP 2FA, Personal Access Tokens,
+encryption-key externalization, runtime_locks enforcement) is the next
+release window; this one lands the foundation work without forcing the
+operator-side migration.
+
+### Added
+
+- **`models.DeviceListView`** (M8) — slim `/api/devices` projection
+  dropping the 5 list-page-unused fields (`supported_methods`, `batch`,
+  `fw_id`, `consecutive_misses`, `mqtt_flags_na`). The full `models.Device`
+  still returns from `/api/devices/{target}` and the MCP `get_device`
+  tool. Measured payload reduction: **49.2 %** on a synthetic 50-device
+  fleet (122 KB → 62 KB). Regression-pinned by
+  `internal/models/payload_bench_test.go` at >= 30 % reduction.
+- **Eleven new sub-packages** under `internal/services/` (M7):
+  `sessions/`, `mcp/`, `credentials/`, `jobs/` (with `refresh.go`,
+  `scan.go`, `firmware_check.go`, `firmware_install.go`, `recovery.go`,
+  `service.go`, `types.go` + types_test.go), `validation/`, `backup/`,
+  `loginlock/`, `workers/`, `provisioning/`, `templates/`, `logs/`,
+  `audit/`, `settings/`. Each has a narrow `Store` interface;
+  AppService keeps delegators on every public method so existing
+  callers (api/, mcp/, cmd/shellyctl/main.go, tests) compile unchanged.
+- **Ten new Svelte child components** (M2):
+  `pages/devices/{ColumnPicker,DevicesToolbar,DeviceTable}.svelte`,
+  `pages/compliance/{ComplianceRulesForm,CustomRulesList,DeviceMatrix}.svelte`,
+  `pages/provision/{TemplatesPanel,IPListPanel,ResultsPanel}.svelte`,
+  plus `lib/deviceFormatters.{ts,test.ts}` (15 new pure-function tests).
+- **Eight new utility CSS classes** in `web/src/app.css` (M6):
+  `.text-hint-xs/sm/md/lg`, `.text-tiny-inline`, `.login-card-width`,
+  `.mw-22r`, `.badge-restart-required`. Replace all 21 inline `style="..."`
+  attributes the SPA was emitting at runtime.
+- **`internal/util/secrets.go`** — `DecodeSecretValue` moved out of
+  services package; `cmd/shellyctl/main.go` keeps using
+  `services.DecodeSecretValue` via re-export alias.
+
+### Changed
+
+- **CSP `style-src` tightened to `'self'`** (M6) — drops `'unsafe-inline'`
+  from the SPA's `Content-Security-Policy` header. Future DOM-injection
+  sinks now fail closed at the style-attribute boundary; the browser
+  rejects the injected inline style before the page repaints.
+- **`internal/services/app.go` shrunk from 1149 → 436 LOC** (-62 %) as
+  the sub-package extraction lifted out validation, backup, loginlock,
+  workers, provisioning, templates, logs, audit, settings, the job
+  bodies + types, the MCP listener controller, and the sessions
+  surface. The public API of `*AppService` is unchanged — every former
+  method is a one-line delegator.
+- **`internal/services/app_jobs.go` shrunk from 1098 → 213 LOC** (-81 %).
+  All long-running goroutines (`runRefreshJob`, `runScanJob`,
+  `runFirmwareJob`, `runFirmwareInstallJob`, `installOne`,
+  `runFirmwareCheckScheduler`, `RecoverInterruptedJobs`) move to
+  `internal/services/jobs/` with a Store + Host interface split:
+  Store is the raw DB-row surface, Host is the runtime/concurrency/RPC-
+  factory surface `*AppService` provides.
+- **Devices.svelte: 1098 → 258 LOC** (-76 %). The table renders via
+  `DeviceTable.svelte`, the toolbar via `DevicesToolbar.svelte`, the
+  column-visibility picker via `ColumnPicker.svelte`. Pure helpers
+  (sort comparator, badge classes, refresh-state text, lat/lon format,
+  generation label) live in `lib/deviceFormatters.ts` with vitest
+  coverage.
+- **Compliance.svelte: 1141 → 91 LOC** (-92 %). The giant SectionCard
+  form with its 30+ enable toggles + the
+  `initToggles`/`applyTogglesToSettings`/`ensureDefaults` round-trip
+  lifts into `ComplianceRulesForm.svelte`. The right-column summary +
+  device-status table lives in `DeviceMatrix.svelte`. The custom-rules
+  editor lives in `CustomRulesList.svelte`.
+- **Provision.svelte: 1046 → 793 LOC** (-24 %). The post-provision
+  results table moves to `ResultsPanel.svelte`, the device picker +
+  precheck summary to `IPListPanel.svelte`, the template loader +
+  save/rename/delete + credential select to `TemplatesPanel.svelte`.
+  The per-section form binding stays on the parent because each of
+  the 18 per-section state objects (SysState, MqttState, ...) is
+  bound deeply by the existing `provision/*Form.svelte` children.
+- **MCP `list_devices` returns the slim `DeviceListView`** shape;
+  `get_device` still returns the full `services.DeviceDetail` (no
+  breaking change for MCP consumers per the ADR-0011 list-vs-detail
+  contract).
+
+### Removed
+
+- **`BoundedConcurrency`** function in services package — moved
+  earlier to `internal/services/jobs/service.go` as the only caller;
+  the services-level copy was dead code.
+- **`sanitizeTags`** function in services package — duplicated into
+  `credentials/` and `backup/` sub-packages (each has the same
+  small body); services-level copy unused after the moves.
+- **`MCPBuilder` / `MCPController`** as services-package types —
+  re-exported as type aliases from `internal/services/mcp.{Builder,Controller}`
+  so existing `cmd/shellyctl/main.go` + `app_mcp_test.go` callers
+  compile unchanged.
+
+### Test coverage
+
+- **Vitest count grows 57 → 72** (+15 from
+  `lib/deviceFormatters.test.ts`).
+- **Go test count unchanged** at 17 packages — the sub-packages share
+  the existing `internal/services` test suite via the AppService
+  delegators; new sub-package-specific tests will land alongside
+  follow-up extractions.
+
+### Architecture notes
+
+- The Store + Host interface split in `internal/services/jobs/` is
+  the canonical pattern for future sub-package extractions. Store
+  is "what to mutate" (DB rows); Host is "what to call back to the
+  runtime" (concurrency state, RPC client factories, logger, metrics).
+  Each sub-service composes the two narrowly so tests can substitute
+  either half without touching the other.
+- The frontend page split established
+  `pages/<page>/<Child>.svelte` for UI islands +
+  `lib/<page>Formatters.ts` for pure presentation helpers + vitest
+  tests. Persisted Svelte stores (`colVis`, `firmwareChannel`) are
+  read directly from children — no prop-drilling.
+
 ## [0.2.13] - 2026-05-11 — Phase 4a (consolidated review)
 
 Phase 4a from the consolidated review — the low-risk, mostly-additive
