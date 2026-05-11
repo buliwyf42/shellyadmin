@@ -4,6 +4,49 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-05-11 — Cover (slat-tilt) provisioner form
+
+Closes the second of the "no first-class UI for X provisioner section"
+gaps. The `cover` template section has been backend-accepted since the
+FW 2.0.0-beta1 wave (per ADR-0008 and the existing
+`internal/core/provisioner/provisioner.go:177` handler), but operators
+had to drop into JSON view to configure timing, swap_inputs,
+power_limit, or the FW 2.0.0-beta1 `slat` sub-object for
+venetian-blind tilt.
+
+### Added
+
+- **`web/src/pages/provision/CoverForm.svelte`** — section card with:
+  - `id` (component id, defaults to 0 — most blinds are singletons).
+  - `name`, `maxtime_open`, `maxtime_close`, `swap_inputs`,
+    `power_limit` (each toggleable in classic FieldRow style).
+  - `slat` sub-object toggle that reveals the FW 2.0.0-beta1 venetian
+    blind tilt controls: `enable`, `open_time`, `close_time`,
+    `precise_ctl`, `retain_pos`, `step_pos`.
+- State surface in `web/src/pages/provision/state.ts`:
+  `createCoverState`, `createCoverSlatState`, `buildCover`,
+  `hydrateCover`. The hydrator rejects advanced fields the form
+  doesn't surface (`obstruction_detection`, `motor`, `safety_switch`,
+  `voltmeter`, `power_meter`, `in_locked`) with a specific error
+  pointing at the JSON view.
+- 8 new vitest cases in
+  `web/src/pages/provision/state.test.ts` covering build and hydrate
+  including a full slat round-trip.
+
+### Changed
+
+- Bundle-size budget raised 312 → 320 KB raw / 88 → 90 KB gzip for
+  the form's ~11 KB raw / ~3 KB gzip footprint (more fields than
+  Webhooks: id + name + 2 maxtimes + swap + power_limit + 6 slat
+  sub-fields). New baseline 314.29 KB raw / 87.47 KB gzip.
+
+### Not changed (still JSON-editor-only)
+
+- `obstruction_detection`, `motor`, `safety_switch`, `voltmeter`,
+  `power_meter`, `in_locked` — complex nested objects or
+  rarely-edited edge-case fields. Templates containing these surface
+  a specific hydration error pointing at the JSON view.
+
 ## [0.2.4] - 2026-05-11 — Webhooks provisioner form
 
 Closes the "no first-class UI for the `webhooks` provisioner section"

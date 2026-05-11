@@ -207,6 +207,42 @@ export type ScriptsState = {
   open: boolean;
 };
 
+// Cover form covers Cover.SetConfig including the FW 2.0.0-beta1 `slat`
+// sub-object for venetian-blind tilt control. Edge-case fields
+// (obstruction_detection, motor, safety_switch) stay JSON-editor only —
+// hydrateCover rejects them with a pointer at the JSON view.
+export type CoverSlatState = {
+  enableField: boolean;
+  enable: boolean;
+  openTimeEnabled: boolean;
+  openTime: number;
+  closeTimeEnabled: boolean;
+  closeTime: number;
+  preciseCtlField: boolean;
+  preciseCtl: boolean;
+  retainPosField: boolean;
+  retainPos: boolean;
+  stepPosEnabled: boolean;
+  stepPos: number;
+};
+
+export type CoverState = {
+  id: number;
+  nameEnabled: boolean;
+  name: string;
+  maxtimeOpenEnabled: boolean;
+  maxtimeOpen: number;
+  maxtimeCloseEnabled: boolean;
+  maxtimeClose: number;
+  swapInputsField: boolean;
+  swapInputs: boolean;
+  powerLimitEnabled: boolean;
+  powerLimit: number;
+  slatEnabled: boolean;
+  slat: CoverSlatState;
+  open: boolean;
+};
+
 // Webhooks form covers the common case (wipe + create) for the
 // `webhooks` provisioner section. Updates of existing webhooks by id
 // require per-device knowledge of current webhook ids, so they stay

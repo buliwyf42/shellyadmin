@@ -3,6 +3,8 @@ import type {
   AutoUpdateState,
   BleState,
   CloudState,
+  CoverSlatState,
+  CoverState,
   EthState,
   HydrateResult,
   MatterState,
@@ -1293,6 +1295,219 @@ export function hydrateWebhooks(record: Record<string, unknown>): HydrateResult<
       creates.push({ cid: String(cid), event, urls: urlsStr, name, enable });
     }
     state.creates = creates;
+  }
+
+  return { ok: true, state };
+}
+
+// --- cover ---
+//
+// Cover.SetConfig: id targets which cover component (singleton blinds
+// default to 0). The form exposes timing, swap_inputs, power_limit,
+// and the FW 2.0.0-beta1 `slat` sub-object for venetian-blind tilt.
+// Edge-case fields (obstruction_detection, motor, safety_switch,
+// voltmeter, power_meter, in_locked) stay JSON-editor-only.
+
+const COVER_SLAT_KEYS = [
+  'enable',
+  'open_time',
+  'close_time',
+  'precise_ctl',
+  'retain_pos',
+  'step_pos',
+];
+const COVER_KEYS = [
+  'id',
+  'name',
+  'maxtime_open',
+  'maxtime_close',
+  'swap_inputs',
+  'power_limit',
+  'slat',
+];
+
+export function createCoverSlatState(): CoverSlatState {
+  return {
+    enableField: false,
+    enable: false,
+    openTimeEnabled: false,
+    openTime: 1.5,
+    closeTimeEnabled: false,
+    closeTime: 1.5,
+    preciseCtlField: false,
+    preciseCtl: false,
+    retainPosField: false,
+    retainPos: false,
+    stepPosEnabled: false,
+    stepPos: 10,
+  };
+}
+
+export function createCoverState(): CoverState {
+  return {
+    id: 0,
+    nameEnabled: false,
+    name: '',
+    maxtimeOpenEnabled: false,
+    maxtimeOpen: 30,
+    maxtimeCloseEnabled: false,
+    maxtimeClose: 30,
+    swapInputsField: false,
+    swapInputs: false,
+    powerLimitEnabled: false,
+    powerLimit: 1500,
+    slatEnabled: false,
+    slat: createCoverSlatState(),
+    open: false,
+  };
+}
+
+function buildCoverSlat(s: CoverSlatState): Record<string, unknown> | null {
+  const out: Record<string, unknown> = {};
+  if (s.enableField) out.enable = s.enable;
+  if (s.openTimeEnabled) out.open_time = s.openTime;
+  if (s.closeTimeEnabled) out.close_time = s.closeTime;
+  if (s.preciseCtlField) out.precise_ctl = s.preciseCtl;
+  if (s.retainPosField) out.retain_pos = s.retainPos;
+  if (s.stepPosEnabled) out.step_pos = s.stepPos;
+  return Object.keys(out).length > 0 ? out : null;
+}
+
+export function buildCover(s: CoverState): Record<string, unknown> | null {
+  const out: Record<string, unknown> = { id: s.id };
+  let touched = false;
+  if (s.nameEnabled) {
+    out.name = s.name;
+    touched = true;
+  }
+  if (s.maxtimeOpenEnabled) {
+    out.maxtime_open = s.maxtimeOpen;
+    touched = true;
+  }
+  if (s.maxtimeCloseEnabled) {
+    out.maxtime_close = s.maxtimeClose;
+    touched = true;
+  }
+  if (s.swapInputsField) {
+    out.swap_inputs = s.swapInputs;
+    touched = true;
+  }
+  if (s.powerLimitEnabled) {
+    out.power_limit = s.powerLimit;
+    touched = true;
+  }
+  if (s.slatEnabled) {
+    const slat = buildCoverSlat(s.slat);
+    if (slat) {
+      out.slat = slat;
+      touched = true;
+    }
+  }
+  return touched ? out : null;
+}
+
+function hydrateCoverSlat(record: Record<string, unknown>): HydrateResult<CoverSlatState> {
+  for (const key of Object.keys(record)) {
+    if (!COVER_SLAT_KEYS.includes(key)) {
+      return { ok: false, reason: `Template cover.slat contains unsupported key "${key}".` };
+    }
+  }
+  const state = createCoverSlatState();
+  if ('enable' in record) {
+    const v = boolField(record, 'enable');
+    if (v === undefined) return { ok: false, reason: 'cover.slat.enable must be boolean.' };
+    state.enableField = true;
+    state.enable = v;
+  }
+  if ('open_time' in record) {
+    const v = numberField(record, 'open_time');
+    if (v === undefined) return { ok: false, reason: 'cover.slat.open_time must be a number.' };
+    state.openTimeEnabled = true;
+    state.openTime = v;
+  }
+  if ('close_time' in record) {
+    const v = numberField(record, 'close_time');
+    if (v === undefined) return { ok: false, reason: 'cover.slat.close_time must be a number.' };
+    state.closeTimeEnabled = true;
+    state.closeTime = v;
+  }
+  if ('precise_ctl' in record) {
+    const v = boolField(record, 'precise_ctl');
+    if (v === undefined) return { ok: false, reason: 'cover.slat.precise_ctl must be boolean.' };
+    state.preciseCtlField = true;
+    state.preciseCtl = v;
+  }
+  if ('retain_pos' in record) {
+    const v = boolField(record, 'retain_pos');
+    if (v === undefined) return { ok: false, reason: 'cover.slat.retain_pos must be boolean.' };
+    state.retainPosField = true;
+    state.retainPos = v;
+  }
+  if ('step_pos' in record) {
+    const v = numberField(record, 'step_pos');
+    if (v === undefined) return { ok: false, reason: 'cover.slat.step_pos must be a number.' };
+    state.stepPosEnabled = true;
+    state.stepPos = v;
+  }
+  return { ok: true, state };
+}
+
+export function hydrateCover(record: Record<string, unknown>): HydrateResult<CoverState> {
+  for (const key of Object.keys(record)) {
+    if (!COVER_KEYS.includes(key)) {
+      return {
+        ok: false,
+        reason: `Template cover contains unsupported key "${key}" — switch to JSON view to edit obstruction_detection / motor / safety_switch and similar advanced fields.`,
+      };
+    }
+  }
+  const state = createCoverState();
+  state.open = true;
+
+  if ('id' in record) {
+    const v = numberField(record, 'id');
+    if (v === undefined || !Number.isInteger(v) || v < 0) {
+      return { ok: false, reason: 'cover.id must be a non-negative integer.' };
+    }
+    state.id = v;
+  }
+  if ('name' in record) {
+    const v = stringField(record, 'name');
+    if (v === undefined) return { ok: false, reason: 'cover.name must be a string.' };
+    state.nameEnabled = true;
+    state.name = v;
+  }
+  if ('maxtime_open' in record) {
+    const v = numberField(record, 'maxtime_open');
+    if (v === undefined) return { ok: false, reason: 'cover.maxtime_open must be a number.' };
+    state.maxtimeOpenEnabled = true;
+    state.maxtimeOpen = v;
+  }
+  if ('maxtime_close' in record) {
+    const v = numberField(record, 'maxtime_close');
+    if (v === undefined) return { ok: false, reason: 'cover.maxtime_close must be a number.' };
+    state.maxtimeCloseEnabled = true;
+    state.maxtimeClose = v;
+  }
+  if ('swap_inputs' in record) {
+    const v = boolField(record, 'swap_inputs');
+    if (v === undefined) return { ok: false, reason: 'cover.swap_inputs must be boolean.' };
+    state.swapInputsField = true;
+    state.swapInputs = v;
+  }
+  if ('power_limit' in record) {
+    const v = numberField(record, 'power_limit');
+    if (v === undefined) return { ok: false, reason: 'cover.power_limit must be a number.' };
+    state.powerLimitEnabled = true;
+    state.powerLimit = v;
+  }
+  if ('slat' in record) {
+    const slatRecord = asRecord(record.slat);
+    if (!slatRecord) return { ok: false, reason: 'cover.slat must be an object.' };
+    const sub = hydrateCoverSlat(slatRecord);
+    if (!sub.ok) return sub;
+    state.slatEnabled = true;
+    state.slat = sub.state;
   }
 
   return { ok: true, state };

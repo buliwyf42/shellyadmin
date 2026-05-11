@@ -25,8 +25,11 @@ const DIST = path.resolve(HERE, '..', 'dist', 'assets');
 // and runtime helpers. Measured 292.34 kB raw / 81.86 kB gzip after the jump.
 // v0.2.4: WebhooksForm provisioner section added ~6 KB raw / 2 KB gzip.
 // Measured 303.56 kB raw / 85.16 kB gzip after the form landed.
+// v0.2.5: CoverForm provisioner section added ~11 KB raw / 3 KB gzip
+// (more fields than Webhooks: id + name + 2 maxtimes + swap + power_limit
+// + 6 slat sub-fields). Measured 314.29 kB raw / 88.32 kB gzip.
 const BUDGETS = {
-  js: { raw: 312 * 1024, gzip: 88 * 1024 },
+  js: { raw: 320 * 1024, gzip: 90 * 1024 },
   css: { raw: 30 * 1024, gzip: 8 * 1024 },
 };
 
