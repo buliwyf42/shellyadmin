@@ -67,6 +67,8 @@ docker run -d \
   ghcr.io/buliwyf42/shellyadmin:latest
 ```
 
+Add `-p 8081:8081` (or remap to a different host port, e.g. `-p 8101:8081`) if you plan to enable the **MCP listener** via the Settings UI or `SHELLYADMIN_MCP_TOKEN` env var. The container exposes `:8081` for MCP but it's only bound when a token is configured — see ADR-0011 for the read+write tool surface and the v0.2.3 stdio alternative (`shellyctl mcp` subcommand for Claude Desktop on the same host).
+
 This quick-start example is only for plain HTTP on a trusted LAN. For a more durable deployment, use the `*_FILE` secret variants and set `COOKIE_SECURE=true` when serving through TLS.
 
 Tagged source checkout:
