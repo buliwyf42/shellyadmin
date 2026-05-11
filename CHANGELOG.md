@@ -4,6 +4,97 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.13] - 2026-05-11 — Phase 4a (consolidated review)
+
+Phase 4a from the consolidated review — the low-risk, mostly-additive
+slice of the Phase-4 backlog. Three new ADRs, an argon2id parameter
+bump with backward-compatibility helper, an optional audit-webhook
+sink, and the documentation halves of two larger items
+(API-versioning policy, binary-signing roadmap) that need their own
+release window when the code work lands.
+
+No DB migration, no breaking change. Drop-in upgrade from v0.2.12.
+
+### Added
+
+- **Audit webhook sink** (T11) — new `AppSettings.AuditWebhookURL`
+  + `AuditWebhookMinLevel` settings. When the URL is set, every
+  audit_log row is POSTed as JSON to the operator-supplied
+  endpoint on a fire-and-forget goroutine (5s timeout, no retry).
+  The local `audit_log` row stays the authoritative trail; the
+  webhook is the replica. Compact payload shape
+  (`{ts, level, message, request_id, risk_level, source}`)
+  consumable by Slack incoming-webhook formatters, Discord,
+  Loki-push receivers, or any plain JSON sink. URL validated at
+  SaveSettings time (rejects non-http(s) schemes, missing host,
+  relative paths). Two new tests in
+  `internal/services/audit_webhook_test.go`.
+- **`services.IsLegacyParameters`** (T6) — reports whether a
+  stored argon2id PHC hash uses parameters below the current
+  OWASP-2025 floor (m=96MiB). Used at startup to warn the
+  operator that their `SHELLYADMIN_PASS_HASH` should be
+  regenerated. One new test
+  `TestIsLegacyParameters`.
+- **Three new ADRs** in `docs/adr/`:
+  - `0013-encryption-key-externalization.md` — codifies the
+    v0.2.11 → v0.3.0 hard-fail transition + migration recipe.
+  - `0014-mcp-agent-threat-model.md` — names what ADR-0011
+    assumed: a prompt-injected agent bypasses the confirm-gate.
+    Three Phase-4-code defenses queued with acceptance criteria.
+  - `0015-single-instance-constraint.md` — formalises why
+    ShellyAdmin is single-instance-only + the `runtime_locks`
+    detection table v0.3.0 will introduce.
+
+### Changed
+
+- **Argon2id parameters** bumped to OWASP-2025
+  (m=64MiB → m=96MiB) in `internal/services/password.go` (T6).
+  Existing PHC hashes with m=64MiB continue to verify; new hashes
+  produced by `shellyctl hash-password` use the new floor.
+  Login response time grows by ~15 ms; tests slowed by ~80 ms per
+  argon2-invoking case (still well under the test timeout).
+- **`docs/ARCHITECTURE.md`** new "API Versioning Policy" section
+  (T7) — codifies the pre-v1.0 no-guarantee stance, the post-v1.0
+  `/api/v1` stable / `/api/v2` breaking pattern, and the
+  one-release-cycle deprecation window. Anchor for the actual
+  prefix-mounting work queued for v0.3 → v1.0.
+- **`docs/DEPLOYMENT.md`** new "Standalone Binary Distribution"
+  section (T12) — documents that today's binary build is
+  unsigned, lists the three concrete deliverables for a future
+  signed-binary release (goreleaser config, cosign blob signing,
+  SLSA-L3 provenance), and includes the operator-side verify
+  command template.
+
+### Tracking
+
+- `cmd/modelschema` snapshot regenerated to include the two new
+  `AppSettings` webhook fields. M3 drift check passes against
+  the refreshed schema.
+
+### Deferred to v0.3 (no change since v0.2.12)
+
+- M7 (services internal split — XL refactor)
+- M2/M6/M8 (frontend page split + Trusted-Types CSP +
+  DeviceListView/Detail split — XL block)
+- T1 TOTP 2FA, T3 PATs (XL each)
+- T2 WebAuthn (XXL, post-T1)
+- T4 HSM/PKCS11 (XXL)
+- T8 Playwright E2E (L, post-M2)
+- T9 external pen test (extern)
+- S6 encryption-key hard-fail (planned breaking change at v0.3.0)
+
+### Upgrade notes
+
+- **No breaking change**, no DB migration.
+- **New optional setting** `AuditWebhookURL` (empty default
+  preserves current behaviour).
+- **Startup warning** appears if `SHELLYADMIN_PASS_HASH` was
+  generated with v0.2.x's m=64MiB parameters. Action:
+  regenerate with `shellyctl hash-password <plaintext>`.
+- **Encryption-key auto-generation deprecation warning** from
+  v0.2.11 still fires; v0.3.0 will turn it into a hard-fail
+  (see ADR-0013 for the migration recipe).
+
 ## [0.2.12] - 2026-05-11 — Phase 3 modernization (partial)
 
 Phase 3 from the consolidated review. Ships 9 of 13 Phase-3 items
