@@ -20,6 +20,7 @@ import (
 	"shellyadmin/internal/core/scanner"
 	"shellyadmin/internal/core/secretbox"
 	"shellyadmin/internal/db"
+	"shellyadmin/internal/middleware"
 	"shellyadmin/internal/models"
 )
 
@@ -956,7 +957,9 @@ func (s *AppService) ClearLogs() (int64, error) {
 // external packages (scanner, firmware) that use the narrower signature.
 func (s *AppService) Log(level, msg string) {
 	s.metricIncLabelled("shellyadmin_audit_rows_written_total", map[string]string{"level": strings.ToUpper(strings.TrimSpace(level))})
-	s.logf(context.Background(), level, SanitizeLogMessage(msg))
+	sanitized := SanitizeLogMessage(msg)
+	s.logf(context.Background(), level, sanitized)
+	s.maybeForwardAudit(context.Background(), level, sanitized)
 }
 
 // LogCtx emits an audit entry carrying the given context. The callback
@@ -964,7 +967,32 @@ func (s *AppService) Log(level, msg string) {
 // row and slog line link back to the originating HTTP request.
 func (s *AppService) LogCtx(ctx context.Context, level, msg string) {
 	s.metricIncLabelled("shellyadmin_audit_rows_written_total", map[string]string{"level": strings.ToUpper(strings.TrimSpace(level))})
-	s.logf(ctx, level, SanitizeLogMessage(msg))
+	sanitized := SanitizeLogMessage(msg)
+	s.logf(ctx, level, sanitized)
+	s.maybeForwardAudit(ctx, level, sanitized)
+}
+
+// maybeForwardAudit shells out to the audit webhook delivery code if
+// the operator configured one. Best-effort: errors are swallowed (the
+// local audit_log row is the source of truth; the webhook is a
+// replica). Reads settings on every call because the webhook URL can
+// change at runtime via /api/settings — the operator should not have
+// to restart the service to disable a forwarder.
+func (s *AppService) maybeForwardAudit(ctx context.Context, level, msg string) {
+	if s.db == nil {
+		return
+	}
+	settings, err := s.db.GetSettings()
+	if err != nil || settings.AuditWebhookURL == "" {
+		return
+	}
+	reqID := ""
+	risk := ""
+	if ctx != nil {
+		reqID = middleware.FromContext(ctx)
+		risk = RiskFromContext(ctx)
+	}
+	s.forwardAudit(level, msg, reqID, risk, settings)
 }
 
 func sanitizeTags(tags []string) []string {
@@ -1026,6 +1054,11 @@ func ValidateSettings(settings models.AppSettings) error {
 	}
 	if settings.MCPEnabled && len(settings.MCPToken) < 16 {
 		return fmt.Errorf("mcp token must be at least 16 characters when MCP is enabled")
+	}
+	// T11 — webhook URL must be a valid absolute http(s) URL with a
+	// host. Empty disables the forwarder.
+	if err := validateWebhookURL(settings.AuditWebhookURL); err != nil {
+		return err
 	}
 	// MCP auth accepts the token either as Authorization: Bearer or as the
 	// first URL path segment. The path-form interprets "/" as a segment

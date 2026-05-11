@@ -60,6 +60,19 @@ type AppSettings struct {
 	AutoBackupEnabled       bool `json:"auto_backup_enabled,omitempty"`
 	AutoBackupIntervalHours int  `json:"auto_backup_interval_hours,omitempty"`
 	AutoBackupKeep          int  `json:"auto_backup_keep,omitempty"`
+
+	// AuditWebhookURL is the optional off-host audit sink (T11). When
+	// non-empty, every audit_log row written through LogCtx is also
+	// POSTed as JSON to this URL on a best-effort, fire-and-forget
+	// basis. A webhook delivery failure does NOT block the audit-log
+	// row from being persisted locally — the local DB is still the
+	// authoritative trail, the webhook is the replica.
+	AuditWebhookURL string `json:"audit_webhook_url,omitempty"`
+	// AuditWebhookMinLevel filters which rows are forwarded
+	// ("DEBUG" / "INFO" / "WARN" / "ERROR"; empty = INFO and above).
+	// A noisy DEBUG-forwarder would saturate a low-throughput sink
+	// (Slack, Discord) on every refresh tick.
+	AuditWebhookMinLevel string `json:"audit_webhook_min_level,omitempty"`
 }
 
 type ComplianceRules struct {
