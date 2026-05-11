@@ -65,6 +65,47 @@ type AppService struct {
 	// been called. nil for tests / callers that never wire MCP up;
 	// see internal/services/app_mcp.go for the controller type.
 	mcp *MCPController
+
+	// metrics is the Prometheus-format counter/gauge registry. nil for
+	// callers that don't wire it up (tests, MCP-only stdio mode); the
+	// service-layer Inc/Set helpers tolerate nil so the metrics path is
+	// strictly additive.
+	metrics MetricsSink
+}
+
+// MetricsSink is the narrow interface AppService uses to record
+// observability events. *observability.Registry implements it; tests
+// that need to assert metric writes can swap in a recording fake.
+type MetricsSink interface {
+	Inc(name string)
+	IncLabelled(name string, labels map[string]string)
+	Set(name string, value int64)
+}
+
+// SetMetrics wires a metrics sink into the service. Safe to call once
+// during startup before any background worker is spawned.
+func (s *AppService) SetMetrics(m MetricsSink) {
+	s.metrics = m
+}
+
+// metricInc is the nil-safe convenience used by service-layer code.
+// Callers don't need to check whether metrics is configured.
+func (s *AppService) metricInc(name string) {
+	if s.metrics != nil {
+		s.metrics.Inc(name)
+	}
+}
+
+func (s *AppService) metricSet(name string, v int64) {
+	if s.metrics != nil {
+		s.metrics.Set(name, v)
+	}
+}
+
+func (s *AppService) metricIncLabelled(name string, labels map[string]string) {
+	if s.metrics != nil {
+		s.metrics.IncLabelled(name, labels)
+	}
 }
 
 type TemplateRecord struct {
@@ -393,6 +434,10 @@ func (s *AppService) GetDevices() ([]models.Device, error) {
 		devices[i].CoverCount = len(componentInstances(devices[i], "cover"))
 		devices[i].LightCount = len(componentInstances(devices[i], "light"))
 	}
+	// M4 — refresh the inventory-size gauge on every read. GetDevices
+	// is called frequently enough by the SPA (every /api/devices)
+	// that this stays sub-second-fresh without a dedicated ticker.
+	s.metricSet("shellyadmin_devices_total", int64(len(devices)))
 	return devices, nil
 }
 
@@ -910,6 +955,7 @@ func (s *AppService) ClearLogs() (int64, error) {
 // originating HTTP request. This form remains for callbacks passed to
 // external packages (scanner, firmware) that use the narrower signature.
 func (s *AppService) Log(level, msg string) {
+	s.metricIncLabelled("shellyadmin_audit_rows_written_total", map[string]string{"level": strings.ToUpper(strings.TrimSpace(level))})
 	s.logf(context.Background(), level, SanitizeLogMessage(msg))
 }
 
@@ -917,6 +963,7 @@ func (s *AppService) Log(level, msg string) {
 // installed in the handler pulls the request ID out of ctx so the audit_log
 // row and slog line link back to the originating HTTP request.
 func (s *AppService) LogCtx(ctx context.Context, level, msg string) {
+	s.metricIncLabelled("shellyadmin_audit_rows_written_total", map[string]string{"level": strings.ToUpper(strings.TrimSpace(level))})
 	s.logf(ctx, level, SanitizeLogMessage(msg))
 }
 
