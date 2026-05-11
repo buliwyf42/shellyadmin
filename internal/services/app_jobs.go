@@ -12,57 +12,58 @@ import (
 	"shellyadmin/internal/core/firmware"
 	"shellyadmin/internal/core/scanner"
 	"shellyadmin/internal/models"
+	"shellyadmin/internal/services/jobs"
 )
 
-const staleScanGrace = 15 * time.Second
-const staleRefreshGrace = 2 * time.Minute
+// Type aliases re-export the job types from internal/services/jobs so
+// existing callers (internal/mcp, internal/api, internal/services_test)
+// keep using services.ScanStatus / services.FirmwareInstallStatus / etc.
+// unchanged. The underlying definitions live in
+// internal/services/jobs/types.go (M7 first move, see
+// docs/plans/phase-4b-refactor-block.md Block 4b.1.4).
+type (
+	ScanStatus                = jobs.ScanStatus
+	FirmwareStatus            = jobs.FirmwareStatus
+	ScanJobPayload            = jobs.ScanJobPayload
+	ScanJobResult             = jobs.ScanJobResult
+	FirmwareJobResult         = jobs.FirmwareJobResult
+	FirmwareInstallResult     = jobs.FirmwareInstallResult
+	FirmwareInstallJobPayload = jobs.FirmwareInstallJobPayload
+	FirmwareInstallJobResult  = jobs.FirmwareInstallJobResult
+	FirmwareInstallStatus     = jobs.FirmwareInstallStatus
+)
 
-type ScanStatus struct {
-	Running bool             `json:"running"`
-	Found   int              `json:"found"`
-	Total   int              `json:"total"`
-	Done    int              `json:"done"`
-	Pending []map[string]any `json:"pending"`
-}
+const (
+	staleScanGrace                     = jobs.StaleScanGrace
+	staleRefreshGrace                  = jobs.StaleRefreshGrace
+	defaultFirmwareInstallTimeout      = jobs.DefaultFirmwareInstallTimeout
+	defaultFirmwareInstallPollInterval = jobs.DefaultFirmwareInstallPollInterval
+	firmwareInstallConcurrency         = jobs.FirmwareInstallConcurrency
+)
 
-type FirmwareStatus struct {
-	Running bool              `json:"running"`
-	Done    int               `json:"done"`
-	Total   int               `json:"total"`
-	Results []firmware.Result `json:"results"`
-}
+// ParseScanPayload forwards to internal/services/jobs.ParseScanPayload.
+func ParseScanPayload(raw string) (ScanJobPayload, error) { return jobs.ParseScanPayload(raw) }
 
-type ScanJobPayload struct {
-	ExistingMACs []string `json:"existing_macs"`
-}
+// ParseScanResult forwards to internal/services/jobs.ParseScanResult.
+func ParseScanResult(raw string) (ScanJobResult, error) { return jobs.ParseScanResult(raw) }
 
-type ScanJobResult struct {
-	Pending []models.Device `json:"pending"`
-}
+// ParseFirmwareResult forwards to internal/services/jobs.ParseFirmwareResult.
+func ParseFirmwareResult(raw string) (FirmwareJobResult, error) { return jobs.ParseFirmwareResult(raw) }
 
-type FirmwareJobResult struct {
-	Results []firmware.Result `json:"results"`
-}
+// Package-local thin wrappers — the methods below were the original callers
+// before the move, and keeping the unexported names lets the rest of this
+// file stay verbatim.
 
 func refreshProbeTimeout(settings models.AppSettings) time.Duration {
-	settings.Normalize()
-	return time.Duration(settings.RefreshTimeout * float64(time.Second))
+	return jobs.RefreshProbeTimeout(settings)
 }
 
 func scanJobStale(job models.Job, now time.Time) (bool, error) {
-	updatedAt, err := time.Parse(time.RFC3339, job.UpdatedAt)
-	if err != nil {
-		return false, err
-	}
-	return now.Sub(updatedAt) > staleScanGrace, nil
+	return jobs.ScanJobStale(job, now)
 }
 
 func refreshJobStale(job models.Job, now time.Time) (bool, error) {
-	updatedAt, err := time.Parse(time.RFC3339, job.UpdatedAt)
-	if err != nil {
-		return false, err
-	}
-	return now.Sub(updatedAt) > staleRefreshGrace, nil
+	return jobs.RefreshJobStale(job, now)
 }
 
 // --- Refresh ---
@@ -417,10 +418,6 @@ func (s *AppService) ConfirmScan(macs []string) (int, error) {
 
 // --- Firmware check ---
 
-const defaultFirmwareInstallTimeout = 5 * time.Minute
-const defaultFirmwareInstallPollInterval = 5 * time.Second
-const firmwareInstallConcurrency = 5
-
 func (s *AppService) StartFirmwareCheck() (int, error) {
 	if latest, err := s.db.GetLatestJob("firmware_check"); err == nil && latest.Status == "running" {
 		return latest.Total, errors.New("firmware check already running")
@@ -598,34 +595,6 @@ func (s *AppService) FirmwareUpdate(ctx context.Context, macs []string, stage st
 }
 
 // --- Firmware install (bulk) ---
-
-// FirmwareInstallResult is the per-device row tracked inside a firmware_install
-// job. Status flows triggered → updating → current/error/unknown.
-type FirmwareInstallResult struct {
-	IP      string `json:"ip"`
-	MAC     string `json:"mac"`
-	Stage   string `json:"stage"`
-	FromVer string `json:"from_ver"`
-	ToVer   string `json:"to_ver"`
-	Status  string `json:"status"`
-	Detail  string `json:"detail"`
-}
-
-type FirmwareInstallJobPayload struct {
-	MACs  []string `json:"macs"`
-	Stage string   `json:"stage"`
-}
-
-type FirmwareInstallJobResult struct {
-	Results []FirmwareInstallResult `json:"results"`
-}
-
-type FirmwareInstallStatus struct {
-	Running bool                    `json:"running"`
-	Done    int                     `json:"done"`
-	Total   int                     `json:"total"`
-	Results []FirmwareInstallResult `json:"results"`
-}
 
 // StartFirmwareInstall is the entry point used by the bulk Update page. It
 // reserves each MAC, spawns a single background job that runs Shelly.Update
@@ -891,79 +860,27 @@ func (s *AppService) FirmwareInstallStatus() (FirmwareInstallStatus, error) {
 	}, nil
 }
 
-// firmwareInstallTimeoutFromSettings is the canonical conversion from the
-// AppSettings field to a time.Duration. Pulled into a top-level helper so it
-// can be unit-tested without spinning up an install job, and so any caller
-// that needs the same value (test harness, future debug endpoint) doesn't
-// re-implement the float-seconds-to-Duration math.
+// Thin wrappers forwarding to internal/services/jobs. The unexported names
+// keep the existing call sites in the method bodies above unchanged; the
+// canonical implementations live in internal/services/jobs/types.go.
+
 func firmwareInstallTimeoutFromSettings(s models.AppSettings) time.Duration {
-	if s.FirmwareInstallTimeout > 0 {
-		return time.Duration(s.FirmwareInstallTimeout * float64(time.Second))
-	}
-	return defaultFirmwareInstallTimeout
+	return jobs.FirmwareInstallTimeoutFromSettings(s)
 }
 
-// firmwareInstallPollIntervalFromSettings mirrors the timeout helper above.
-// Bounds [1, 60] match models.AppSettings.Normalize so a freshly-loaded
-// AppSettings round-trips identically; this clamp is defensive against
-// settings rows that pre-date the field (where it lands as 0).
 func firmwareInstallPollIntervalFromSettings(s models.AppSettings) time.Duration {
-	v := s.FirmwareInstallPollInterval
-	if v <= 0 {
-		return defaultFirmwareInstallPollInterval
-	}
-	if v < 1 {
-		v = 1
-	} else if v > 60 {
-		v = 60
-	}
-	return time.Duration(v * float64(time.Second))
+	return jobs.FirmwareInstallPollIntervalFromSettings(s)
 }
 
-// firmwareSchedulerDecision is the per-tick logic of runFirmwareCheckScheduler.
-// `now` is wall-clock time; `intervalSec` is the configured cadence (0 means
-// disabled); `nextRun` is the previously-scheduled fire time (zero value =
-// "anchor on first non-zero interval seen"). Returns the new nextRun anchor
-// and whether the caller should fire StartFirmwareCheck right now.
 func firmwareSchedulerDecision(now time.Time, intervalSec int, nextRun time.Time) (time.Time, bool) {
-	if intervalSec <= 0 {
-		return time.Time{}, false
-	}
-	if nextRun.IsZero() {
-		return now.Add(time.Duration(intervalSec) * time.Second), false
-	}
-	if now.Before(nextRun) {
-		return nextRun, false
-	}
-	return now.Add(time.Duration(intervalSec) * time.Second), true
+	return jobs.FirmwareSchedulerDecision(now, intervalSec, nextRun)
 }
 
-// formatTimeout renders an install timeout as a short human phrase
-// ("5 min", "90 sec") for the install_job's per-device detail line.
-func formatTimeout(d time.Duration) string {
-	if d >= time.Minute && d%time.Minute == 0 {
-		return fmt.Sprintf("%d min", int(d/time.Minute))
-	}
-	if d >= time.Minute {
-		return fmt.Sprintf("%.1f min", d.Minutes())
-	}
-	return fmt.Sprintf("%d sec", int(d.Seconds()))
-}
+func formatTimeout(d time.Duration) string { return jobs.FormatTimeout(d) }
 
-func targetVersion(d models.Device, stage string) string {
-	if stage == "beta" {
-		return d.FWAvailableBeta
-	}
-	return d.FWAvailableStable
-}
+func targetVersion(d models.Device, stage string) string { return jobs.TargetVersion(d, stage) }
 
-func isInstallTerminal(status string) bool {
-	switch status {
-	case "current", "error", "unknown", "skipped":
-		return true
-	}
-	return false
-}
+func isInstallTerminal(status string) bool { return jobs.IsInstallTerminal(status) }
 
 // --- Recovery ---
 
@@ -1068,31 +985,5 @@ func (s *AppService) releaseFirmwareTargets(keys []string) {
 	}
 }
 
-// --- Job payload/result parsers ---
-
-func ParseScanPayload(raw string) (ScanJobPayload, error) {
-	if raw == "" {
-		return ScanJobPayload{}, nil
-	}
-	var payload ScanJobPayload
-	err := json.Unmarshal([]byte(raw), &payload)
-	return payload, err
-}
-
-func ParseScanResult(raw string) (ScanJobResult, error) {
-	if raw == "" {
-		return ScanJobResult{Pending: []models.Device{}}, nil
-	}
-	var result ScanJobResult
-	err := json.Unmarshal([]byte(raw), &result)
-	return result, err
-}
-
-func ParseFirmwareResult(raw string) (FirmwareJobResult, error) {
-	if raw == "" {
-		return FirmwareJobResult{Results: []firmware.Result{}}, nil
-	}
-	var result FirmwareJobResult
-	err := json.Unmarshal([]byte(raw), &result)
-	return result, err
-}
+// Parser entry points (ParseScanPayload/Result, ParseFirmwareResult) moved
+// to the top of the file alongside the type aliases.
