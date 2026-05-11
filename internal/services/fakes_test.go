@@ -117,6 +117,13 @@ func (f *fakeStore) PruneAuditLogOlderThan(time.Time) (int64, error) { return 0,
 func (f *fakeStore) VerifyAuditChain() (int64, error)                { return 0, nil }
 func (f *fakeStore) SnapshotTo(string) error                         { return nil }
 
+func (f *fakeStore) CreateSession(string, string, string) error { return nil }
+func (f *fakeStore) GetSession(string) (db.Session, error)      { return db.Session{}, errUnimplemented }
+func (f *fakeStore) TouchSession(string) error                  { return nil }
+func (f *fakeStore) RevokeSession(string) error                 { return nil }
+func (f *fakeStore) RevokeAllForUser(string) error              { return nil }
+func (f *fakeStore) PruneExpiredSessions() (int64, error)       { return 0, nil }
+
 // Compile-time guarantee: fakeStore implements Store.
 var _ Store = (*fakeStore)(nil)
 

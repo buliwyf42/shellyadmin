@@ -162,6 +162,46 @@ func (s *AppService) StartBackgroundWorkers() {
 	go s.auditRetentionLoop()
 	s.bgJobs.Add(1)
 	go s.autoBackupLoop()
+	s.bgJobs.Add(1)
+	go s.sessionSweepLoop()
+}
+
+// sessionSweepLoop deletes session rows whose expires_at has passed.
+// S5 — without this the table grows unboundedly because Logout flips
+// revoked_at but doesn't DELETE. The sweeper runs every 6h; sessions
+// have a 7-day max lifetime so a 6h slack is invisible to operators.
+func (s *AppService) sessionSweepLoop() {
+	defer s.bgJobs.Done()
+	t := time.NewTicker(6 * time.Hour)
+	defer t.Stop()
+	// Immediate run on startup so an interrupt during a previous
+	// container life does not leave a stale row visible until the
+	// first 6h tick.
+	s.runSessionSweepOnce()
+	for {
+		select {
+		case <-s.ctx.Done():
+			return
+		case <-t.C:
+			s.runSessionSweepOnce()
+		}
+	}
+}
+
+func (s *AppService) runSessionSweepOnce() {
+	defer func() {
+		if r := recover(); r != nil {
+			s.logf(s.ctx, "ERROR", fmt.Sprintf("session sweep panic: %v", r))
+		}
+	}()
+	n, err := s.db.PruneExpiredSessions()
+	if err != nil {
+		s.logf(s.ctx, "ERROR", fmt.Sprintf("session sweep: %v", err))
+		return
+	}
+	if n > 0 {
+		s.logf(s.ctx, "INFO", fmt.Sprintf("session sweep: pruned %d expired rows", n))
+	}
 }
 
 const auditRetentionTick = time.Hour

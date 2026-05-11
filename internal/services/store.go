@@ -76,6 +76,14 @@ type Store interface {
 
 	// Auto-backup snapshot (S12)
 	SnapshotTo(path string) error
+
+	// Server-side session store (S5)
+	CreateSession(id, username, expiresAt string) error
+	GetSession(id string) (db.Session, error)
+	TouchSession(id string) error
+	RevokeSession(id string) error
+	RevokeAllForUser(username string) error
+	PruneExpiredSessions() (int64, error)
 }
 
 // Compile-time assertion that *db.DB satisfies Store. If a method is added or
