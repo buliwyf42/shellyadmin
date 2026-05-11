@@ -77,9 +77,7 @@
                   <span class="badge bg-secondary">partial</span>
                 {/if}
                 {#if r.restart_required}
-                  <span class="badge ms-1" style="background:#c89a2a;color:#fff;"
-                    >restart required</span
-                  >
+                  <span class="badge ms-1 badge-restart-required">restart required</span>
                 {/if}
               </td>
               <td>

@@ -18,7 +18,7 @@
 </script>
 
 <div class="min-vh-100 d-flex align-items-center justify-content-center bg-black">
-  <div class="card bg-dark border-secondary shadow-lg" style="width: min(28rem, 95vw)">
+  <div class="card bg-dark border-secondary shadow-lg login-card-width">
     <div class="card-body p-4">
       <h1 class="h3 mb-3">ShellyAdmin</h1>
       <p class="text-secondary">Fleet operations for your Shelly network.</p>

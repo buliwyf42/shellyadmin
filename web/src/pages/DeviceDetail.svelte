@@ -119,8 +119,7 @@
       {detail?.device.name || detail?.device.serial || detail?.device.mac || target}
       {#if detail?.device.app}
         <span
-          class="badge bg-secondary align-middle ms-2"
-          style="font-size: 0.55em; vertical-align: middle;"
+          class="badge bg-secondary align-middle ms-2 text-tiny-inline"
           title={detail.device.model
             ? `App: ${detail.device.app}\nModel: ${detail.device.model}`
             : detail.device.app}
@@ -300,7 +299,7 @@
                 </div>
               {/if}
             </div>
-            <div class="text-secondary mt-2" style="font-size: 0.78rem;">
+            <div class="text-secondary mt-2 text-hint-xs">
               Summed across switch / em / em1 / pm1 components from the most recent snapshot.
             </div>
           </div>

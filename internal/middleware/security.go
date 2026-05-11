@@ -16,9 +16,14 @@ import "github.com/gin-gonic/gin"
 //   - trusted-types 'none' refuses to register any Trusted-Types policy
 //     factory (we don't need one); the SPA simply must avoid raw-string
 //     DOM-sink calls.
-//   - style-src still allows 'unsafe-inline' because Svelte 5 component
-//     <style> blocks compile to inline <style> elements; M6 (Phase 3)
-//     replaces this with nonce-based or hashed inline styles.
+//   - style-src is now `'self'` only (v0.3.0 / M6 — Block 4b.4 of
+//     docs/plans/phase-4b-refactor-block.md). The SPA's components no
+//     longer use inline `style="..."` attributes; every one-off styling
+//     case routes through utility classes in app.css or component-scoped
+//     <style> blocks that vite compiles into the external CSS bundle.
+//     Dropping 'unsafe-inline' lets a future DOM-injection sink fail
+//     closed at the style-attribute boundary — the browser rejects the
+//     injected inline style before the page can repaint.
 func SecurityHeaders() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Header("X-Frame-Options", "DENY")
@@ -34,7 +39,7 @@ func SecurityHeaders() gin.HandlerFunc {
 		// strictly better than no Trusted-Types directive at all:
 		// it forces any user-string→innerHTML path to go through a
 		// registered policy, which a code review can catch.
-		c.Header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; require-trusted-types-for 'script'")
+		c.Header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; require-trusted-types-for 'script'")
 		c.Next()
 	}
 }

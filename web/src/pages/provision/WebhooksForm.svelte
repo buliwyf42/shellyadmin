@@ -48,15 +48,13 @@
     </div>
 
     {#if state.creates.length === 0}
-      <div class="text-secondary" style="font-size: 0.85rem;">
-        None — click "Add Webhook" to create one.
-      </div>
+      <div class="text-secondary text-hint-lg">None — click "Add Webhook" to create one.</div>
     {/if}
 
     {#each state.creates as entry, i (i)}
       <div class="sa-webhooks-card">
         <div class="d-flex justify-content-between align-items-center mb-2">
-          <span class="text-secondary" style="font-size: 0.78rem;">Webhook #{i + 1}</span>
+          <span class="text-secondary text-hint-xs">Webhook #{i + 1}</span>
           <button
             class="btn btn-sm btn-outline-danger"
             on:click={() => removeCreate(i)}

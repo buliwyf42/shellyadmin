@@ -793,7 +793,7 @@
           {/if}
         </div>
         {#if groupCredentialHint}
-          <div class="text-secondary mt-2" style="font-size: 0.82rem;">{groupCredentialHint}</div>
+          <div class="text-secondary mt-2 text-hint-md">{groupCredentialHint}</div>
         {/if}
       </div>
 

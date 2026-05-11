@@ -25,7 +25,7 @@
 
   <div class="sa-zigbee-card">
     <FieldRow label="Zigbee.SendCommand" bind:enabled={state.sendCommandEnabled}>
-      <span class="text-secondary" style="font-size: 0.78rem;">
+      <span class="text-secondary text-hint-xs">
         send a ZCL command (cluster + cmd + optional hex payload)
       </span>
     </FieldRow>
@@ -85,9 +85,7 @@
 
   <div class="sa-zigbee-card">
     <FieldRow label="Zigbee.ReadAttr" bind:enabled={state.readAttrEnabled}>
-      <span class="text-secondary" style="font-size: 0.78rem;">
-        read attributes by id from a cluster
-      </span>
+      <span class="text-secondary text-hint-xs"> read attributes by id from a cluster </span>
     </FieldRow>
     {#if state.readAttrEnabled}
       <div class="sa-form-grid sa-zigbee-grid">
@@ -137,7 +135,7 @@
 
   <div class="sa-zigbee-card">
     <FieldRow label="Zigbee.WriteAttr" bind:enabled={state.writeAttrEnabled}>
-      <span class="text-secondary" style="font-size: 0.78rem;">
+      <span class="text-secondary text-hint-xs">
         write a list of {`{id, type, value}`} attribute records (raw JSON)
       </span>
     </FieldRow>
@@ -181,7 +179,7 @@
             bind:value={state.writeAttr.attrsJSON}
             placeholder={'[ { "id": 0, "type": "uint8", "value": 1 } ]'}
           ></textarea>
-          <div class="text-secondary" style="font-size: 0.78rem; margin-top: 0.25rem;">
+          <div class="text-secondary text-hint-xs mt-1">
             ZCL type strings like uint8, int16, bool, string. The backend forwards as-is to
             <code>Zigbee.WriteAttr</code>.
           </div>
