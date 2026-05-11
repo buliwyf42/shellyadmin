@@ -193,6 +193,36 @@ Compatibility note:
 
 Restore by replacing the contents of the data volume while the container is stopped.
 
+## Standalone Binary Distribution (planned)
+
+The canonical artifact is the GHCR container image. Operators who
+prefer to run the Go binary directly (Linux service, NixOS module,
+homelab CI runner) currently build from source — `go build
+./cmd/shellyctl` — which produces an unsigned, unverified binary.
+
+Phase 4 / T12 from the consolidated review queues the following for
+a future release:
+
+1. **goreleaser config** (`.goreleaser.yaml`) wiring multi-arch
+   binary builds + checksum file generation.
+2. **cosign blob signing** of every binary published to a GitHub
+   Release. The same keyless-OIDC pattern v0.2.11+ uses for the
+   container image (see `publish-image.yml`); operators get a
+   `.sig` file alongside each binary they can verify with:
+   ```
+   cosign verify-blob \
+     --certificate-identity-regexp 'https://github.com/buliwyf42/shellyadmin/' \
+     --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+     --signature shellyctl-linux-amd64.sig \
+     shellyctl-linux-amd64
+   ```
+3. **Provenance attestation** via SLSA Level 3 builders so the
+   binary's build origin is independently verifiable.
+
+Today operators wanting binaries should build locally and accept
+that the resulting artifact is unsigned. The Docker image is the
+verified path until T12 ships.
+
 ## Non-Goals
 
 This deployment model does not require:

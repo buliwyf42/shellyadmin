@@ -117,6 +117,41 @@ Provisioning safety constraints:
 - configured concurrency limits active network probes and prevents unbounded goroutine fan-out
 - `AppService` owns a root context; on shutdown (SIGTERM) it is cancelled, in-flight jobs observe the cancellation, and their job rows are marked `interrupted` immediately rather than waiting for the stale-job guard
 
+## API Versioning Policy
+
+Pre-v1.0 release lines (current: 0.x) ship without API version
+guarantees. The HTTP API surface is documented under the
+`info.version: "v1"` field in the OpenAPI spec served at
+`/api/openapi/v1.json`, but breaking changes between minor releases
+are reserved until the explicit pre-1.0 line clears.
+
+When v1.0 lands, the policy hardens to:
+
+- **`/api/v1/*`** stays stable. Routes can gain new optional query
+  parameters and new optional response fields; existing required
+  fields cannot rename or change shape.
+- **Breaking changes** ship behind a new `/api/v2/` prefix. The
+  v1 routes continue to work for one full release cycle, marked
+  with a `Deprecation: true` response header so client tooling
+  (the SPA, MCP clients, ad-hoc scripts) can warn before the
+  removal window closes.
+- **Removal**: a `/api/v1/*` route may be deleted at the v3 cut,
+  not before. Operators get two release lines to migrate their
+  external scripts.
+
+The OpenAPI document's `paths` keyspace is the contract surface.
+Adding a new route is non-breaking. Renaming a request/response
+field is breaking. Adding a new required field is breaking. Adding
+a new optional field is non-breaking. The `cmd/modelschema` drift
+check (Phase 3 / M3) catches accidental Go-struct changes that
+would tilt the wire shape.
+
+This policy is the T7 from the consolidated review's Phase 4
+shortlist. Concrete `/api/v1/*` prefix mounting + the `Deprecation`
+header are queued for the v0.3 → v1.0 cut; the policy itself is
+codified here so the next person to ship a breaking change has a
+written rule to follow.
+
 ## Deployment
 
 Primary target:
