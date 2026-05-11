@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildCover,
   buildSys,
   buildWebhooks,
+  createCoverState,
   createSysState,
   createWebhooksState,
+  hydrateCover,
   hydrateSys,
   hydrateWebhooks,
   isTLSServerURL,
@@ -230,5 +233,101 @@ describe('hydrateWebhooks', () => {
     const r = hydrateWebhooks({ create: [{ event: 'x', urls: ['https://y'] }] });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.reason).toMatch(/cid/i);
+  });
+});
+
+describe('buildCover', () => {
+  it('returns null when no fields are toggled (id alone is not enough)', () => {
+    expect(buildCover(createCoverState())).toBeNull();
+  });
+
+  it('always emits id when any field is toggled', () => {
+    const s = createCoverState();
+    s.id = 1;
+    s.nameEnabled = true;
+    s.name = 'kitchen-blind';
+    expect(buildCover(s)).toEqual({ id: 1, name: 'kitchen-blind' });
+  });
+
+  it('emits the slat sub-object only when slatEnabled and at least one slat field is set', () => {
+    const s = createCoverState();
+    s.slatEnabled = true;
+    // slat itself toggled on, but no sub-fields set -> slat is null, so cover returns null
+    expect(buildCover(s)).toBeNull();
+
+    s.slat.enableField = true;
+    s.slat.enable = true;
+    s.slat.openTimeEnabled = true;
+    s.slat.openTime = 2.0;
+    expect(buildCover(s)).toEqual({
+      id: 0,
+      slat: { enable: true, open_time: 2.0 },
+    });
+  });
+
+  it('emits maxtime_open/close numbers', () => {
+    const s = createCoverState();
+    s.maxtimeOpenEnabled = true;
+    s.maxtimeOpen = 25;
+    s.maxtimeCloseEnabled = true;
+    s.maxtimeClose = 30;
+    expect(buildCover(s)).toEqual({ id: 0, maxtime_open: 25, maxtime_close: 30 });
+  });
+});
+
+describe('hydrateCover', () => {
+  it('rejects unsupported advanced fields with a JSON-editor pointer', () => {
+    const r = hydrateCover({ id: 0, obstruction_detection: { enable: true } });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toMatch(/switch to JSON view/i);
+  });
+
+  it('round-trips slat sub-object', () => {
+    const r = hydrateCover({
+      id: 1,
+      name: 'a',
+      maxtime_open: 30,
+      slat: {
+        enable: true,
+        open_time: 1.5,
+        close_time: 1.5,
+        precise_ctl: true,
+        step_pos: 10,
+      },
+    });
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.state.id).toBe(1);
+      expect(r.state.nameEnabled).toBe(true);
+      expect(r.state.name).toBe('a');
+      expect(r.state.slatEnabled).toBe(true);
+      expect(r.state.slat.enableField).toBe(true);
+      expect(r.state.slat.enable).toBe(true);
+      expect(r.state.slat.openTime).toBe(1.5);
+      expect(buildCover(r.state)).toEqual({
+        id: 1,
+        name: 'a',
+        maxtime_open: 30,
+        slat: {
+          enable: true,
+          open_time: 1.5,
+          close_time: 1.5,
+          precise_ctl: true,
+          step_pos: 10,
+        },
+      });
+    }
+  });
+
+  it('rejects unknown slat sub-keys', () => {
+    const r = hydrateCover({ id: 0, slat: { mystery_field: true } });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toMatch(/slat contains unsupported key/i);
+  });
+
+  it('rejects non-integer id', () => {
+    const r = hydrateCover({ id: 1.5 });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toMatch(/non-negative integer/i);
   });
 });

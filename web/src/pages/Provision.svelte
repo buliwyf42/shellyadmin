@@ -15,6 +15,7 @@
   import ModbusForm from './provision/ModbusForm.svelte';
   import ZigbeeForm from './provision/ZigbeeForm.svelte';
   import UserCAForm from './provision/UserCAForm.svelte';
+  import CoverForm from './provision/CoverForm.svelte';
   import ScriptsForm from './provision/ScriptsForm.svelte';
   import WebhooksForm from './provision/WebhooksForm.svelte';
   import type {
@@ -22,6 +23,7 @@
     AutoUpdateState,
     BleState,
     CloudState,
+    CoverState,
     EthState,
     MatterState,
     ModbusState,
@@ -40,6 +42,7 @@
     buildAutoUpdate,
     buildBle,
     buildCloud,
+    buildCover,
     buildEth,
     buildMatter,
     buildModbus,
@@ -56,6 +59,7 @@
     createAutoUpdateState,
     createBleState,
     createCloudState,
+    createCoverState,
     createEthState,
     createMatterState,
     createModbusState,
@@ -72,6 +76,7 @@
     hydrateAutoUpdate,
     hydrateBle,
     hydrateCloud,
+    hydrateCover,
     hydrateEth,
     hydrateMatter,
     hydrateModbus,
@@ -125,6 +130,7 @@
   let uiState: UIState = createUIState();
   let scriptsState: ScriptsState = createScriptsState();
   let webhooksState: WebhooksState = createWebhooksState();
+  let coverState: CoverState = createCoverState();
 
   function captureError(err: unknown) {
     if (err instanceof APIError) {
@@ -262,6 +268,7 @@
     uiState,
     scriptsState,
     webhooksState,
+    coverState,
     templateForPrecheck());
   $: precheckTemplateError =
     viewMode === 'json' && precheckTemplate === null
@@ -380,6 +387,7 @@
     uiState = createUIState();
     scriptsState = createScriptsState();
     webhooksState = createWebhooksState();
+    coverState = createCoverState();
   }
 
   function asRecord(value: unknown): Record<string, unknown> | null {
@@ -406,6 +414,7 @@
     let nextUI: UIState | null = null;
     let nextScripts: ScriptsState | null = null;
     let nextWebhooks: WebhooksState | null = null;
+    let nextCover: CoverState | null = null;
     let nextAutoUpdate: AutoUpdateState | null = null;
     for (const [sectionName, rawSection] of Object.entries(template)) {
       const section = sectionName.trim().toLowerCase();
@@ -510,6 +519,12 @@
           nextWebhooks = r.state;
           break;
         }
+        case 'cover': {
+          const r = hydrateCover(record);
+          if (!r.ok) return r;
+          nextCover = r.state;
+          break;
+        }
         default:
           return {
             ok: false,
@@ -534,6 +549,7 @@
     if (nextUI) uiState = nextUI;
     if (nextScripts) scriptsState = nextScripts;
     if (nextWebhooks) webhooksState = nextWebhooks;
+    if (nextCover) coverState = nextCover;
     return { ok: true };
   }
 
@@ -572,6 +588,8 @@
     if (scripts) out.script = scripts;
     const webhooks = buildWebhooks(webhooksState);
     if (webhooks) out.webhooks = webhooks;
+    const cover = buildCover(coverState);
+    if (cover) out.cover = cover;
     return out;
   }
 
@@ -904,6 +922,7 @@
             <ZigbeeForm bind:state={zigbeeState} />
             <ScriptsForm bind:state={scriptsState} />
             <WebhooksForm bind:state={webhooksState} />
+            <CoverForm bind:state={coverState} />
             <UserCAForm {devices} {selected} />
           </div>
         {/if}
