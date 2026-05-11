@@ -12,6 +12,8 @@ import type {
   ScriptsState,
   SysState,
   UIState,
+  WebhookCreateEntry,
+  WebhooksState,
   WifiAPState,
   WifiRoamState,
   WifiStaEntry,
@@ -1176,4 +1178,122 @@ export function hydrateScripts(record: Record<string, unknown>): HydrateResult<S
     scripts.push({ id: key, name, enable });
   }
   return { ok: true, state: { scripts, open: false } };
+}
+
+// --- webhooks ---
+//
+// The provisioner section drives Webhook.* RPCs in
+// delete_all → delete → update → create order. The form covers the
+// common operator workflow (wipe + create); `update` requires
+// per-device knowledge of existing ids and stays JSON-only.
+
+export function createWebhooksState(): WebhooksState {
+  return { deleteAll: false, deleteIds: '', creates: [], open: false };
+}
+
+export function buildWebhooks(s: WebhooksState): Record<string, unknown> | null {
+  const out: Record<string, unknown> = {};
+  if (s.deleteAll) out.delete_all = true;
+
+  const ids: number[] = [];
+  for (const piece of s.deleteIds.split(/[\s,]+/)) {
+    const trimmed = piece.trim();
+    if (trimmed === '') continue;
+    const n = Number(trimmed);
+    if (Number.isInteger(n) && n > 0) ids.push(n);
+  }
+  if (ids.length > 0) out.delete = ids;
+
+  const creates: Record<string, unknown>[] = [];
+  for (const c of s.creates) {
+    if (c.event.trim() === '') continue;
+    const cidNum = Number(c.cid);
+    if (!Number.isInteger(cidNum) || cidNum < 0) continue;
+    const urls = c.urls
+      .split(/\r?\n/)
+      .map((x) => x.trim())
+      .filter((x) => x !== '');
+    if (urls.length === 0) continue;
+    const obj: Record<string, unknown> = {
+      cid: cidNum,
+      event: c.event.trim(),
+      urls,
+    };
+    if (c.name.trim() !== '') obj.name = c.name.trim();
+    if (!c.enable) obj.enable = false;
+    creates.push(obj);
+  }
+  if (creates.length > 0) out.create = creates;
+
+  return Object.keys(out).length > 0 ? out : null;
+}
+
+export function hydrateWebhooks(record: Record<string, unknown>): HydrateResult<WebhooksState> {
+  const supportedKeys = ['delete_all', 'delete', 'update', 'create'];
+  for (const key of Object.keys(record)) {
+    if (!supportedKeys.includes(key)) {
+      return { ok: false, reason: `Template webhooks contains unsupported key "${key}".` };
+    }
+  }
+  if ('update' in record) {
+    return {
+      ok: false,
+      reason:
+        'Template webhooks.update is JSON-only (per-device id mapping varies); switch to JSON view to edit.',
+    };
+  }
+
+  const state = createWebhooksState();
+  state.open = true;
+
+  if ('delete_all' in record) {
+    const v = boolField(record, 'delete_all');
+    if (v === undefined) return { ok: false, reason: 'webhooks.delete_all must be boolean.' };
+    state.deleteAll = v;
+  }
+
+  if ('delete' in record) {
+    const arr = record.delete;
+    if (!Array.isArray(arr)) return { ok: false, reason: 'webhooks.delete must be an array.' };
+    const ids: string[] = [];
+    for (const v of arr) {
+      if (typeof v !== 'number' || !Number.isInteger(v) || v <= 0) {
+        return {
+          ok: false,
+          reason: `webhooks.delete entry ${JSON.stringify(v)} must be a positive integer.`,
+        };
+      }
+      ids.push(String(v));
+    }
+    state.deleteIds = ids.join(', ');
+  }
+
+  if ('create' in record) {
+    const arr = record.create;
+    if (!Array.isArray(arr)) return { ok: false, reason: 'webhooks.create must be an array.' };
+    const creates: WebhookCreateEntry[] = [];
+    for (const item of arr) {
+      const obj = asRecord(item);
+      if (!obj) return { ok: false, reason: 'webhooks.create entries must be objects.' };
+      const cid = numberField(obj, 'cid');
+      if (cid === undefined || !Number.isInteger(cid) || cid < 0) {
+        return { ok: false, reason: 'webhooks.create entry needs a non-negative integer "cid".' };
+      }
+      const event = stringField(obj, 'event') ?? '';
+      const name = stringField(obj, 'name') ?? '';
+      const enable = boolField(obj, 'enable') ?? true;
+      const urlsRaw = obj.urls;
+      let urlsStr = '';
+      if (Array.isArray(urlsRaw)) {
+        const filtered = urlsRaw.filter((u): u is string => typeof u === 'string');
+        urlsStr = filtered.join('\n');
+      } else if (typeof urlsRaw === 'string') {
+        urlsStr = urlsRaw;
+      }
+      creates.push({ cid: String(cid), event, urls: urlsStr, name, enable });
+    }
+    state.creates = creates;
+  }
+
+  return { ok: true, state };
 }

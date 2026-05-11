@@ -206,3 +206,23 @@ export type ScriptsState = {
   scripts: ScriptEntry[];
   open: boolean;
 };
+
+// Webhooks form covers the common case (wipe + create) for the
+// `webhooks` provisioner section. Updates of existing webhooks by id
+// require per-device knowledge of current webhook ids, so they stay
+// JSON-only — hydrateWebhooks rejects an `update` key with a clear
+// message pointing the operator at the JSON editor.
+export type WebhookCreateEntry = {
+  cid: string; // string for input binding; coerced to number on build
+  event: string;
+  urls: string; // newline-separated; split on build
+  name: string;
+  enable: boolean;
+};
+
+export type WebhooksState = {
+  deleteAll: boolean;
+  deleteIds: string; // comma- or whitespace-separated; parsed on build
+  creates: WebhookCreateEntry[];
+  open: boolean;
+};

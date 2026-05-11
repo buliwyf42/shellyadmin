@@ -23,8 +23,10 @@ const DIST = path.resolve(HERE, '..', 'dist', 'assets');
 // v0.2.0 prep: vite 6 (rollup) → vite 8 (rolldown) added ~15 KB raw / 5 KB
 // gzip from a different bundler with different code-splitting heuristics
 // and runtime helpers. Measured 292.34 kB raw / 81.86 kB gzip after the jump.
+// v0.2.4: WebhooksForm provisioner section added ~6 KB raw / 2 KB gzip.
+// Measured 303.56 kB raw / 85.16 kB gzip after the form landed.
 const BUDGETS = {
-  js: { raw: 300 * 1024, gzip: 86 * 1024 },
+  js: { raw: 312 * 1024, gzip: 88 * 1024 },
   css: { raw: 30 * 1024, gzip: 8 * 1024 },
 };
 
