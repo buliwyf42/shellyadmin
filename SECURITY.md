@@ -10,7 +10,8 @@ Security fixes are best-effort while the project is in active early development.
 
 | Version                                    | Supported   | Notes                                                                                                                                 |
 | ------------------------------------------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `v0.2.7`                                   | Yes         | Current baseline. Vite oxc minifier swap + drop `esbuild` devDep (build-tooling only; no runtime change).                             |
+| `v0.2.8`                                   | Yes         | Current baseline. Dep pin refresh — closes GO-2026-4918 (non-reachable) in `golang.org/x/net`; `alpine:3.19` → `alpine:3.21` runtime. |
+| `v0.2.7`                                   | Best effort | Vite oxc minifier swap + drop `esbuild` devDep (build-tooling only; no runtime change).                                               |
 | `v0.2.6`                                   | Best effort | Zigbee operations form (UI-only; write-mostly).                                                                                       |
 | `v0.2.5`                                   | Best effort | Cover (slat-tilt) provisioner form (UI-only).                                                                                         |
 | `v0.2.4`                                   | Best effort | Webhooks provisioner form (UI-only).                                                                                                  |
@@ -49,6 +50,15 @@ When reporting, include:
 
 ## Hardening notes
 
+- **v0.2.8** — Periodic dep pin review pulled forward from 2026-08-11.
+  Bumps `golang.org/x/net` v0.51.0 → v0.54.0 (closes GO-2026-4918,
+  HTTP/2 transport infinite loop on bad `SETTINGS_MAX_FRAME_SIZE`;
+  govulncheck confirms no reachable call site in ShellyAdmin code,
+  so this is defense in depth rather than a remediated active CVE) and
+  `golang.org/x/crypto` v0.48.0 → v0.51.0. Runtime container base moves
+  `alpine:3.19` → `alpine:3.21` — 3.19 reached end-of-community-support
+  in November 2025 so its apk packages no longer receive security
+  updates; 3.21 is supported through November 2026.
 - **v0.2.0** — `SHELLYADMIN_PASS` (plaintext admin password) was removed.
   v0.0.15 added `SHELLYADMIN_PASS_HASH` (argon2id PHC from
   `shellyctl hash-password`) and started warning on plaintext use; v0.2.0
