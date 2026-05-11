@@ -4,6 +4,47 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-05-11 — Webhooks provisioner form
+
+Closes the "no first-class UI for the `webhooks` provisioner section"
+gap. Every other section (`sys`, `mqtt`, `wifi`, `eth`, etc.) has had a
+guided form in the Provision page alongside the JSON editor; webhooks
+was the conspicuous holdout — operators had to drop into JSON view to
+set up HTTP callbacks even for the common wipe-and-replace case.
+
+### Added
+
+- **`web/src/pages/provision/WebhooksForm.svelte`** — a section card
+  matching the existing form pattern. Surfaces:
+  - `delete_all` toggle (clear every webhook on the device first).
+  - Delete by id (comma- or whitespace-separated; junk silently
+    dropped).
+  - New webhooks: per-row `cid`, `event`, optional `name`, `enable`
+    toggle (defaults to On — the form only emits `enable: false`
+    when explicitly disabled, matching the Shelly API default), and
+    a URLs textarea (one per line, parsed into the `urls` array).
+- State surface in `web/src/pages/provision/state.ts`:
+  `createWebhooksState`, `buildWebhooks`, `hydrateWebhooks`. The
+  hydrator rejects template `webhooks.update` blocks with a clear
+  pointer at the JSON editor (per-id updates require per-device
+  knowledge of existing webhook ids — out of scope for the form).
+- 12 new vitest cases in
+  `web/src/pages/provision/state.test.ts` covering both build and
+  hydrate paths, including a full `delete_all + delete + create`
+  round-trip.
+
+### Changed
+
+- Bundle-size budget raised 300 → 312 KB raw / 86 → 88 KB gzip in
+  `web/scripts/check-bundle-size.mjs` for the form's ~6 KB raw /
+  ~2 KB gzip footprint. New baseline: 303.56 KB raw / 85.17 KB gzip.
+
+### Not changed (still JSON-editor-only)
+
+- `webhooks.update` — needs per-device id mapping that doesn't fit a
+  fleet-wide template form. Hydration of templates that contain an
+  `update` block surfaces a specific error pointing at the JSON view.
+
 ## [0.2.3] - 2026-05-10 — MCP stdio subcommand + firmware_status paging
 
 ADR-0011 v0.2.x follow-ups, minus per-token scoping (dropped — single

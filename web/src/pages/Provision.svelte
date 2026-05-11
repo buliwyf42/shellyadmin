@@ -16,6 +16,7 @@
   import ZigbeeForm from './provision/ZigbeeForm.svelte';
   import UserCAForm from './provision/UserCAForm.svelte';
   import ScriptsForm from './provision/ScriptsForm.svelte';
+  import WebhooksForm from './provision/WebhooksForm.svelte';
   import type {
     AuthState,
     AutoUpdateState,
@@ -28,6 +29,7 @@
     ScriptsState,
     SysState,
     UIState,
+    WebhooksState,
     WifiAPState,
     WifiState,
     WsState,
@@ -45,6 +47,7 @@
     buildScripts,
     buildSys,
     buildUI,
+    buildWebhooks,
     buildWifi,
     buildWifiAP,
     buildWs,
@@ -60,6 +63,7 @@
     createScriptsState,
     createSysState,
     createUIState,
+    createWebhooksState,
     createWifiAPState,
     createWifiState,
     createWsState,
@@ -75,6 +79,7 @@
     hydrateScripts,
     hydrateSys,
     hydrateUI,
+    hydrateWebhooks,
     hydrateWifi,
     hydrateWifiAP,
     hydrateWs,
@@ -119,6 +124,7 @@
   let zigbeeState: ZigbeeState = createZigbeeState();
   let uiState: UIState = createUIState();
   let scriptsState: ScriptsState = createScriptsState();
+  let webhooksState: WebhooksState = createWebhooksState();
 
   function captureError(err: unknown) {
     if (err instanceof APIError) {
@@ -255,6 +261,7 @@
     zigbeeState,
     uiState,
     scriptsState,
+    webhooksState,
     templateForPrecheck());
   $: precheckTemplateError =
     viewMode === 'json' && precheckTemplate === null
@@ -372,6 +379,7 @@
     zigbeeState = createZigbeeState();
     uiState = createUIState();
     scriptsState = createScriptsState();
+    webhooksState = createWebhooksState();
   }
 
   function asRecord(value: unknown): Record<string, unknown> | null {
@@ -397,6 +405,7 @@
     let nextZigbee: ZigbeeState | null = null;
     let nextUI: UIState | null = null;
     let nextScripts: ScriptsState | null = null;
+    let nextWebhooks: WebhooksState | null = null;
     let nextAutoUpdate: AutoUpdateState | null = null;
     for (const [sectionName, rawSection] of Object.entries(template)) {
       const section = sectionName.trim().toLowerCase();
@@ -495,6 +504,12 @@
           nextScripts = r.state;
           break;
         }
+        case 'webhooks': {
+          const r = hydrateWebhooks(record);
+          if (!r.ok) return r;
+          nextWebhooks = r.state;
+          break;
+        }
         default:
           return {
             ok: false,
@@ -518,6 +533,7 @@
     if (nextZigbee) zigbeeState = nextZigbee;
     if (nextUI) uiState = nextUI;
     if (nextScripts) scriptsState = nextScripts;
+    if (nextWebhooks) webhooksState = nextWebhooks;
     return { ok: true };
   }
 
@@ -554,6 +570,8 @@
     if (ui) out.ui = ui;
     const scripts = buildScripts(scriptsState);
     if (scripts) out.script = scripts;
+    const webhooks = buildWebhooks(webhooksState);
+    if (webhooks) out.webhooks = webhooks;
     return out;
   }
 
@@ -885,6 +903,7 @@
             <ModbusForm bind:state={modbusState} />
             <ZigbeeForm bind:state={zigbeeState} />
             <ScriptsForm bind:state={scriptsState} />
+            <WebhooksForm bind:state={webhooksState} />
             <UserCAForm {devices} {selected} />
           </div>
         {/if}
