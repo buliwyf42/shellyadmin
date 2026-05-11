@@ -3,20 +3,16 @@ package services
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/netip"
 	"os"
-	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	"shellyadmin/internal/core/compliance"
-	"shellyadmin/internal/core/provisioner"
 	"shellyadmin/internal/core/scanner"
 	"shellyadmin/internal/core/secretbox"
 	"shellyadmin/internal/db"
@@ -26,8 +22,10 @@ import (
 	"shellyadmin/internal/services/credentials"
 	"shellyadmin/internal/services/jobs"
 	"shellyadmin/internal/services/loginlock"
+	"shellyadmin/internal/services/provisioning"
 	"shellyadmin/internal/services/sessions"
 	"shellyadmin/internal/services/validation"
+	"shellyadmin/internal/services/workers"
 )
 
 const (
@@ -112,6 +110,17 @@ type AppService struct {
 	// RecordLoginSuccess surface.
 	lock *loginlock.Service
 
+	// workers owns the long-lived background goroutines (session sweep,
+	// audit retention, auto-backup, firmware-check scheduler). Extracted
+	// to internal/services/workers in v0.3.0 (M7); StartBackgroundWorkers
+	// delegates here.
+	workers *workers.Service
+
+	// provisioning owns the template provision + user-CA upload flows
+	// (multi-device Shelly RPC). Extracted to internal/services/provisioning
+	// in v0.3.0 (M7); AppService keeps delegators on Provision / UploadUserCA.
+	provisioning *provisioning.Service
+
 	// metrics is the Prometheus-format counter/gauge registry. nil for
 	// callers that don't wire it up (tests, MCP-only stdio mode); the
 	// service-layer Inc/Set helpers tolerate nil so the metrics path is
@@ -182,6 +191,15 @@ func NewAppService(database Store, dataDir string, logf func(ctx context.Context
 	// admin-mirror credential write. Constructed after creds so the
 	// GroupSaver pointer is non-nil.
 	svc.backup = backup.New(database, svc.creds, svc.Log)
+	// workers.Service runs the long-lived background loops. Spawn happens
+	// later in StartBackgroundWorkers (called from main.go after
+	// RecoverInterruptedJobs); construction here just wires up the deps
+	// so the controller's ctx/bgJobs pointers stay live.
+	svc.workers = workers.New(database, ctx, &svc.bgJobs, logf, dataDir, svc.runFirmwareCheckScheduler)
+	// provisioning.Service needs the *AppService Host so it can reach the
+	// reservation maps + ProvisionOptions; constructed last so the Host
+	// pointer is non-nil at call time.
+	svc.provisioning = provisioning.New(database, svc)
 	return svc
 }
 
@@ -207,202 +225,13 @@ func (s *AppService) RecordLoginSuccess(username string) error {
 	return s.lock.RecordSuccess(username)
 }
 
-// StartBackgroundWorkers spawns the long-lived background goroutines owned
-// by this service (currently the firmware-check scheduler and the audit-log
-// retention pruner). Called once at startup from main.go after
-// RecoverInterruptedJobs. Goroutines exit on service Stop and are awaited
-// via s.bgJobs.
-//
-// S9 — the firmware-check scheduler is restarted on panic so a single bad
-// tick (e.g. SQLite "database is locked" turning into a divide-by-zero in
-// a future tweak) doesn't leave the service silently without periodic
-// checks until the next container restart. Panic is logged + audited.
-// Restart is throttled: if the scheduler panics every <5s, we give up to
-// avoid a hot loop.
-//
-// S1 — the audit retention pruner runs hourly. It reads AuditRetentionDays
-// from AppSettings, computes the cutoff, and calls PruneAuditLogOlderThan.
-// A retention of 0 disables pruning entirely (rows kept indefinitely).
+// StartBackgroundWorkers delegates to workers.Service.Start. The four
+// long-lived worker goroutines (session sweeper, audit retention pruner,
+// auto-backup snapshotter, firmware-check scheduler-with-panic-recover)
+// moved to internal/services/workers in v0.3.0 (M7,
+// docs/plans/phase-4b-refactor-block.md Block 4b.1).
 func (s *AppService) StartBackgroundWorkers() {
-	s.bgJobs.Add(1)
-	go s.firmwareSchedulerWithRecover()
-	s.bgJobs.Add(1)
-	go s.auditRetentionLoop()
-	s.bgJobs.Add(1)
-	go s.autoBackupLoop()
-	s.bgJobs.Add(1)
-	go s.sessionSweepLoop()
-}
-
-// sessionSweepLoop deletes session rows whose expires_at has passed.
-// S5 — without this the table grows unboundedly because Logout flips
-// revoked_at but doesn't DELETE. The sweeper runs every 6h; sessions
-// have a 7-day max lifetime so a 6h slack is invisible to operators.
-func (s *AppService) sessionSweepLoop() {
-	defer s.bgJobs.Done()
-	t := time.NewTicker(6 * time.Hour)
-	defer t.Stop()
-	// Immediate run on startup so an interrupt during a previous
-	// container life does not leave a stale row visible until the
-	// first 6h tick.
-	s.runSessionSweepOnce()
-	for {
-		select {
-		case <-s.ctx.Done():
-			return
-		case <-t.C:
-			s.runSessionSweepOnce()
-		}
-	}
-}
-
-func (s *AppService) runSessionSweepOnce() {
-	defer func() {
-		if r := recover(); r != nil {
-			s.logf(s.ctx, "ERROR", fmt.Sprintf("session sweep panic: %v", r))
-		}
-	}()
-	n, err := s.db.PruneExpiredSessions()
-	if err != nil {
-		s.logf(s.ctx, "ERROR", fmt.Sprintf("session sweep: %v", err))
-		return
-	}
-	if n > 0 {
-		s.logf(s.ctx, "INFO", fmt.Sprintf("session sweep: pruned %d expired rows", n))
-	}
-}
-
-const auditRetentionTick = time.Hour
-
-func (s *AppService) auditRetentionLoop() {
-	defer s.bgJobs.Done()
-	t := time.NewTicker(auditRetentionTick)
-	defer t.Stop()
-	for {
-		select {
-		case <-s.ctx.Done():
-			return
-		case <-t.C:
-			s.runAuditRetentionOnce()
-		}
-	}
-}
-
-// autoBackupLoop runs the SQLite snapshot job at the operator-configured
-// cadence. S12+S13 from the consolidated review — gives operators an
-// "I forgot to back up before recreating the container" recovery path
-// without relying on the manual pre-deploy `cp` workflow.
-//
-// The loop ticks every minute and consults the latest settings each
-// time, so changing AutoBackupIntervalHours via the UI applies on the
-// next tick without a service restart.
-func (s *AppService) autoBackupLoop() {
-	defer s.bgJobs.Done()
-	t := time.NewTicker(time.Minute)
-	defer t.Stop()
-	var lastRun time.Time
-	for {
-		select {
-		case <-s.ctx.Done():
-			return
-		case <-t.C:
-			settings, err := s.db.GetSettings()
-			if err != nil {
-				continue
-			}
-			if !settings.AutoBackupEnabled {
-				continue
-			}
-			interval := time.Duration(settings.AutoBackupIntervalHours) * time.Hour
-			if !lastRun.IsZero() && time.Since(lastRun) < interval {
-				continue
-			}
-			if err := s.runAutoBackupOnce(settings); err != nil {
-				s.logf(s.ctx, "ERROR", fmt.Sprintf("auto-backup: %v", err))
-				continue
-			}
-			lastRun = time.Now()
-		}
-	}
-}
-
-func (s *AppService) runAutoBackupOnce(settings models.AppSettings) error {
-	stamp := time.Now().UTC().Format("20060102-150405")
-	path := filepath.Join(s.dataDir, fmt.Sprintf("shellyctl.db.snap-%s.sqlite", stamp))
-	if err := s.db.SnapshotTo(path); err != nil {
-		return fmt.Errorf("snapshot: %w", err)
-	}
-	s.logf(s.ctx, "INFO", fmt.Sprintf("auto-backup: wrote %s", path))
-	// Prune older snapshots beyond AutoBackupKeep.
-	pattern := filepath.Join(s.dataDir, "shellyctl.db.snap-*.sqlite")
-	matches, err := filepath.Glob(pattern)
-	if err != nil {
-		return fmt.Errorf("glob: %w", err)
-	}
-	if len(matches) <= settings.AutoBackupKeep {
-		return nil
-	}
-	// Filenames embed UTC timestamp in fixed-width format → lexical sort
-	// equals chronological. Newest at end; keep the tail.
-	sort.Strings(matches)
-	for _, old := range matches[:len(matches)-settings.AutoBackupKeep] {
-		if err := os.Remove(old); err != nil {
-			s.logf(s.ctx, "WARN", fmt.Sprintf("auto-backup: prune %s failed: %v", old, err))
-			continue
-		}
-	}
-	return nil
-}
-
-func (s *AppService) runAuditRetentionOnce() {
-	defer func() {
-		if r := recover(); r != nil {
-			s.logf(s.ctx, "ERROR", fmt.Sprintf("audit retention pruner panic: %v", r))
-		}
-	}()
-	settings, err := s.db.GetSettings()
-	if err != nil {
-		s.logf(s.ctx, "ERROR", fmt.Sprintf("audit retention: read settings: %v", err))
-		return
-	}
-	if settings.AuditRetentionDays <= 0 {
-		return
-	}
-	cutoff := time.Now().UTC().Add(-time.Duration(settings.AuditRetentionDays) * 24 * time.Hour)
-	n, err := s.db.PruneAuditLogOlderThan(cutoff)
-	if err != nil {
-		s.logf(s.ctx, "ERROR", fmt.Sprintf("audit retention: prune failed: %v", err))
-		return
-	}
-	if n > 0 {
-		s.logf(s.ctx, "INFO", fmt.Sprintf("audit retention: pruned %d rows older than %s", n, cutoff.Format(time.RFC3339)))
-	}
-}
-
-func (s *AppService) firmwareSchedulerWithRecover() {
-	defer s.bgJobs.Done()
-	const minLifetime = 5 * time.Second
-	for {
-		startedAt := time.Now()
-		func() {
-			defer func() {
-				if r := recover(); r != nil {
-					msg := fmt.Sprintf("firmware-check scheduler panic: %v", r)
-					s.logf(s.ctx, "ERROR", msg)
-				}
-			}()
-			s.runFirmwareCheckScheduler()
-		}()
-		// Clean exit (ctx cancelled): leave the loop.
-		if s.ctx.Err() != nil {
-			return
-		}
-		// Crash-loop guard.
-		if time.Since(startedAt) < minLifetime {
-			s.logf(s.ctx, "ERROR", "firmware-check scheduler crashed twice in <5s, giving up; restart container to recover")
-			return
-		}
-	}
+	s.workers.Start()
 }
 
 // Stop signals background jobs to exit, waits for them to drain (bounded by
@@ -570,272 +399,29 @@ func (s *AppService) RefreshDevice(ctx context.Context, target string) ([]models
 	return s.GetDevices()
 }
 
+// Provision delegates to internal/services/provisioning.Service.Provision.
+// The body moved out in v0.3.0 (M7 Block 4b.1); the delegator preserves
+// the public surface (api/handler_provision.go, services tests).
 func (s *AppService) Provision(ctx context.Context, ips []string, template map[string]interface{}, credentialRef string) ([]map[string]any, error) {
-	if len(ips) == 0 {
-		return nil, errors.New("ips required")
-	}
-	if len(ips) > maxProvisionIPs {
-		return nil, fmt.Errorf("too many devices requested")
-	}
-	if latest, err := s.db.GetLatestJob("scan"); err == nil && latest.Status == "running" {
-		return nil, errors.New("provision blocked while scan is running")
-	}
-	for _, raw := range ips {
-		addr, err := netip.ParseAddr(strings.TrimSpace(raw))
-		if err != nil {
-			return nil, fmt.Errorf("invalid ip: %q", raw)
-		}
-		if !isProvisionTargetAllowed(addr) {
-			return nil, fmt.Errorf("provision target %q is not in an allowed local range", raw)
-		}
-	}
-	if err := ValidateTemplate(template); err != nil {
-		return nil, err
-	}
-	credentialRef = strings.TrimSpace(credentialRef)
-	if credentialRef != "" {
-		if _, err := s.db.GetCredential(credentialRef); err != nil {
-			return nil, fmt.Errorf("credential_ref %q not found", credentialRef)
-		}
-	}
-
-	devices, err := s.db.ListDevices()
-	if err != nil {
-		return nil, err
-	}
-	ipToDevice := map[string]models.Device{}
-	ipToKey := map[string]string{}
-	for _, device := range devices {
-		ipToDevice[device.IP] = device
-		key := "ip:" + device.IP
-		if device.MAC != "" {
-			key = "mac:" + device.MAC
-		}
-		ipToKey[device.IP] = key
-	}
-	requestedKeys := make([]string, 0, len(ips))
-	keyToIP := map[string]string{}
-	precheckSkipped := []map[string]any{}
-	for _, ip := range ips {
-		device, known := ipToDevice[ip]
-		if known && device.AuthRequired && credentialRef == "" {
-			precheckSkipped = append(precheckSkipped, map[string]any{
-				"info": map[string]any{"ip": ip},
-				"results": []map[string]any{
-					{"section": "precheck", "status": "skipped", "detail": "auth required but credential_ref is missing"},
-				},
-			})
-			continue
-		}
-		key := ipToKey[ip]
-		if key == "" {
-			key = "ip:" + ip
-		}
-		requestedKeys = append(requestedKeys, key)
-		keyToIP[key] = ip
-	}
-	allowedKeys, skippedKeys := s.reserveProvisionTargets(requestedKeys)
-	defer s.releaseProvisionTargets(allowedKeys)
-
-	allowed := make([]string, 0, len(allowedKeys))
-	for _, key := range allowedKeys {
-		allowed = append(allowed, keyToIP[key])
-	}
-
-	out := make([]map[string]any, 0, len(ips))
-	out = append(out, precheckSkipped...)
-	for _, skipped := range skippedKeys {
-		out = append(out, map[string]any{
-			"info": map[string]any{
-				"ip": keyToIP[skipped],
-			},
-			"results": []map[string]any{
-				{"section": "precheck", "status": "skipped", "detail": "device busy with firmware update"},
-			},
-		})
-	}
-	for _, ip := range allowed {
-		device := ipToDevice[ip]
-		device.IP = ip // ensure populated for fresh devices
-		opts := s.provisionOptions(device, credentialRef, 10*time.Second)
-		info, results := provisioner.ProvisionDeviceWithOptions(ctx, ip, template, opts)
-		authRequired := false
-		authReason := ""
-		for _, section := range results {
-			if section.Status == "failed" && (strings.Contains(section.Detail, "401") || strings.Contains(section.Detail, "403")) {
-				authRequired = true
-				authReason = section.Detail
-				break
-			}
-		}
-		if authRequired {
-			if device, ok := ipToDevice[ip]; ok {
-				device.AuthRequired = true
-				device.AuthError = authReason
-				if uerr := s.db.UpsertDevice(device); uerr != nil {
-					s.LogCtx(ctx, "error", fmt.Sprintf("provision: persist auth-required state for %s: %v", ip, uerr))
-				}
-			}
-		}
-		restartRequired := false
-		for _, r := range results {
-			if r.RestartRequired {
-				restartRequired = true
-				break
-			}
-		}
-		body, merr := json.Marshal(map[string]any{"info": info, "results": results, "restart_required": restartRequired})
-		if merr != nil {
-			s.LogCtx(ctx, "warn", fmt.Sprintf("provision: marshal result for %s: %v", ip, merr))
-			continue
-		}
-		var raw map[string]any
-		if uerr := json.Unmarshal(body, &raw); uerr != nil {
-			s.LogCtx(ctx, "warn", fmt.Sprintf("provision: unmarshal result for %s: %v", ip, uerr))
-			continue
-		}
-		out = append(out, raw)
-	}
-	return out, nil
+	return s.provisioning.Provision(ctx, ips, template, credentialRef)
 }
 
-// cloudMetadataAddr is the AWS/GCP/Azure/DO cloud metadata endpoint at
-// 169.254.169.254 — RFC3927 link-local space, so it would slip past
-// `addr.IsLinkLocalUnicast()` even though leaking a request to it from
-// ShellyAdmin would be a credential-disclosure SSRF (M5 in the
-// consolidated review). The container never has a legitimate reason to
-// reach it; explicitly deny.
-var cloudMetadataAddr = netip.MustParseAddr("169.254.169.254")
-
-func isProvisionTargetAllowed(addr netip.Addr) bool {
-	// Block clearly unsafe destinations for server-side network calls.
-	if addr.IsLoopback() || addr.IsMulticast() || addr.IsUnspecified() {
-		return false
-	}
-	// Hard-deny the cloud metadata endpoint — see comment on
-	// cloudMetadataAddr. Sits inside the link-local /16 so it has to
-	// be filtered explicitly.
-	if addr == cloudMetadataAddr {
-		return false
-	}
-	// Allow only local network targets (RFC1918/ULA and link-local).
-	return addr.IsPrivate() || addr.IsLinkLocalUnicast()
-}
-
-// MaxUserCABytes caps the PEM payload size accepted by UploadUserCA. A
-// single CA bundle is rarely larger than a few KB; 64KB is comfortably above
-// realistic certificate chains while bounding server memory use.
-const MaxUserCABytes = 64 * 1024
-
-// UploadUserCAResult reports a single-device user CA upload outcome for the
-// HTTP API (one entry per requested IP).
-type UploadUserCAResult struct {
-	IP        string `json:"ip"`
-	Status    string `json:"status"`
-	Chunks    int    `json:"chunks"`
-	BytesSent int    `json:"bytes_sent"`
-	Detail    string `json:"detail"`
-}
-
-// UploadUserCA sends a PEM-encoded certificate (user CA, TLS client cert, or
-// TLS client key, selected by kind) to one or more devices via chunked
-// Shelly.Put* RPCs. Targets are validated the same way Provision validates
-// IPs (local network only) and reserved through the Provision/FirmwareUpdate
-// exclusion slot so concurrent jobs can't collide on the same device.
-//
-// An empty kind defaults to "user_ca" for back-compat with original callers.
+// UploadUserCA delegates to internal/services/provisioning.Service.UploadUserCA.
 func (s *AppService) UploadUserCA(ctx context.Context, ips []string, kind string, pem string) ([]UploadUserCAResult, error) {
-	if len(ips) == 0 {
-		return nil, errors.New("ips required")
-	}
-	if len(ips) > maxProvisionIPs {
-		return nil, fmt.Errorf("too many devices requested")
-	}
-	certKind, err := provisioner.ParseCertificateKind(kind)
-	if err != nil {
-		return nil, err
-	}
-	pem = strings.TrimSpace(pem)
-	if pem == "" {
-		return nil, errors.New("pem is required")
-	}
-	if len(pem) > MaxUserCABytes {
-		return nil, fmt.Errorf("pem exceeds %d byte limit", MaxUserCABytes)
-	}
-	if !strings.Contains(pem, "-----BEGIN") {
-		return nil, errors.New("pem must contain a PEM header (-----BEGIN ...-----)")
-	}
-	if latest, err := s.db.GetLatestJob("scan"); err == nil && latest.Status == "running" {
-		return nil, errors.New("certificate upload blocked while scan is running")
-	}
-	normalized := make([]string, 0, len(ips))
-	for _, raw := range ips {
-		addr, err := netip.ParseAddr(strings.TrimSpace(raw))
-		if err != nil {
-			return nil, fmt.Errorf("invalid ip: %q", raw)
-		}
-		if !isProvisionTargetAllowed(addr) {
-			return nil, fmt.Errorf("user-ca target %q is not in an allowed local range", raw)
-		}
-		normalized = append(normalized, strings.TrimSpace(raw))
-	}
+	return s.provisioning.UploadUserCA(ctx, ips, kind, pem)
+}
 
-	// Resolve each IP to its MAC (if known) so the reservation key matches the
-	// one Provision/FirmwareUpdate use; fall back to "ip:<addr>" for unknown
-	// devices. Mirrors the pattern in Provision (app.go:216-246).
-	devices, err := s.db.ListDevices()
-	if err != nil {
-		return nil, err
-	}
-	ipToKey := map[string]string{}
-	for _, device := range devices {
-		key := "ip:" + device.IP
-		if device.MAC != "" {
-			key = "mac:" + device.MAC
-		}
-		ipToKey[device.IP] = key
-	}
-	requestedKeys := make([]string, 0, len(normalized))
-	keyToIP := map[string]string{}
-	for _, ip := range normalized {
-		key, ok := ipToKey[ip]
-		if !ok {
-			key = "ip:" + ip
-		}
-		requestedKeys = append(requestedKeys, key)
-		keyToIP[key] = ip
-	}
-	allowedKeys, skippedKeys := s.reserveProvisionTargets(requestedKeys)
-	defer s.releaseProvisionTargets(allowedKeys)
+// Backward-compat re-exports — definitions live in
+// internal/services/provisioning.
+const MaxUserCABytes = provisioning.MaxUserCABytes
 
-	results := make([]UploadUserCAResult, 0, len(normalized))
-	for _, key := range skippedKeys {
-		results = append(results, UploadUserCAResult{
-			IP:     keyToIP[key],
-			Status: "skipped",
-			Detail: "device busy with firmware update",
-		})
-	}
-	for _, key := range allowedKeys {
-		ip := keyToIP[key]
-		res, err := provisioner.UploadCertificate(ctx, ip, certKind, pem, 20*time.Second)
-		entry := UploadUserCAResult{
-			IP:        ip,
-			Chunks:    res.Chunks,
-			BytesSent: res.BytesSent,
-		}
-		if err != nil {
-			entry.Status = "failed"
-			entry.Detail = err.Error()
-			s.LogCtx(ctx, "warn", fmt.Sprintf("%s upload to %s failed: %v", certKind, ip, err))
-		} else {
-			entry.Status = "ok"
-			entry.Detail = res.Detail
-			s.LogCtx(ctx, "info", fmt.Sprintf("%s uploaded to %s: %d chunks, %d bytes", certKind, ip, res.Chunks, res.BytesSent))
-		}
-		results = append(results, entry)
-	}
-	return results, nil
+type UploadUserCAResult = provisioning.UploadUserCAResult
+
+// isProvisionTargetAllowed is the thin shim other services-package code
+// (RefreshDevice's auth-fail path) still calls. The real implementation
+// lives in provisioning.IsTargetAllowed.
+func isProvisionTargetAllowed(addr netip.Addr) bool {
+	return provisioning.IsTargetAllowed(addr)
 }
 
 func checkAuthRequired(ctx context.Context, ip string, timeout time.Duration) (bool, string) {

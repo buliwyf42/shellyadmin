@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"shellyadmin/internal/core/firmware"
+	"shellyadmin/internal/core/provisioner"
 	"shellyadmin/internal/core/scanner"
 	"shellyadmin/internal/models"
 )
@@ -76,4 +77,22 @@ func (s *AppService) ReserveFirmwareTargets(requested []string) (allowed []strin
 
 func (s *AppService) ReleaseFirmwareTargets(keys []string) {
 	s.releaseFirmwareTargets(keys)
+}
+
+// ReserveProvisionTargets / ReleaseProvisionTargets forward to the
+// unexported helpers; provisioning.Host needs these to mutex provisions
+// against in-flight firmware updates.
+func (s *AppService) ReserveProvisionTargets(requested []string) (allowed []string, skipped []string) {
+	return s.reserveProvisionTargets(requested)
+}
+
+func (s *AppService) ReleaseProvisionTargets(keys []string) {
+	s.releaseProvisionTargets(keys)
+}
+
+// ProvisionOptions forwards to s.provisionOptions. The template-level
+// credentialRef takes precedence over the per-device credential mapping;
+// callers without a ref fall back to the device's assigned credential.
+func (s *AppService) ProvisionOptions(d models.Device, credentialRef string, timeout time.Duration) provisioner.Options {
+	return s.provisionOptions(d, credentialRef, timeout)
 }
