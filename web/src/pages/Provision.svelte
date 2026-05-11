@@ -19,6 +19,8 @@
   import ScriptsForm from './provision/ScriptsForm.svelte';
   import WebhooksForm from './provision/WebhooksForm.svelte';
   import ZigbeeOpsForm from './provision/ZigbeeOpsForm.svelte';
+  import ResultsPanel from './provision/ResultsPanel.svelte';
+  import IPListPanel from './provision/IPListPanel.svelte';
   import type {
     AuthState,
     AutoUpdateState,
@@ -209,23 +211,8 @@
     }
   }
 
-  function reasonBadgeClass(category: PrecheckIssue['category']): string {
-    switch (category) {
-      case 'auth':
-        return 'bg-warning text-dark';
-      default:
-        return 'bg-secondary';
-    }
-  }
-
-  function reasonBadgeText(category: PrecheckIssue['category']): string {
-    switch (category) {
-      case 'auth':
-        return 'auth';
-      default:
-        return 'other';
-    }
-  }
+  // reasonBadgeClass / reasonBadgeText moved with the precheck UI to
+  // provision/IPListPanel.svelte (M2 — Block 4b.3).
 
   function selectOnlyEligible() {
     if (!precheckTemplate || precheckTemplateError) return;
@@ -714,119 +701,21 @@
 
 <div class="row g-3">
   <div class="col-lg-6 provision-devices-col">
-    {#if selected.size > 0}
-      <div class="card bg-dark border-secondary">
-        <div class="card-body">
-          <h2 class="h6">Precheck Summary</h2>
-          {#if precheckTemplateError}
-            <div class="alert alert-warning py-2 mb-2">{precheckTemplateError}</div>
-          {/if}
-          <p class="mb-2">
-            <span class="badge bg-success me-2">{precheckEligibleCount}</span> eligible
-          </p>
-          <p class="mb-2">
-            <span class="badge bg-warning text-dark me-2">{precheckIssues.length}</span> predicted to
-            be skipped
-          </p>
-          <div class="d-flex gap-2 flex-wrap mb-2">
-            <button
-              class="btn btn-sm btn-outline-light"
-              on:click={selectOnlyEligible}
-              disabled={precheckIssues.length === 0 || Boolean(precheckTemplateError)}
-              >Select Only Eligible</button
-            >
-            <button
-              class="btn btn-sm btn-outline-light"
-              on:click={copySkippedIPs}
-              disabled={precheckIssues.length === 0}>Copy Skipped IPs</button
-            >
-            {#if copiedSkipped}
-              <span class="badge bg-success">copied</span>
-            {/if}
-            {#if precheckReasonCounts.auth}
-              <span class="badge bg-warning text-dark">auth: {precheckReasonCounts.auth}</span>
-            {/if}
-            {#if precheckReasonCounts.generation}
-              <span class="badge bg-info text-dark"
-                >generation: {precheckReasonCounts.generation}</span
-              >
-            {/if}
-          </div>
-          {#if precheckIssues.length > 0}
-            <div class="table-responsive">
-              <table class="table table-dark table-striped table-sm mb-0">
-                <thead>
-                  <tr><th>IP</th><th>Device</th><th>Type</th><th>Reason</th></tr>
-                </thead>
-                <tbody>
-                  {#each precheckIssues as issue (issue.ip + '|' + issue.category)}
-                    <tr>
-                      <td>{issue.ip}</td>
-                      <td>{issue.label}</td>
-                      <td
-                        ><span class={`badge ${reasonBadgeClass(issue.category)}`}
-                          >{reasonBadgeText(issue.category)}</span
-                        ></td
-                      >
-                      <td>{issue.reason}</td>
-                    </tr>
-                  {/each}
-                </tbody>
-              </table>
-            </div>
-          {/if}
-        </div>
-      </div>
-    {/if}
-
-    <div class="card bg-dark border-secondary">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <span>Select Devices</span>
-        <div class="d-flex gap-2">
-          <button class="btn btn-sm btn-outline-light" on:click={selectAll}>All</button>
-          <button class="btn btn-sm btn-outline-light" on:click={selectNone}>None</button>
-        </div>
-      </div>
-      <div class="card-body p-0">
-        {#if loading}
-          <div class="p-2 text-secondary">Loading devices...</div>
-        {:else if devices.length === 0}
-          <div class="p-2 text-secondary">No devices enrolled yet.</div>
-        {:else}
-          <div class="table-responsive device-list-scroll">
-            <table class="table table-dark table-striped align-middle table-nowrap mb-0">
-              <thead>
-                <tr>
-                  <th></th>
-                  <th>IP</th>
-                  <th>Name</th>
-                  <th>Gen</th>
-                </tr>
-              </thead>
-              <tbody>
-                {#each devices as device (device.mac)}
-                  <tr>
-                    <td
-                      ><input
-                        type="checkbox"
-                        class="form-check-input"
-                        checked={selected.has(device.mac)}
-                        on:change={(e) =>
-                          toggle(device.mac, (e.currentTarget as HTMLInputElement).checked)}
-                      /></td
-                    >
-                    <td>{device.ip}</td>
-                    <td>{device.name || device.serial || device.mac}</td>
-                    <td><span class="badge bg-success">Gen{device.gen}</span></td>
-                  </tr>
-                {/each}
-              </tbody>
-            </table>
-          </div>
-        {/if}
-      </div>
-      <div class="card-footer p-2 text-secondary">{selected.size} of {devices.length} selected</div>
-    </div>
+    <IPListPanel
+      {devices}
+      {selected}
+      {loading}
+      {precheckEligibleCount}
+      {precheckIssues}
+      {precheckReasonCounts}
+      {precheckTemplateError}
+      {copiedSkipped}
+      onToggle={toggle}
+      onSelectAll={selectAll}
+      onSelectNone={selectNone}
+      onSelectOnlyEligible={selectOnlyEligible}
+      onCopySkippedIPs={copySkippedIPs}
+    />
   </div>
 
   <div class="col-lg-6 provision-settings-col">
@@ -961,86 +850,5 @@
 </div>
 
 {#if results.length}
-  {@const restartRequiredDevices = results.filter((r) => r.restart_required)}
-  <div class="card bg-dark border-secondary mt-3" role="status" aria-live="polite">
-    <div class="card-body">
-      <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-        <h2 class="h5 mb-0">Results</h2>
-        {#if restartRequiredDevices.length > 0}
-          <button
-            class="btn btn-sm btn-warning"
-            disabled={running}
-            on:click={async () => {
-              const macs = restartRequiredDevices
-                .map((r) => devices.find((d) => d.ip === r.info.ip)?.mac)
-                .filter(Boolean) as string[];
-              if (!macs.length) return;
-              if (!confirm(`Reboot ${macs.length} device(s) that require a restart?`)) return;
-              try {
-                await api.bulk({ action: 'reboot', macs });
-              } catch (err) {
-                captureError(err);
-              }
-            }}
-            >Reboot {restartRequiredDevices.length} restart-required device{restartRequiredDevices.length !==
-            1
-              ? 's'
-              : ''}</button
-          >
-        {/if}
-      </div>
-      <div class="table-responsive">
-        <table class="table table-dark table-sm align-middle mb-0">
-          <thead>
-            <tr>
-              <th>IP</th>
-              <th>Device</th>
-              <th>Status</th>
-              <th>Sections</th>
-            </tr>
-          </thead>
-          <tbody>
-            {#each results as r (r.info.ip)}
-              {@const overallOk = r.results.every(
-                (s) => s.status === 'ok' || s.status === 'skipped',
-              )}
-              {@const hasFailed = r.results.some((s) => s.status === 'failed')}
-              <tr>
-                <td class="text-monospace small">{r.info.ip}</td>
-                <td class="small">{r.info.name || r.info.model || '—'}</td>
-                <td>
-                  {#if hasFailed}
-                    <span class="badge bg-danger">failed</span>
-                  {:else if overallOk}
-                    <span class="badge bg-success">ok</span>
-                  {:else}
-                    <span class="badge bg-secondary">partial</span>
-                  {/if}
-                  {#if r.restart_required}
-                    <span class="badge ms-1" style="background:#c89a2a;color:#fff;"
-                      >restart required</span
-                    >
-                  {/if}
-                </td>
-                <td>
-                  <div class="d-flex flex-wrap gap-1">
-                    {#each r.results as s (s.section)}
-                      <span
-                        class="badge {s.status === 'ok'
-                          ? 'bg-success'
-                          : s.status === 'skipped'
-                            ? 'bg-secondary'
-                            : 'bg-danger'}"
-                        title={s.detail}>{s.section}</span
-                      >
-                    {/each}
-                  </div>
-                </td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
+  <ResultsPanel {results} {devices} {running} onError={captureError} />
 {/if}
