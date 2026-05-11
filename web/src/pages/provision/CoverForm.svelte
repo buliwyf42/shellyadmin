@@ -98,7 +98,7 @@
 
   <div class="sa-cover-slat">
     <FieldRow label="Slat / Tilt configuration (venetian blinds)" bind:enabled={state.slatEnabled}>
-      <span class="text-secondary" style="font-size: 0.8rem;">
+      <span class="text-secondary text-hint-sm">
         {state.slatEnabled ? 'on — fields below ship' : 'off — slat block omitted from template'}
       </span>
     </FieldRow>

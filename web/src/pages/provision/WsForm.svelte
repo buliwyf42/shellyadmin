@@ -57,7 +57,7 @@
     </div>
   </div>
   {#if state.serverEnabled && state.server && !isTLSServerURL(state.server)}
-    <div class="text-secondary mt-2" style="font-size: 0.8rem;">
+    <div class="text-secondary mt-2 text-hint-sm">
       TLS settings are ignored for plain <code>ws://</code> endpoints. Use <code>wss://</code> for TLS.
     </div>
   {/if}

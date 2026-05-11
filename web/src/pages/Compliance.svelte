@@ -915,7 +915,7 @@
             bind:open={autoUpdateOpen}
             forceOpen={autoUpdateExpanded}
           >
-            <p class="text-secondary mb-2" style="font-size: 0.82rem;">
+            <p class="text-secondary mb-2 text-hint-md">
               Synthesised from <code>Schedule.List</code> on each device. Skipped on devices that haven't
               been firmware-checked yet (so mixed fleets don't false-positive).
             </p>
@@ -944,7 +944,7 @@
             bind:open={fw2Open}
             forceOpen={fw2Expanded}
           >
-            <p class="text-secondary mb-2" style="font-size: 0.82rem;">
+            <p class="text-secondary mb-2 text-hint-md">
               These rules are skipped on devices that don't report the underlying state, so
               mixed-fleet (1.x + 2.0) compliance won't false-positive.
             </p>

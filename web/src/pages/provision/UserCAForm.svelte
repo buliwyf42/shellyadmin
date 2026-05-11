@@ -100,12 +100,12 @@
 </script>
 
 <SectionCard tag={sectionTag} title="Upload Certificate (PEM)" bind:open>
-  <p class="text-secondary mb-2" style="font-size: 0.85rem;">
+  <p class="text-secondary mb-2 text-hint-lg">
     Pushes a PEM certificate to the device via chunked <code>Shelly.Put*</code> RPCs. Required
     before MQTT/WS configs referencing <code>user_ca.pem</code> or the mTLS client cert/key take effect.
   </p>
 
-  <div class="mb-2" style="max-width: 22rem;">
+  <div class="mb-2 mw-22r">
     <label class="form-label" for="user-ca-kind">Certificate kind</label>
     <Select bind:value={kind} options={kindOptions} ariaLabel="Certificate kind" />
   </div>
@@ -121,7 +121,7 @@
       />
     </label>
     {#if fileName}
-      <span class="text-secondary" style="font-size: 0.82rem;">{fileName}</span>
+      <span class="text-secondary text-hint-md">{fileName}</span>
     {/if}
     <button
       type="button"
@@ -140,7 +140,7 @@
     bind:value={pem}
   ></textarea>
   {#if !pemLooksValid}
-    <div class="text-warning mt-1" style="font-size: 0.82rem;">
+    <div class="text-warning mt-1 text-hint-md">
       Warning: content does not contain a PEM header.
     </div>
   {/if}
@@ -157,7 +157,7 @@
         : `Upload ${kindLabel} to ${selectedDevices.length} device${selectedDevices.length === 1 ? '' : 's'}`}
     </button>
     {#if selectedDevices.length === 0}
-      <span class="text-secondary" style="font-size: 0.82rem;"
+      <span class="text-secondary text-hint-md"
         >Select at least one device in the list on the left.</span
       >
     {/if}

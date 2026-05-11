@@ -1331,3 +1331,33 @@ textarea::placeholder {
     width: 100%;
   }
 }
+
+/* Utility classes — replace one-off inline `style="..."` attributes so
+   CSP can drop 'unsafe-inline' from style-src (M6 — Block 4b.4 of
+   docs/plans/phase-4b-refactor-block.md). */
+.text-hint-xs {
+  font-size: 0.78rem;
+}
+.text-hint-sm {
+  font-size: 0.8rem;
+}
+.text-hint-md {
+  font-size: 0.82rem;
+}
+.text-hint-lg {
+  font-size: 0.85rem;
+}
+.text-tiny-inline {
+  font-size: 0.55em;
+  vertical-align: middle;
+}
+.login-card-width {
+  width: min(28rem, 95vw);
+}
+.mw-22r {
+  max-width: 22rem;
+}
+.badge-restart-required {
+  background: #c89a2a;
+  color: #fff;
+}

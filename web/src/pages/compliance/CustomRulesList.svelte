@@ -23,7 +23,7 @@
 </script>
 
 <SectionCard tag="custom rules" bind:open {forceOpen}>
-  <p class="text-secondary mb-2" style="font-size: 0.82rem;">
+  <p class="text-secondary mb-2 text-hint-md">
     source = <code>device | config | status</code>. Example paths:
     <code>mqtt.server</code>, <code>sys.location.tz</code>, <code>cloud.connected</code>.
   </p>
