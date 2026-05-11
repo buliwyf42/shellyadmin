@@ -1,8 +1,10 @@
 package db
 
 import (
+	"crypto/sha256"
 	"database/sql"
 	"embed"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -86,6 +88,21 @@ func marshalSupportedMethods(methods []string) string {
 }
 
 func (db *DB) Close() error { return db.sql.Close() }
+
+// SnapshotTo writes an atomic, online-safe copy of the running database
+// to path via SQLite's `VACUUM INTO` statement. The destination must not
+// exist (SQLite refuses to overwrite). Caller is responsible for
+// rotation / retention. Used by services.runAutoBackupOnce (S12).
+func (db *DB) SnapshotTo(path string) error {
+	// VACUUM INTO uses positional-but-string-quoted argument; SQLite's
+	// prepared-statement binding does not allow parameter substitution
+	// in the VACUUM INTO target. Escape single quotes in the path
+	// defensively — operator-controlled values, but a path containing
+	// `'` would break the statement otherwise.
+	escaped := strings.ReplaceAll(path, "'", "''")
+	_, err := db.sql.Exec("VACUUM INTO '" + escaped + "'")
+	return err
+}
 
 func (db *DB) MarkRunningJobsInterrupted() error {
 	_, err := db.sql.Exec(`UPDATE jobs
@@ -681,12 +698,114 @@ func (db *DB) AddLogWithRequestID(level, message, requestID string) error {
 // `riskLevel` is empty for non-action rows; action-execution rows pass the
 // catalog risk so a future compliance query can SELECT WHERE risk_level
 // IN (...) without regex-parsing the message body.
+//
+// S2 — also writes a `prev_hash` chain link: SHA-256 hex of the previous
+// row's serialised "ts|level|message|request_id|risk_level|prev_hash"
+// form. Verifying the chain (services.VerifyAuditChain) walks rows in
+// id order, recomputes the link, and reports any mismatch. A tamperer
+// who deletes a row after-the-fact breaks the chain at the next link.
 func (db *DB) AddLogWithAttrs(level, message, requestID, riskLevel string) error {
-	_, err := db.sql.Exec(
-		`INSERT INTO audit_log(ts, level, message, request_id, risk_level) VALUES (?, ?, ?, ?, ?)`,
-		now(), level, message, requestID, riskLevel,
+	tx, err := db.sql.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	// Look up the most recent row's hash-chain anchor; empty when the
+	// table is empty (chain bootstrap).
+	var prevTS, prevLevel, prevMsg, prevReqID, prevRisk, prevHash string
+	err = tx.QueryRow(
+		`SELECT ts, level, message, request_id, risk_level, prev_hash
+		 FROM audit_log ORDER BY id DESC LIMIT 1`,
+	).Scan(&prevTS, &prevLevel, &prevMsg, &prevReqID, &prevRisk, &prevHash)
+	chainAnchor := ""
+	if err == nil {
+		chainAnchor = chainLink(prevTS, prevLevel, prevMsg, prevReqID, prevRisk, prevHash)
+	} else if err != sql.ErrNoRows {
+		return err
+	}
+	if _, err := tx.Exec(
+		`INSERT INTO audit_log(ts, level, message, request_id, risk_level, prev_hash) VALUES (?, ?, ?, ?, ?, ?)`,
+		now(), level, message, requestID, riskLevel, chainAnchor,
+	); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// chainLink is the canonical serialisation of an audit row that feeds
+// the SHA-256 chain hash. Pipe-separated fields; the field names are
+// fixed by this definition — adding a column to audit_log without
+// extending chainLink invalidates the chain.
+func chainLink(ts, level, message, requestID, riskLevel, prevHash string) string {
+	body := ts + "|" + level + "|" + message + "|" + requestID + "|" + riskLevel + "|" + prevHash
+	sum := sha256.Sum256([]byte(body))
+	return hex.EncodeToString(sum[:])
+}
+
+// VerifyAuditChain walks the audit_log table in id order and recomputes
+// the chain. Returns the id of the first mismatching row, or 0 if the
+// chain is intact end-to-end. Used by the operator-facing
+// `shellyctl audit-verify` subcommand and by retention-test fixtures.
+func (db *DB) VerifyAuditChain() (int64, error) {
+	rows, err := db.sql.Query(
+		`SELECT id, ts, level, message, request_id, risk_level, prev_hash
+		 FROM audit_log ORDER BY id ASC`,
 	)
-	return err
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+	expectedPrev := ""
+	for rows.Next() {
+		var id int64
+		var ts, level, msg, reqID, risk, prevHash string
+		if err := rows.Scan(&id, &ts, &level, &msg, &reqID, &risk, &prevHash); err != nil {
+			return 0, err
+		}
+		if prevHash != expectedPrev {
+			return id, nil
+		}
+		expectedPrev = chainLink(ts, level, msg, reqID, risk, prevHash)
+	}
+	return 0, rows.Err()
+}
+
+// PruneAuditLogOlderThan deletes rows whose ts is strictly older than
+// the cutoff. Uses a controlled bypass of the audit_log_no_delete
+// trigger (via the __retention_bypass settings flag flipped inside a
+// transaction). Returns the number of rows removed. S1 from the
+// consolidated review — keeps the table from growing unboundedly on
+// long-running operator deployments.
+func (db *DB) PruneAuditLogOlderThan(cutoff time.Time) (int64, error) {
+	tx, err := db.sql.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	// Flip the bypass flag — the trigger reads it from `settings`.
+	if _, err := tx.Exec(
+		`INSERT INTO settings(key, value) VALUES ('__retention_bypass', '1')
+		 ON CONFLICT(key) DO UPDATE SET value='1'`,
+	); err != nil {
+		return 0, err
+	}
+	res, err := tx.Exec(`DELETE FROM audit_log WHERE ts < ?`, cutoff.UTC().Format(time.RFC3339))
+	if err != nil {
+		return 0, err
+	}
+	// Clear the bypass flag inside the same transaction so a crash
+	// between flip and clear leaves the protection intact.
+	if _, err := tx.Exec(
+		`INSERT INTO settings(key, value) VALUES ('__retention_bypass', '0')
+		 ON CONFLICT(key) DO UPDATE SET value='0'`,
+	); err != nil {
+		return 0, err
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
 }
 
 func (db *DB) GetLogs(level, search string) ([]LogEntry, error) {

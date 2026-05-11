@@ -41,6 +41,7 @@ func TestDocumentedAPIRoutesMatchExpectedRouteSet(t *testing.T) {
 		http.MethodGet + " /api/templates/{name}",
 		http.MethodGet + " /api/version",
 		http.MethodGet + " /health",
+		http.MethodGet + " /ready",
 		http.MethodPost + " /api/bulk",
 		http.MethodPost + " /api/backup/import",
 		http.MethodPost + " /api/credential-groups",

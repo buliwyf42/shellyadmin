@@ -54,7 +54,11 @@ func Build(database *db.DB, dataDir, token, bind, port, version string) (*http.S
 		return server
 	}, nil)
 
-	handler := auth(token, requestIDMiddleware(streamable))
+	// S8 — rate-limit the MCP listener at the same token-bucket cadence as
+	// the SPA API (300/min/IP), but with a separate counter store so the
+	// two surfaces don't starve each other. A stolen MCP token without
+	// this would have unbounded RPS even though SPA traffic is gated.
+	handler := middleware.MCPRateLimitMiddleware(auth(token, requestIDMiddleware(streamable)))
 
 	httpSrv := &http.Server{
 		Addr:              net.JoinHostPort(bind, port),

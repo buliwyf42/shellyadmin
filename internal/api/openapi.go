@@ -29,6 +29,15 @@ func documentedAPIRoutes() []apiRouteDoc {
 			},
 		},
 		{
+			Method:      http.MethodGet,
+			Path:        "/ready",
+			Summary:     "Readiness probe",
+			Description: "Operator-facing health detail (DB reachability, MCP listener state). Returns 503 when degraded. Distinct from /health which stays 200/OK for container liveness probes.",
+			Register: func(routes gin.IRoutes, h *Handler) {
+				routes.GET("/ready", h.Ready)
+			},
+		},
+		{
 			Method:      http.MethodPost,
 			Path:        "/api/login",
 			Summary:     "Start authenticated session",

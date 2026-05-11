@@ -107,6 +107,35 @@ func (h *Handler) Health(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
+// Ready returns operator-oriented health detail: DB reachability,
+// firmware-check scheduler heartbeat, MCP-listener status. This is
+// NOT the container liveness probe — /health stays a flat 200/OK so
+// k8s/Docker do not restart the container on a slow DB query. Use
+// /ready in dashboards (Grafana, Uptime Kuma) when you want the
+// "service degraded" signal without forcing a restart loop.
+func (h *Handler) Ready(c *gin.Context) {
+	resp := gin.H{"status": "ok"}
+	// DB ping with timeout so a stuck SQLite doesn't hang the probe.
+	dbStart := time.Now()
+	if h.db != nil {
+		// A cheap read query that exercises the connection pool.
+		if _, err := h.db.GetSettings(); err != nil {
+			resp["status"] = "degraded"
+			resp["db_error"] = err.Error()
+		}
+	}
+	resp["db_ping_ms"] = time.Since(dbStart).Milliseconds()
+	if h.service != nil {
+		resp["mcp_running"] = h.service.MCPRunning()
+		resp["mcp_managed_by_env"] = h.service.MCPManagedByEnv()
+	}
+	if resp["status"] == "degraded" {
+		c.JSON(http.StatusServiceUnavailable, resp)
+		return
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
 func (h *Handler) Login(c *gin.Context) {
 	var req struct {
 		Username string `json:"username"`

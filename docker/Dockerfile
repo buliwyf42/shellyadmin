@@ -23,7 +23,12 @@ RUN V=${VERSION:-$(cat VERSION 2>/dev/null || echo "dev")} && \
 FROM alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d
 RUN apk add --no-cache ca-certificates tzdata su-exec
 RUN addgroup -S shelly && adduser -S -G shelly -h /app shelly
-RUN mkdir -p /data /tmp /app
+# S14 — initialise /data and /tmp as shelly-owned at build time so a named
+# volume inherits the right ownership on first attach. Operators bind-
+# mounting a host directory (e.g. Dockhand's /docker/shellyadmin) must
+# still chown the host path to the shelly UID — the entrypoint will fall
+# back to su-exec if it cannot write as the non-root user.
+RUN mkdir -p /data /tmp /app && chown -R shelly:shelly /data /tmp /app
 LABEL org.opencontainers.image.title="ShellyAdmin"
 LABEL org.opencontainers.image.description="Self-hosted Shelly fleet management for trusted local networks"
 LABEL org.opencontainers.image.source="https://github.com/buliwyf42/shellyadmin"

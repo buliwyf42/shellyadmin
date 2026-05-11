@@ -68,6 +68,15 @@ func main() {
 	// because that surface is auth+CSRF+rate-limited; MCP-token-only auth
 	// warrants a tighter default.
 	mcpBind := getenv("SHELLYADMIN_MCP_BIND", "127.0.0.1")
+	// S11 — comma-separated trusted-proxy CIDR list. Without this, gin's
+	// ClientIP() falls back to the X-Forwarded-For header from ANY peer,
+	// which lets an attacker on the LAN spoof "client_ip" in audit rows
+	// and bypass per-IP rate-limit accounting. With it, only peers in the
+	// listed CIDRs may set X-Forwarded-For; everyone else's ClientIP is
+	// the direct peer address. Default empty → no trusted proxies → all
+	// X-F-F headers ignored (safe but the reverse-proxy IP shows up as
+	// the client). Example: SHELLYADMIN_TRUSTED_PROXIES=127.0.0.1/32,10.0.0.0/8
+	trustedProxies := getenv("SHELLYADMIN_TRUSTED_PROXIES", "")
 	backendVersion := resolveBackendVersion()
 	backendCommit := resolveBackendCommit()
 
@@ -119,6 +128,7 @@ func main() {
 		StaticFS:       staticFiles,
 		HasStatic:      true,
 		Service:        service,
+		TrustedProxies: trustedProxies,
 	})
 	// Wire MCP runtime params into the service so SaveSettings can
 	// reconcile the live listener (start / stop / rotate token) without
@@ -242,6 +252,14 @@ func loadEncryptionKey(dataDir string, logger *slog.Logger) error {
 		return fmt.Errorf("%s: %w", keyPath, err)
 	}
 
+	// S6 — Phase 2 (v0.2.11) emits a deprecation warning when no
+	// external key is provided and we fall back to auto-generating
+	// one alongside the database. Phase 4 (v0.3.0) will turn this
+	// into a hard error: storing the key on the same volume as the
+	// DB means a volume snapshot exfiltrates both, defeating the
+	// at-rest encryption. The two-version deprecation window gives
+	// operators time to migrate their `.env` to set
+	// SHELLYADMIN_ENCRYPTION_KEY_FILE before the breaking change.
 	fresh, err := secretbox.GenerateKey()
 	if err != nil {
 		return err
@@ -253,9 +271,14 @@ func loadEncryptionKey(dataDir string, logger *slog.Logger) error {
 	if err := secretbox.SetKey(fresh); err != nil {
 		return err
 	}
-	logger.Warn("generated new encryption key — back this file up alongside your database",
+	logger.Warn(
+		"DEPRECATED: encryption key auto-generated next to the database. "+
+			"v0.3.0 will refuse to start without an external key. "+
+			"Move the file to a separate volume or set SHELLYADMIN_ENCRYPTION_KEY / "+
+			"SHELLYADMIN_ENCRYPTION_KEY_FILE before upgrading.",
 		"path", keyPath,
-		"hint", "set SHELLYADMIN_ENCRYPTION_KEY (base64) to manage the key outside the data directory")
+		"deprecation_window", "v0.2.11 warn, v0.3.0 hard-fail",
+	)
 	return nil
 }
 

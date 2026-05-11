@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"shellyadmin/internal/db"
 	"shellyadmin/internal/models"
@@ -111,6 +112,10 @@ func (f *fakeStore) ClearLogs() (int64, error) { return 0, errUnimplemented }
 
 func (f *fakeStore) GetLoginState(string) (db.LoginState, error) { return db.LoginState{}, nil }
 func (f *fakeStore) SetLoginState(db.LoginState) error           { return nil }
+
+func (f *fakeStore) PruneAuditLogOlderThan(time.Time) (int64, error) { return 0, nil }
+func (f *fakeStore) VerifyAuditChain() (int64, error)                { return 0, nil }
+func (f *fakeStore) SnapshotTo(string) error                         { return nil }
 
 // Compile-time guarantee: fakeStore implements Store.
 var _ Store = (*fakeStore)(nil)

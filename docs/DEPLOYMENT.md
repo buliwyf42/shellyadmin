@@ -115,6 +115,34 @@ Public-readiness note:
 - do not expose it directly to the public internet
 - validate discovery behavior in your Docker networking mode before depending on it operationally
 
+### Verifying image signatures (cosign, v0.2.10+)
+
+The `publish-image.yml` workflow keyless-signs every pushed image
+through Sigstore using the GitHub OIDC issuer. Before pulling a new
+release on a production host, verify the signature:
+
+```bash
+cosign verify \
+  --certificate-identity-regexp 'https://github.com/buliwyf42/shellyadmin/' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  ghcr.io/buliwyf42/shellyadmin:vX.Y.Z
+```
+
+`cosign verify` exits non-zero if the image was not signed by this
+repository's workflow, which catches a stolen GHCR write token or a
+registry-side pivot. The signing key itself is ephemeral (Sigstore
+Fulcio issues a short-lived cert per run) so there is no long-term
+key for an attacker to steal.
+
+For automated deploys, gate `docker pull` behind a successful
+`cosign verify` in the deploy script — without it, the signing step
+in CI is just bookkeeping.
+
+The same workflow runs Trivy against the freshly-pushed image. A
+HIGH/CRITICAL CVE fails the workflow after the push, so the tag
+exists but you receive a notification before rolling production
+forward. Re-pull only after the CI job completes.
+
 ## Networking
 
 ShellyAdmin should work in both:
