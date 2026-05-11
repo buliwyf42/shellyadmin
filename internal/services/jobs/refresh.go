@@ -19,6 +19,110 @@ import (
 	"shellyadmin/internal/models"
 )
 
+// RefreshDevice re-probes a single device matched by MAC, IP, or name
+// and returns the post-refresh device list. Used by the per-row "refresh"
+// action on the Devices page; the bulk refresh goes through
+// RefreshDevices instead. The auth-required / TLS-cert-invalid /
+// rate-limited paths persist the failure on the existing row and keep
+// the rich fields (FirstSeen, DeviceNum, firmware cache) intact.
+func (s *Service) RefreshDevice(ctx context.Context, target string) ([]models.Device, error) {
+	devices, err := s.store.ListDevices()
+	if err != nil {
+		return nil, err
+	}
+
+	var current *models.Device
+	for i := range devices {
+		if devices[i].MAC == target || devices[i].IP == target || devices[i].Name == target {
+			current = &devices[i]
+			break
+		}
+	}
+	if current == nil {
+		return nil, fmt.Errorf("device not found")
+	}
+
+	settings, err := s.store.GetSettings()
+	if err != nil {
+		return nil, err
+	}
+	timeout := RefreshProbeTimeout(settings)
+	attemptedAt := time.Now().UTC().Format(time.RFC3339)
+	opts := s.host.ScannerProbeOptions(*current, timeout)
+	probed := scanner.ProbeDeviceWithOptions(ctx, current.IP, opts, s.host.Log)
+	if probed == nil {
+		current.LastRefreshAttempt = attemptedAt
+		current.LastRefreshOK = false
+		required, reason := checkAuthRequired(ctx, current.IP, timeout)
+		if required {
+			current.AuthRequired = true
+			current.AuthError = reason
+			current.LastRefreshError = reason
+			current.Online = true
+			current.ConsecutiveMisses = 0
+		} else {
+			current.LastRefreshError = "refresh timed out"
+			current.ConsecutiveMisses++
+			if current.ConsecutiveMisses >= 2 {
+				current.Online = false
+			}
+		}
+		if err := s.store.UpsertDevice(*current); err != nil {
+			return nil, err
+		}
+		return s.host.GetDevices()
+	}
+
+	// Probe may return a partial device (auth-required / locked / TLS-bad)
+	// when the underlying error is recoverable but the full snapshot is not
+	// available. In that case, persist the failure state and keep the
+	// existing rich fields from `current`.
+	if probed.AuthRequired || probed.AuthLockedUntil != "" || (probed.TLSCertValid != nil && !*probed.TLSCertValid) {
+		current.LastRefreshAttempt = attemptedAt
+		current.LastRefreshOK = false
+		current.AuthRequired = probed.AuthRequired
+		current.AuthError = probed.AuthError
+		if probed.AuthLockedUntil != "" {
+			current.AuthLockedUntil = probed.AuthLockedUntil
+		}
+		if probed.TLSCertValid != nil {
+			current.TLSCertValid = probed.TLSCertValid
+		}
+		current.LastRefreshError = probed.AuthError
+		current.Online = true
+		current.ConsecutiveMisses = 0
+		if err := s.store.UpsertDevice(*current); err != nil {
+			return nil, err
+		}
+		return s.host.GetDevices()
+	}
+
+	probed.DeviceNum = current.DeviceNum
+	probed.FirstSeen = current.FirstSeen
+	probed.LastRefreshAttempt = attemptedAt
+	probed.LastRefreshOK = true
+	probed.LastRefreshError = ""
+	probed.ConsecutiveMisses = 0
+	probed.Online = true
+	probed.AuthRequired = false
+	probed.AuthError = ""
+	probed.AuthLockedUntil = ""
+	// Carry forward operator-set TLS opt-out — it isn't reported by the device.
+	probed.TLSAllowInsecure = current.TLSAllowInsecure
+	// Carry forward the firmware cache so a Refresh that fails to re-check
+	// firmware (e.g. transient cloud blip) doesn't blank out the fields. The
+	// helper below overwrites these on success.
+	probed.FWAvailableStable = current.FWAvailableStable
+	probed.FWAvailableBeta = current.FWAvailableBeta
+	probed.FWCheckedAt = current.FWCheckedAt
+	probed.FWAutoUpdate = current.FWAutoUpdate
+	s.host.RefreshDeviceCapabilities(ctx, probed)
+	if err := s.store.UpsertDevice(*probed); err != nil {
+		return nil, err
+	}
+	return s.host.GetDevices()
+}
+
 // RefreshDevices spawns a refresh job that re-probes every persisted
 // device. Blocks until the worker goroutine signals completion, then
 // returns the post-refresh device list (with compliance + counts).
