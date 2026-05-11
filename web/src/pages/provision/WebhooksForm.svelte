@@ -94,7 +94,7 @@
             />
           </div>
           <div class="sa-webhooks-field-enable">
-            <label class="form-label">enable</label>
+            <span class="form-label">enable</span>
             <Toggle bind:checked={entry.enable} label={entry.enable ? 'On' : 'Off'} />
           </div>
         </div>

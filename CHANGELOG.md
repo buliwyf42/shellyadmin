@@ -4,6 +4,47 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.9] - 2026-05-11 — Deploy docs + WebhooksForm a11y fix
+
+Housekeeping pair: the v0.2.8 deploy this morning moved production
+from a standalone `docker run` to a Dockhand-managed compose stack,
+which made the `CLAUDE.md` "Deployment Workflow" section stale.
+Plus the lone a11y warning that's been surfacing on every `vite build`
+since v0.2.4. Both addressed here. No backend changes.
+
+### Changed
+
+- **`web/src/pages/provision/WebhooksForm.svelte`** — the "enable"
+  field label was a `<label class="form-label">` with no `for=`
+  attribute and a `<Toggle>` custom component as its sibling, which
+  triggered Svelte's `a11y_label_has_associated_control` warning on
+  every build since v0.2.4. Changed to `<span class="form-label">`:
+  the Toggle component manages its own internal `aria-label` and
+  visible on/off text, so the outer wrapper is purely a visual
+  heading. Identical rendering, warning gone. Sole instance in the
+  codebase (`grep`-verified).
+- **`CLAUDE.md`** — "Deployment Workflow" section rewritten to
+  document the Dockhand-stack-managed reality:
+  - Stack name `shellyadmin` on Dockhand environment id 1, files at
+    `/app/data/stacks/docker.home.lan/shellyadmin/{compose.yaml,.env}`.
+  - Stack shape documented (ports `8100:8080` + `8101:8081`, bind
+    mount, hardening flags, env vars in Dockhand UI not committed,
+    no `SHELLYADMIN_USER`).
+  - Release path: tag push → GHCR build → `pull_image` +
+    `start_stack` via Dockhand (or its MCP server).
+  - Pre-deploy SQLite snapshot recipe preserved.
+  - Previous `rsync + ssh docker build + docker run` recipe kept
+    as a "Historical (pre-v0.2.8)" subsection with an explicit
+    "don't reintroduce as default — port conflicts on 8100/8101"
+    caveat.
+
+### Verification
+
+- `vite build` no longer surfaces the WebhooksForm.svelte:97
+  warning; bundle size unchanged (309.18 kB raw / 81.10 kB gzip).
+- Frontend lint, prettier, vitest (54/54), bundle-size budget all
+  green. Backend gates skipped — no Go source touched.
+
 ## [0.2.8] - 2026-05-11 — Dep pin refresh (x/net CVE close, Alpine 3.19→3.21)
 
 Periodic dep pin review (originally scheduled ~2026-08-11, pulled

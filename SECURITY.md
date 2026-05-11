@@ -10,7 +10,8 @@ Security fixes are best-effort while the project is in active early development.
 
 | Version                                    | Supported   | Notes                                                                                                                                 |
 | ------------------------------------------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `v0.2.8`                                   | Yes         | Current baseline. Dep pin refresh — closes GO-2026-4918 (non-reachable) in `golang.org/x/net`; `alpine:3.19` → `alpine:3.21` runtime. |
+| `v0.2.9`                                   | Yes         | Current baseline. Deploy-workflow doc refresh + WebhooksForm a11y warning fix (UI-only; no behavior change).                          |
+| `v0.2.8`                                   | Best effort | Dep pin refresh — closes GO-2026-4918 (non-reachable) in `golang.org/x/net`; `alpine:3.19` → `alpine:3.21` runtime.                   |
 | `v0.2.7`                                   | Best effort | Vite oxc minifier swap + drop `esbuild` devDep (build-tooling only; no runtime change).                                               |
 | `v0.2.6`                                   | Best effort | Zigbee operations form (UI-only; write-mostly).                                                                                       |
 | `v0.2.5`                                   | Best effort | Cover (slat-tilt) provisioner form (UI-only).                                                                                         |
