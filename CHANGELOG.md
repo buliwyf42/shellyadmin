@@ -4,6 +4,100 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.12] - 2026-05-11 — Phase 3 modernization (partial)
+
+Phase 3 from the consolidated review. Ships 9 of 13 Phase-3 items
+across architecture refactoring, drift-prevention CI gates,
+observability, and operator documentation. The two remaining XL
+items (M7 services-internal split, M2/M6/M8 frontend page split +
+Trusted-Types CSP without `unsafe-inline` + DeviceListView/Detail
+split) are deferred to v0.3 — each is its own multi-day refactor
+with a wide test surface, and shipping the cheap items first means
+operators get the wins without waiting on the long pole.
+
+### Added
+
+- **`/metrics` endpoint** (M4 + M10) — opt-in via
+  `SHELLYADMIN_METRICS_BIND` (e.g. `127.0.0.1:9100`). Exposes
+  `shellyadmin_devices_total` (gauge), `shellyadmin_refresh_jobs_total`,
+  `shellyadmin_firmware_jobs_total`, `shellyadmin_audit_rows_written_total{level}`,
+  `shellyadmin_http_requests_total` in Prometheus text exposition
+  format (v0.0.4). New `internal/observability` package implements
+  the registry stdlib-only — no `prometheus/client_golang` dep
+  until the surface grows histograms. 5 tests cover the
+  counter/gauge/labelled paths and label escaping.
+- **Schema drift check** (M3) — `cmd/modelschema` emits a canonical
+  JSON snapshot of the 8 SPA-serialised structs (AppSettings,
+  ComplianceRules, CustomRule, Device, Credential, CredentialGroup,
+  DeviceCredentialGroupAssignment, Job). New CI step
+  `go run ./cmd/modelschema --check` fails the build when a Go
+  struct field is added without regenerating the snapshot. Lite
+  version of M3 — full Go→TS codegen on every change costs more
+  than the current schema-evolution rate pays back; this lands the
+  drift-prevention half.
+- **OpenAPI route coverage test** (M9) — new
+  `TestEveryAPIRouteIsDocumented` walks the live gin
+  `Engine.Routes()` and fails if any `/api/`, `/health`, or
+  `/ready` path is missing from `documentedAPIRoutes()`. Pairs
+  with the existing `TestDocumentedAPIRoutesMatchExpectedRouteSet`
+  for two-direction coverage.
+- **Cloud-metadata SSRF deny** (M5) — `isProvisionTargetAllowed`
+  explicitly rejects `169.254.169.254`. It sits inside the RFC3927
+  link-local /16 so the previous `IsLinkLocalUnicast()` check let
+  it through. Test case in `TestIsProvisionTargetAllowed`.
+- **Off-host log forwarding docs** (M12) — new `docs/SECURITY.md`
+  section with a Promtail config fragment for picking up the
+  v0.2.11 stderr slog tee, plus three useful Grafana/Loki queries
+  (lockout detector, daily high-risk count, request_id trace).
+- **Network segmentation guide** (M13) — new `docs/SECURITY.md`
+  section codifying the three-VLAN minimum (Admin / IoT / Guest)
+  with OPNsense, UniFi, and pure-iptables examples. Reverse-proxy
+  + `SHELLYADMIN_TRUSTED_PROXIES` posture documented.
+
+### Changed
+
+- **`handler.go` split** (M1) — the 772-line / 45-method monolith
+  is now nine resource-specific files (`handler_auth.go`,
+  `handler_devices.go`, `handler_scan_firmware.go`,
+  `handler_provision.go`, `handler_settings.go`,
+  `handler_templates.go`, `handler_credentials.go`,
+  `handler_logs_backup.go`, `handler_meta.go`). `handler.go` keeps
+  the Handler struct, NewHandler, audit-sink wiring, and the
+  in-package helpers (logReq, emitSlogWithRisk, RandomSecret,
+  decodeJSON). No semantic change.
+
+### Tracking
+
+- **Issue #13** opened for M11 (`go.mongodb.org/mongo-driver/v2`
+  transitive dep via `gin/binding`). Not a quick-fix — gin
+  upstream needs to split the BSON binding behind a build tag,
+  or we pin to a fork. Deferred + tracked.
+
+### Deferred to v0.3
+
+- **M7** services internal split (XL refactor — `internal/services/`
+  into `jobs/`, `mcp/`, `credentials/`, `backup/` sub-packages).
+  AppService has 50+ methods crossing concerns; right-shaping them
+  is a multi-day, wide-test-surface change worth its own release.
+- **M2** frontend page split (Compliance, Devices, Provision each
+  >1000 LOC).
+- **M6** CSP without `unsafe-inline` (depends on M2 — Svelte
+  component styles compile to inline `<style>` until those pages
+  shrink).
+- **M8** `models.Device` split into `DeviceListView` (slim) and
+  `DeviceDetail` (full). Depends on the M3 codegen pipeline being
+  extended into actual TypeScript generation, which is currently
+  deferred.
+
+### Upgrade notes
+
+- **`SHELLYADMIN_METRICS_BIND`** is the new opt-in env var. Empty
+  default = no metrics listener; existing deployments are
+  unchanged. Pair with loopback + Prometheus host firewall rule;
+  the endpoint itself is unauthenticated.
+- **No DB migration** in this release — Phase 3 items are
+  architecture + observability, not schema.
+
 ## [0.2.11] - 2026-05-11 — Phase 2 stabilization (consolidated review)
 
 Phase 2 of the consolidated security + architecture review.
