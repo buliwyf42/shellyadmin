@@ -300,6 +300,36 @@ The pattern for adding a new knob:
 
 ---
 
+## Encryption Key Required (v0.3.0)
+
+S6 from the consolidated review (ADR-0013) closed the encryption-key auto-generation path in v0.3.0. The boot path's `loadEncryptionKey()` in [cmd/shellyctl/main.go](cmd/shellyctl/main.go) refuses to start when neither `SHELLYADMIN_ENCRYPTION_KEY` nor `SHELLYADMIN_ENCRYPTION_KEY_FILE` is set. v0.2.11 added the deprecation warning; v0.3.0 turned it into a hard error.
+
+Migration recipe for operators upgrading from v0.2.x with an auto-generated `{dataDir}/shellyadmin.key`: copy the file contents to a path outside the data volume (Docker secret, NixOS secret store, sops-encrypted file in the homelab config repo), then set `SHELLYADMIN_ENCRYPTION_KEY_FILE=/path/to/it` in the compose `.env`. The startup error message includes the legacy path when it's detected, so the recovery is one `cat` away.
+
+Threat closed: a volume snapshot exfiltrating both the encrypted credentials in `shellyctl.db` AND the key file sitting next to it — defeated the at-rest encryption entirely. External key management = both halves no longer share a backup boundary.
+
+---
+
+## Single-Instance Constraint (ADR-0015, v0.3.0)
+
+The 030 migration adds a `runtime_locks` table; [internal/services/runtimelock](internal/services/runtimelock/runtimelock.go) claims the `primary` row at startup, runs a 60s heartbeat, and releases on graceful shutdown. A second container starting against the same SQLite file finds a fresh row and refuses to boot — the error names the foreign hostname/pid + when the row will go stale.
+
+A stale row (5+ minutes without heartbeat — covers `kill -9`'d previous container) is silently overwritten. Operators who don't want to wait the staleness window can run `shellyctl unlock --force` to clear the row manually.
+
+Why: process-local state (rate-limit map, MCP listener, background workers) doesn't replicate across instances. Two containers reading the same DB would double-spawn the firmware-check scheduler, race audit-log retention, and try to re-bind `:8081`. The lock is the explicit door-closer for that misconfiguration.
+
+---
+
+## TOTP 2FA + Personal Access Tokens (Block 4c, v0.3.0)
+
+Two new operator-facing auth surfaces, both built on the existing server-side session store (S5):
+
+**TOTP 2FA (T1)** — operator enrolls a TOTP secret via the Settings UI; subsequent logins require a 6-digit code in addition to the password. RFC 6238 stdlib impl in [internal/services/totp/totp.go](internal/services/totp/totp.go); 10 single-use backup codes issued at enrollment (sha256-hashed + secretbox-sealed in the DB row); wrong code bumps the same per-account lockout counter as wrong-password. [internal/api/handler_totp.go](internal/api/handler_totp.go) drives the `/api/totp/{status,enroll,verify-enroll,disable}` surface.
+
+**Personal Access Tokens (T3)** — bearer-token credentials for headless callers (Home Assistant, cron, scripts) so `/api/*` mutations don't have to fake the cookie + CSRF dance. Token format `pat_<8hex id>_<64hex random>`. Scope catalog (`admin`, `devices:read/write`, `firmware:read/write`, `provision`, `settings:read/write`) gated per-route via `middleware.RequireScope`. Bearer-authed requests skip CSRF (the token IS the proof-of-intent). [internal/services/tokens/tokens.go](internal/services/tokens/tokens.go) is the orchestration; [internal/middleware/auth.go](internal/middleware/auth.go) extends RequireAuth to honor the `Authorization: Bearer pat_…` header. PAT-authed callers cannot mint, list, or revoke other PATs (privilege-escalation guard at the handler).
+
+---
+
 ## Release Cadence Convention
 
 VERSION + `web/package.json` + lockfile bump together on every release. Tag is lightweight (`git tag vX.Y.Z`, no `-a`); push needs `git push origin main vX.Y.Z` because `--follow-tags` only auto-pushes annotated tags. CHANGELOG header convention is `## [X.Y.Z] - YYYY-MM-DD — em-dash subtitle`; the publish-image workflow extracts the subtitle for the auto-created GitHub Release title.

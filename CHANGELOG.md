@@ -4,6 +4,141 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-05-11 — Phase 4c (TOTP 2FA + PAT bearer tokens) + breaking auth hardening
+
+The Phase 4c half of the consolidated review — the operator-facing auth
+strategics. Two new auth surfaces (TOTP 2FA + Personal Access Tokens),
+plus two breaking changes that close long-standing deprecation windows
+(encryption-key auto-generation removed; single-instance-only enforced).
+
+Operators upgrading from v0.2.x **must** perform a one-time migration
+of the encryption key before starting v0.3.0. See "Breaking changes"
+below for the recipe.
+
+### Added
+
+- **TOTP 2FA (T1, Block 4c.1)** — operator self-service second factor.
+  RFC 6238 stdlib implementation (`internal/services/totp/totp.go`)
+  plus orchestration in `internal/services/totp/service.go`. Login
+  handler grows an optional `totp_code` field; missing → 401
+  `totp_required` (no lockout bump, mid-flow), wrong → 401
+  `invalid_totp_code` (bumps the per-account lockout counter so
+  brute-forcing the 6-digit code is bounded by the same budget as
+  password retries). Ten single-use backup codes issued at enrollment;
+  reuse of a burned code returns the same shape as a never-existed one
+  (no enumeration oracle). Four new endpoints under `/api/totp/*`
+  (status, enroll, verify-enroll, disable). SPA two-step login prompt
+  + Settings card.
+- **Personal Access Tokens (T3, Block 4c.2)** — bearer-token
+  credentials for headless callers (Home Assistant, cron jobs, scripts)
+  so `/api/*` mutations no longer require faking the cookie + CSRF
+  dance. Token format `pat_<8hex id>_<64hex random>` (256 bits of
+  CSPRNG entropy in the random component; sha256+ConstantTimeCompare
+  for the stored hash — argon2id would burn 80ms per PAT request for
+  no security gain over a 256-bit secret). Eight-scope catalog
+  (`admin`, `devices:read/write`, `firmware:read/write`, `provision`,
+  `settings:read/write`); per-route scope enforcement via
+  `middleware.RequireScope`. Bearer-authed requests skip CSRF (the
+  token IS the proof-of-intent). PAT-authed callers cannot mint or
+  revoke other PATs (privilege-escalation guard at the handler). Three
+  new endpoints under `/api/tokens` (list, create, revoke) + Settings
+  card.
+- **`shellyctl unlock --force` subcommand** — manual recovery for the
+  ADR-0015 single-instance lock when an operator knows the previous
+  container died and doesn't want to wait the 5-minute staleness window.
+- **18 new tests** — 9 in `internal/services/totp/service_test.go`,
+  11 in `internal/services/tokens/tokens_test.go`, 6 in
+  `internal/api/handler_login_totp_test.go`, 7 in
+  `internal/api/handler_tokens_test.go`, 7 in
+  `internal/services/runtimelock/runtimelock_test.go`.
+
+### Changed
+
+- **Per-route scope authorization (T3)** — every authenticated
+  `/api/*` route declares a `Scope` on its `apiRouteDoc` entry;
+  `registerDocumentedAPIRoutes` wraps the handler in
+  `middleware.RequireScope(route.Scope)` with `admin` as the
+  default-deny scope. Cookie-authed callers pass through unchanged;
+  PAT-authed callers without the required scope (or `admin`) get a
+  403 with `required_scope` in the body.
+- **Bundle-size budget** raised from 320/86 KB (raw/gzip JS) to
+  345/92 KB to absorb the new TOTPCard + TokensCard.
+
+### Breaking changes
+
+- **S6 — Encryption-key auto-generation removed (ADR-0013).** v0.2.11
+  added a deprecation warning when no `SHELLYADMIN_ENCRYPTION_KEY` /
+  `_FILE` was set and the service fell back to auto-generating a key
+  at `{dataDir}/shellyadmin.key`. v0.3.0 closes the window: the boot
+  refuses to start without an external key. Operators must:
+
+  1. `docker exec shellyadmin cat /data/shellyadmin.key` to retrieve
+     the existing key.
+  2. Move it to a path outside the data volume (Docker secret, NixOS
+     secret store, sops-encrypted file in the homelab config repo).
+  3. Add `SHELLYADMIN_ENCRYPTION_KEY_FILE=/run/secrets/shellyadmin_encryption_key`
+     (or wherever you placed it) to compose `.env`.
+  4. Pull v0.3.0, recreate stack.
+
+  Threat closed: a volume snapshot exfiltrating both the encrypted
+  credentials in `shellyctl.db` AND the key file sitting next to it
+  defeated the at-rest encryption. External key management means both
+  halves no longer share a backup boundary.
+
+  Skipped migration → clear startup error pointing at the legacy path
+  + this recipe. Container exits with non-zero status; SQLite is
+  untouched.
+
+- **ADR-0015 — Single-instance-only enforced.** New
+  `030_runtime_locks.sql` migration + `internal/services/runtimelock`
+  package. On startup the service writes the `primary` row, runs a
+  60s heartbeat, and releases on graceful shutdown. A second container
+  starting against the same SQLite file finds a fresh row and refuses
+  to boot — the error names the foreign hostname / pid / acquired_at
+  + when the row will go stale. A stale row (5+ minutes without
+  heartbeat — e.g. previous container was `kill -9`'d) is silently
+  overwritten.
+
+  Why: process-local state (login rate-limit map, MCP listener,
+  background workers) doesn't replicate across instances. Two
+  containers would double-spawn the firmware-check scheduler, race
+  the audit-log retention transaction, and try to re-bind `:8081`.
+
+  Operators rolling a new container by stopping the old + starting
+  the new without `docker compose down` first will hit a startup
+  error for up to 5 minutes. `shellyctl unlock --force` clears the
+  row manually for the operator who knows the previous container is
+  truly dead and doesn't want to wait.
+
+### Migration checklist
+
+1. Pre-pull a v0.2.x SQLite snapshot for rollback safety:
+   `cp /docker/shellyadmin/shellyctl.db /docker/shellyadmin/shellyctl.db.pre-v0.3.0-$(date +%s)`.
+2. Apply the S6 migration recipe above. Don't delete
+   `/docker/shellyadmin/shellyadmin.key` yet — it's a rollback aid.
+3. `docker compose down shellyadmin` (clean shutdown so the
+   runtime_locks row is released before the upgrade).
+4. Pull `ghcr.io/buliwyf42/shellyadmin:v0.3.0` (or `:latest`).
+5. Recreate the stack with the updated `.env`.
+6. Verify `/ready` returns `version: "0.3.0"` and the Settings page
+   shows the new "Two-Factor Authentication" + "Personal Access
+   Tokens" cards.
+
+### Rollback
+
+The migration is one-way at the encryption-key level (the operator
+copied the key out; it still exists on the data volume unless deleted
+manually). To roll back to v0.2.x: pull the previous image tag and
+recreate the stack without `SHELLYADMIN_ENCRYPTION_KEY_FILE` — v0.2.x
+finds the original `/data/shellyadmin.key` and continues. The two new
+DB tables (`totp_state` migration 028 already shipped in v0.2.14
+foundation work; `personal_access_tokens` migration 029 in v0.3.0;
+`runtime_locks` migration 030 in v0.3.0) are additive — v0.2.x simply
+doesn't read them.
+
+Operators who deleted `/data/shellyadmin.key` after the migration
+cannot roll back without restoring it from their key-management store.
+
 ## [0.2.14] - 2026-05-11 — Phase 4b (services split + Device payload + CSP hardening)
 
 Phase 4b from the consolidated review — the architectural refactor block
