@@ -6,6 +6,7 @@ import (
 	"embed"
 	"encoding/base64"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -60,18 +61,30 @@ func main() {
 	cookieSecure := getenv("COOKIE_SECURE", "true") == "true"
 	mcpToken := services.DecodeSecretValue("SHELLYADMIN_MCP_TOKEN")
 	mcpPort := getenv("SHELLYADMIN_MCP_PORT", "8081")
-	mcpBind := getenv("SHELLYADMIN_MCP_BIND", "0.0.0.0")
+	// Default to loopback so an enabled MCP listener does not silently expose
+	// itself on every container network interface (e.g. a sidecar monitoring
+	// network). Operators who want LAN-reachable MCP set _MCP_BIND=0.0.0.0
+	// explicitly. The HTTP API on :8080 still defaults to all interfaces
+	// because that surface is auth+CSRF+rate-limited; MCP-token-only auth
+	// warrants a tighter default.
+	mcpBind := getenv("SHELLYADMIN_MCP_BIND", "127.0.0.1")
 	backendVersion := resolveBackendVersion()
 	backendCommit := resolveBackendCommit()
 
 	if err := os.MkdirAll(dataDir, 0o755); err != nil {
 		panic(err)
 	}
-	logger := slog.New(slog.NewJSONHandler(&lumberjack.Logger{
+	// Tee structured logs to BOTH the rotated file sink AND stderr so cluster
+	// log-collectors (Loki/Promtail, docker-logs --since, k8s log streams)
+	// can ship the same JSON the operator sees in /data/shellyctl.log. Before
+	// this change stdout only carried the Gin default request line; the
+	// audit-relevant structured slog stayed inside the container's volume.
+	logSink := io.MultiWriter(&lumberjack.Logger{
 		Filename:   filepath.Join(dataDir, "shellyctl.log"),
 		MaxSize:    5,
 		MaxBackups: 3,
-	}, nil))
+	}, os.Stderr)
+	logger := slog.New(slog.NewJSONHandler(logSink, nil))
 	slog.SetDefault(logger)
 
 	if err := loadEncryptionKey(dataDir, logger); err != nil {
@@ -161,6 +174,14 @@ func runHashPassword(args []string) {
 	var plain string
 	switch {
 	case len(args) == 1:
+		// argv leaks through `ps`, shell history (~/.zsh_history,
+		// ~/.bash_history), and container manager logs (Docker /
+		// Kubernetes record the command line). Warn loudly so the
+		// operator either pipes via stdin or accepts the leak knowingly.
+		warn1 := "WARNING: password passed on the command line will appear in `ps`, shell history, and container logs."
+		warn2 := "         Prefer: `shellyctl hash-password` (reads from stdin) or pipe via `printf` from a read -s variable."
+		fmt.Fprintln(os.Stderr, warn1)
+		fmt.Fprintln(os.Stderr, warn2)
 		plain = args[0]
 	case len(args) == 0:
 		fmt.Fprint(os.Stderr, "password: ")

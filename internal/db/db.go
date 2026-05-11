@@ -41,12 +41,15 @@ func Open(dataDir string) (*DB, error) {
 	if err := os.MkdirAll(dataDir, 0o755); err != nil {
 		return nil, err
 	}
-	dsn := filepath.Join(dataDir, "shellyctl.db")
+	// modernc.org/sqlite applies _pragma=... entries on every new connection in
+	// the pool, which is the only correct place to set per-connection PRAGMAs
+	// (busy_timeout, foreign_keys). journal_mode=WAL is global and persists in
+	// the file but pinning it here avoids a future "what mode are we in" doubt
+	// and matches the prior conn.Exec call's intent.
+	dsn := "file:" + filepath.Join(dataDir, "shellyctl.db") +
+		"?_pragma=foreign_keys(on)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)"
 	conn, err := sql.Open("sqlite", dsn)
 	if err != nil {
-		return nil, err
-	}
-	if _, err := conn.Exec(`PRAGMA journal_mode=WAL;`); err != nil {
 		return nil, err
 	}
 	db := &DB{sql: conn}

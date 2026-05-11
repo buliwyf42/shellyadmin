@@ -39,8 +39,15 @@ type Config struct {
 }
 
 func NewRouter(database *db.DB, cfg Config) *gin.Engine {
-	r := gin.Default()
+	// gin.New() + explicit middlewares replaces gin.Default(), which would
+	// install gin.Logger() (writes to stdout in its own format, no slog
+	// integration, no query-string sanitization). middleware.RequestID must
+	// run first so subsequent middlewares (including StructuredLogger) see
+	// the request ID via context.
+	r := gin.New()
+	r.Use(gin.Recovery())
 	r.Use(middleware.RequestID())
+	r.Use(middleware.StructuredLogger())
 	r.Use(middleware.SecurityHeaders())
 	store := cookie.NewStore([]byte(cfg.Secret))
 	store.Options(sessions.Options{
@@ -87,6 +94,17 @@ func NewRouter(database *db.DB, cfg Config) *gin.Engine {
 			return
 		}
 		serveSPAIndex(c, cfg)
+	})
+	// NoMethod: gin's default returns 405 with an empty body and the gin
+	// HTML 405 page. Return JSON for /api/* so clients can parse it the
+	// same way they parse other API errors.
+	r.HandleMethodNotAllowed = true
+	r.NoMethod(func(c *gin.Context) {
+		if strings.HasPrefix(c.Request.URL.Path, "/api/") {
+			c.AbortWithStatusJSON(http.StatusMethodNotAllowed, gin.H{"error": "method not allowed"})
+			return
+		}
+		c.AbortWithStatus(http.StatusMethodNotAllowed)
 	})
 	return r
 }

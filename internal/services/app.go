@@ -524,6 +524,12 @@ func checkAuthRequired(ctx context.Context, ip string, timeout time.Duration) (b
 // other value (including the empty string) replaces the stored token.
 const MCPTokenRedacted = "<set>"
 
+// mcpTokenPattern restricts MCP tokens to the URL-safe alphabet so both the
+// Authorization: Bearer and the /<token>/ path-form auth paths work. A "/"
+// in the token would split into multiple path segments and break path auth;
+// other URL-reserved chars (?, #, %) would need encoding the client may skip.
+var mcpTokenPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{16,128}$`)
+
 func (s *AppService) GetSettings() (models.AppSettings, error) {
 	settings, err := s.db.GetSettings()
 	if err != nil {
@@ -708,6 +714,16 @@ func ValidateSettings(settings models.AppSettings) error {
 	}
 	if settings.MCPEnabled && len(settings.MCPToken) < 16 {
 		return fmt.Errorf("mcp token must be at least 16 characters when MCP is enabled")
+	}
+	// MCP auth accepts the token either as Authorization: Bearer or as the
+	// first URL path segment. The path-form interprets "/" as a segment
+	// separator, so a token containing "/" (or other URL-reserved chars)
+	// breaks the path auth. Restrict to URL-safe charset to keep both
+	// transport forms working unconditionally.
+	if settings.MCPToken != "" && settings.MCPToken != MCPTokenRedacted {
+		if !mcpTokenPattern.MatchString(settings.MCPToken) {
+			return fmt.Errorf("mcp token must match [A-Za-z0-9_-]{16,128} (URL-safe alphabet, 16-128 chars)")
+		}
 	}
 	// Fail-fast on bad regex patterns in custom rules. Without this, a typo in
 	// the UI would silently classify every device as "mismatch" because the
