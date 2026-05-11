@@ -1,11 +1,14 @@
-FROM node:20-alpine AS frontend
+FROM node:20-alpine@sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293 AS frontend
 WORKDIR /app/web
 COPY web/package*.json ./
-RUN npm ci
+# --ignore-scripts blocks malicious postinstall hooks in compromised npm deps;
+# Svelte/Vite/TS don't require lifecycle scripts at install time. If a future
+# dep needs a build hook, allowlist it via `npm rebuild <pkg>` explicitly.
+RUN npm ci --ignore-scripts
 COPY web/ .
 RUN npm run build
 
-FROM golang:1.25-alpine AS backend
+FROM golang:1.25-alpine@sha256:8d22e29d960bc50cd025d93d5b7c7d220b1ee9aa7a239b3c8f55a57e987e8d45 AS backend
 WORKDIR /app
 ARG VERSION
 ARG VCS_REF=unknown
@@ -17,7 +20,7 @@ COPY --from=frontend /app/web/dist ./cmd/shellyctl/dist
 RUN V=${VERSION:-$(cat VERSION 2>/dev/null || echo "dev")} && \
     go build -ldflags="-s -w -X main.AppVersion=${V} -X main.CommitHash=${VCS_REF}" -o /shellyadmin ./cmd/shellyctl
 
-FROM alpine:3.21
+FROM alpine:3.21@sha256:48b0309ca019d89d40f670aa1bc06e426dc0931948452e8491e3d65087abc07d
 RUN apk add --no-cache ca-certificates tzdata su-exec
 RUN addgroup -S shelly && adduser -S -G shelly -h /app shelly
 RUN mkdir -p /data /tmp /app
