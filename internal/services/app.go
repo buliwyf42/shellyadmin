@@ -5,16 +5,14 @@ import (
 	"fmt"
 	"net/netip"
 	"os"
-	"regexp"
 	"strings"
 	"sync"
 	"time"
 
 	"shellyadmin/internal/core/compliance"
-	"shellyadmin/internal/core/secretbox"
 	"shellyadmin/internal/db"
-	"shellyadmin/internal/middleware"
 	"shellyadmin/internal/models"
+	"shellyadmin/internal/services/audit"
 	"shellyadmin/internal/services/backup"
 	"shellyadmin/internal/services/credentials"
 	"shellyadmin/internal/services/jobs"
@@ -22,6 +20,7 @@ import (
 	"shellyadmin/internal/services/logs"
 	"shellyadmin/internal/services/provisioning"
 	"shellyadmin/internal/services/sessions"
+	servicessettings "shellyadmin/internal/services/settings"
 	"shellyadmin/internal/services/templates"
 	"shellyadmin/internal/services/validation"
 	"shellyadmin/internal/services/workers"
@@ -129,6 +128,17 @@ type AppService struct {
 	// to internal/services/logs in v0.3.0 (M7).
 	logs *logs.Service
 
+	// audit owns the service-level audit-log sink (sanitize + emit +
+	// optional webhook forward). Extracted to internal/services/audit in
+	// v0.3.0 (M7).
+	audit *audit.Service
+
+	// settings owns the encrypted-at-rest MCP-token envelope handling +
+	// the validate-before-save pipeline. Extracted to
+	// internal/services/settings in v0.3.0 (M7); GetSettings + SaveSettings
+	// delegate here.
+	settings *servicessettings.Service
+
 	// metrics is the Prometheus-format counter/gauge registry. nil for
 	// callers that don't wire it up (tests, MCP-only stdio mode); the
 	// service-layer Inc/Set helpers tolerate nil so the metrics path is
@@ -210,7 +220,22 @@ func NewAppService(database Store, dataDir string, logf func(ctx context.Context
 	// here for symmetry with the rest of the sub-service tree.
 	svc.templates = templates.New(database)
 	svc.logs = logs.New(database)
+	// audit.Service takes the existing logf callback so persisted rows
+	// flow through db.AddLog unchanged. svc itself satisfies audit.MetricSink
+	// via IncLabelled (forwarded to the nil-safe s.metricIncLabelled).
+	svc.audit = audit.New(database, logf, svc)
+	// settings.Service wraps the secretbox encrypt/decrypt + validate
+	// pipeline. The onSaved callback fires ReconcileMCPFromSettings so a
+	// token rotation rebuilds the live MCP listener.
+	svc.settings = servicessettings.New(database, svc.ReconcileMCPFromSettings)
 	return svc
+}
+
+// IncLabelled satisfies audit.MetricSink for the audit-sink wiring above.
+// Forwards to the nil-safe s.metricIncLabelled so a nil metrics sink at
+// construction time is harmless (callers use SetMetrics later).
+func (s *AppService) IncLabelled(name string, labels map[string]string) {
+	s.metricIncLabelled(name, labels)
 }
 
 // Backward-compat re-exports — implementations live in
@@ -350,62 +375,14 @@ func isProvisionTargetAllowed(addr netip.Addr) bool {
 // internal/services/validation.Settings; the local mcpTokenPattern alias
 // dropped along with the inline pattern match in v0.3.0 (M7).
 
+// GetSettings delegates to internal/services/settings.Service.Get.
 func (s *AppService) GetSettings() (models.AppSettings, error) {
-	settings, err := s.db.GetSettings()
-	if err != nil {
-		return settings, err
-	}
-	// Decrypt the persisted token (if any) so internal callers see the
-	// plaintext. The API GET handler is the boundary that re-redacts
-	// before returning to the SPA — see internal/api/handler.go.
-	if settings.MCPToken != "" && secretbox.IsBlob(settings.MCPToken) {
-		plain, derr := secretbox.OpenString(settings.MCPToken)
-		if derr != nil {
-			return settings, fmt.Errorf("decrypt mcp token: %w", derr)
-		}
-		settings.MCPToken = plain
-	}
-	return settings, nil
+	return s.settings.Get()
 }
 
+// SaveSettings delegates to internal/services/settings.Service.Save.
 func (s *AppService) SaveSettings(settings models.AppSettings) error {
-	// "<set>" is the placeholder GET returns when a token is configured —
-	// when the SPA round-trips settings back unchanged we must NOT overwrite
-	// the stored token with a literal "<set>". Resolve it back to whatever
-	// is currently persisted.
-	if settings.MCPToken == MCPTokenRedacted {
-		current, err := s.db.GetSettings()
-		if err != nil {
-			return fmt.Errorf("read existing settings: %w", err)
-		}
-		if current.MCPToken != "" && secretbox.IsBlob(current.MCPToken) {
-			plain, derr := secretbox.OpenString(current.MCPToken)
-			if derr != nil {
-				return fmt.Errorf("decrypt existing mcp token: %w", derr)
-			}
-			settings.MCPToken = plain
-		} else {
-			settings.MCPToken = current.MCPToken
-		}
-	}
-	if err := ValidateSettings(settings); err != nil {
-		return err
-	}
-	if settings.MCPToken != "" {
-		sealed, err := secretbox.SealString(settings.MCPToken)
-		if err != nil {
-			return fmt.Errorf("encrypt mcp token: %w", err)
-		}
-		settings.MCPToken = sealed
-	}
-	if err := s.db.SaveSettings(settings); err != nil {
-		return err
-	}
-	// Reconcile the live MCP listener to match the new settings.
-	// No-op when env-locked or when SetMCPParams was never called
-	// (e.g. unit tests that don't exercise MCP).
-	s.ReconcileMCPFromSettings()
-	return nil
+	return s.settings.Save(settings)
 }
 
 // Templates CRUD delegates to internal/services/templates.Service.
@@ -427,53 +404,13 @@ func (s *AppService) GetLogsFiltered(level, search, risk string) ([]db.LogEntry,
 }
 func (s *AppService) ClearLogs() (int64, error) { return s.logs.Clear() }
 
-// Log emits an audit entry without a request-scoped context. Prefer LogCtx
-// when a context is in scope so the audit row can be correlated back to the
-// originating HTTP request. This form remains for callbacks passed to
-// external packages (scanner, firmware) that use the narrower signature.
-func (s *AppService) Log(level, msg string) {
-	s.metricIncLabelled("shellyadmin_audit_rows_written_total", map[string]string{"level": strings.ToUpper(strings.TrimSpace(level))})
-	sanitized := SanitizeLogMessage(msg)
-	s.logf(context.Background(), level, sanitized)
-	s.maybeForwardAudit(context.Background(), level, sanitized)
-}
+// Log delegates to audit.Service.Log.
+func (s *AppService) Log(level, msg string) { s.audit.Log(level, msg) }
 
-// LogCtx emits an audit entry carrying the given context. The callback
-// installed in the handler pulls the request ID out of ctx so the audit_log
-// row and slog line link back to the originating HTTP request.
+// LogCtx delegates to audit.Service.LogCtx.
 func (s *AppService) LogCtx(ctx context.Context, level, msg string) {
-	s.metricIncLabelled("shellyadmin_audit_rows_written_total", map[string]string{"level": strings.ToUpper(strings.TrimSpace(level))})
-	sanitized := SanitizeLogMessage(msg)
-	s.logf(ctx, level, sanitized)
-	s.maybeForwardAudit(ctx, level, sanitized)
+	s.audit.LogCtx(ctx, level, msg)
 }
-
-// maybeForwardAudit shells out to the audit webhook delivery code if
-// the operator configured one. Best-effort: errors are swallowed (the
-// local audit_log row is the source of truth; the webhook is a
-// replica). Reads settings on every call because the webhook URL can
-// change at runtime via /api/settings — the operator should not have
-// to restart the service to disable a forwarder.
-func (s *AppService) maybeForwardAudit(ctx context.Context, level, msg string) {
-	if s.db == nil {
-		return
-	}
-	settings, err := s.db.GetSettings()
-	if err != nil || settings.AuditWebhookURL == "" {
-		return
-	}
-	reqID := ""
-	risk := ""
-	if ctx != nil {
-		reqID = middleware.FromContext(ctx)
-		risk = RiskFromContext(ctx)
-	}
-	s.forwardAudit(level, msg, reqID, risk, settings)
-}
-
-// sanitizeTags moved with its callers to internal/services/credentials and
-// internal/services/backup (each holds a private copy). The function is no
-// longer needed in this file.
 
 // ValidateSettings delegates to internal/services/validation.Settings.
 func ValidateSettings(settings models.AppSettings) error {
@@ -485,17 +422,10 @@ func ValidateTemplate(template map[string]interface{}) error {
 	return validation.Template(template)
 }
 
-// secretPattern matches the three forms credentials appear in our log
-// pipeline: `password=plain`, `password: plain`, and JSON-quoted
-// `"password":"plain"`. The optional `["']?` after the key handles the
-// JSON case where the quote follows the field name. S21 added regression
-// tests in sanitize_log_test.go — extending the keyword set requires a
-// matching test case there.
-var secretPattern = regexp.MustCompile(`(?i)(password|pass|secret|ha1)["']?\s*[:=]\s*("[^"]*"|[^,\s\}\)&]+)`)
-
-func SanitizeLogMessage(msg string) string {
-	return secretPattern.ReplaceAllString(msg, `$1=[redacted]`)
-}
+// SanitizeLogMessage delegates to internal/services/audit.SanitizeLogMessage.
+// External callers (cmd/shellyctl/main.go, internal/mcp, internal/api) keep
+// importing services.SanitizeLogMessage; the implementation lives in audit.
+func SanitizeLogMessage(msg string) string { return audit.SanitizeLogMessage(msg) }
 
 func BoundedConcurrency(value int) int {
 	switch {
