@@ -108,6 +108,14 @@ func main() {
 		panic(fmt.Sprintf("encryption key init failed: %v", err))
 	}
 
+	// T6 — surface OWASP-deprecated argon2id parameters once at startup
+	// so the operator gets a single clear line in the log instead of one
+	// on every login attempt. Action: rerun `shellyctl hash-password`
+	// against the same plaintext and update SHELLYADMIN_PASS_HASH.
+	if services.IsLegacyParameters(passHash) {
+		logger.Warn("admin password hash uses legacy argon2id parameters (OWASP 2023 defaults). Regenerate with `shellyctl hash-password` and update SHELLYADMIN_PASS_HASH before the next deployment.")
+	}
+
 	database, err := db.Open(dataDir)
 	if err != nil {
 		backupPath, backupErr := db.BackupDatabaseFile(dataDir)

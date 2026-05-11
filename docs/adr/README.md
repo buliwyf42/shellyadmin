@@ -23,3 +23,6 @@ Status key:
 - [ADR-0010 Per-Device Action Discovery via `Shelly.ListMethods`](./0010-per-device-action-discovery-via-listmethods.md) (`Accepted`)
 - [ADR-0011 Read-Only MCP Server (Embedded HTTP, Bearer-Token Gated)](./0011-mcp-read-only-server.md) (`Accepted`)
 - [ADR-0012 STRIDE Threat Model + Defense-in-Depth Posture](./0012-stride-threat-model.md) (`Accepted`)
+- [ADR-0013 Encryption Key Externalization Requirement](./0013-encryption-key-externalization.md) (`Accepted`)
+- [ADR-0014 MCP-Agent Threat Model + Prompt-Injection Defense](./0014-mcp-agent-threat-model.md) (`Accepted`)
+- [ADR-0015 Single-Instance-Only Operational Constraint](./0015-single-instance-constraint.md) (`Accepted`)
