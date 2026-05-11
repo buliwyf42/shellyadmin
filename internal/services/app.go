@@ -22,17 +22,28 @@ import (
 	"shellyadmin/internal/db"
 	"shellyadmin/internal/middleware"
 	"shellyadmin/internal/models"
+	"shellyadmin/internal/services/backup"
 	"shellyadmin/internal/services/credentials"
 	"shellyadmin/internal/services/jobs"
+	"shellyadmin/internal/services/loginlock"
 	"shellyadmin/internal/services/sessions"
+	"shellyadmin/internal/services/validation"
 )
 
 const (
-	MaxTemplateBytes = 64 * 1024
-	MaxJSONBytes     = 256 * 1024
-	maxProvisionIPs  = 256
-	maxSubnets       = 64
-	maxScanTargets   = 65534
+	// MaxJSONBytes is the per-request JSON payload cap on the API
+	// boundary. Kept services-side because handlers reference it.
+	MaxJSONBytes    = 256 * 1024
+	maxProvisionIPs = 256
+)
+
+// Backward-compat re-exports. Definitions live in
+// internal/services/validation; services.MaxTemplateBytes etc. stay
+// importable so internal/api and tests don't need touching.
+const (
+	MaxTemplateBytes = validation.MaxTemplateBytes
+	maxScanTargets   = validation.MaxScanTargets
+	MCPTokenRedacted = validation.MCPTokenRedacted
 )
 
 type AppService struct {
@@ -88,6 +99,18 @@ type AppService struct {
 	// AppService keeps a delegator per migrated method. See
 	// internal/services/app_jobs.go.
 	jobsSvc *jobs.Service
+
+	// backup owns operator-driven configuration export/import. Extracted to
+	// internal/services/backup in v0.3.0 (M7); delegators on
+	// AppService.ExportBackup / ImportBackup preserve the public surface —
+	// see internal/services/app_backup.go.
+	backup *backup.Service
+
+	// lock owns the per-account login-failure counter + lockout window
+	// (Q20). Extracted to internal/services/loginlock in v0.3.0 (M7);
+	// delegators preserve the IsAccountLocked / RecordLoginFailure /
+	// RecordLoginSuccess surface.
+	lock *loginlock.Service
 
 	// metrics is the Prometheus-format counter/gauge registry. nil for
 	// callers that don't wire it up (tests, MCP-only stdio mode); the
@@ -149,65 +172,39 @@ func NewAppService(database Store, dataDir string, logf func(ctx context.Context
 		cancel:          cancel,
 		sessions:        sessions.New(database),
 		creds:           credentials.New(database),
+		lock:            loginlock.New(database),
 	}
 	// jobs.Service needs two halves: Store (raw DB) and Host (AppService
 	// itself, supplying lifecycle + RPC factories). Wire after the rest of
 	// svc is built so the Host pointer is non-nil.
 	svc.jobsSvc = jobs.New(database, svc)
+	// backup.Service depends on credentials.Service.SaveGroup for the
+	// admin-mirror credential write. Constructed after creds so the
+	// GroupSaver pointer is non-nil.
+	svc.backup = backup.New(database, svc.creds, svc.Log)
 	return svc
 }
 
-// Account-lockout knobs (Q20). Triggered by RecordLoginFailure when the
-// rolling counter reaches LoginMaxFailures. The DB row's locked_until is
-// the authoritative timestamp; in-memory state would reset on container
-// restart, which the security review flagged as a bypass vector.
+// Backward-compat re-exports — implementations live in
+// internal/services/loginlock.
 const (
-	LoginMaxFailures = 20
-	LoginLockoutDur  = 15 * time.Minute
+	LoginMaxFailures = loginlock.MaxFailures
+	LoginLockoutDur  = loginlock.LockoutDur
 )
 
-// IsAccountLocked reports whether username is currently locked out from
-// login attempts. The returned time is the wall-clock instant the lockout
-// expires; meaningful only when locked == true.
+// IsAccountLocked delegates to loginlock.Service.IsLocked.
 func (s *AppService) IsAccountLocked(username string) (bool, time.Time) {
-	state, err := s.db.GetLoginState(username)
-	if err != nil || state.LockedUntil == "" {
-		return false, time.Time{}
-	}
-	until, err := time.Parse(time.RFC3339, state.LockedUntil)
-	if err != nil {
-		return false, time.Time{}
-	}
-	if time.Now().UTC().Before(until) {
-		return true, until
-	}
-	return false, time.Time{}
+	return s.lock.IsLocked(username)
 }
 
-// RecordLoginFailure increments the rolling failure counter for username.
-// At LoginMaxFailures consecutive failures the account is locked for
-// LoginLockoutDur. A successful login (RecordLoginSuccess) is the only
-// thing that resets the counter; an expired lockout does NOT reset it,
-// because the next failure should re-lock immediately.
+// RecordLoginFailure delegates to loginlock.Service.RecordFailure.
 func (s *AppService) RecordLoginFailure(username string) error {
-	state, err := s.db.GetLoginState(username)
-	if err != nil {
-		return err
-	}
-	state.Username = username
-	state.FailedCount++
-	nowStr := time.Now().UTC().Format(time.RFC3339)
-	state.LastFailedAt = nowStr
-	if state.FailedCount >= LoginMaxFailures {
-		state.LockedUntil = time.Now().UTC().Add(LoginLockoutDur).Format(time.RFC3339)
-	}
-	return s.db.SetLoginState(state)
+	return s.lock.RecordFailure(username)
 }
 
-// RecordLoginSuccess clears the failure counter and lockout window for
-// username so the next failure starts a fresh budget.
+// RecordLoginSuccess delegates to loginlock.Service.RecordSuccess.
 func (s *AppService) RecordLoginSuccess(username string) error {
-	return s.db.SetLoginState(db.LoginState{Username: username})
+	return s.lock.RecordSuccess(username)
 }
 
 // StartBackgroundWorkers spawns the long-lived background goroutines owned
@@ -858,17 +855,9 @@ func checkAuthRequired(ctx context.Context, ip string, timeout time.Duration) (b
 	return false, ""
 }
 
-// MCPTokenRedacted is the placeholder API GET handlers substitute for a
-// non-empty MCP token before returning settings to the SPA, and the value
-// SaveSettings interprets as "keep the existing token unchanged." Any
-// other value (including the empty string) replaces the stored token.
-const MCPTokenRedacted = "<set>"
-
-// mcpTokenPattern restricts MCP tokens to the URL-safe alphabet so both the
-// Authorization: Bearer and the /<token>/ path-form auth paths work. A "/"
-// in the token would split into multiple path segments and break path auth;
-// other URL-reserved chars (?, #, %) would need encoding the client may skip.
-var mcpTokenPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{16,128}$`)
+// MCP token validation now happens entirely inside
+// internal/services/validation.Settings; the local mcpTokenPattern alias
+// dropped along with the inline pattern match in v0.3.0 (M7).
 
 func (s *AppService) GetSettings() (models.AppSettings, error) {
 	settings, err := s.db.GetSettings()
@@ -1024,108 +1013,18 @@ func (s *AppService) maybeForwardAudit(ctx context.Context, level, msg string) {
 	s.forwardAudit(level, msg, reqID, risk, settings)
 }
 
-func sanitizeTags(tags []string) []string {
-	out := []string{}
-	seen := map[string]bool{}
-	for _, tag := range tags {
-		trimmed := strings.TrimSpace(tag)
-		if trimmed == "" || seen[trimmed] {
-			continue
-		}
-		seen[trimmed] = true
-		out = append(out, trimmed)
-	}
-	return out
-}
+// sanitizeTags moved with its callers to internal/services/credentials and
+// internal/services/backup (each holds a private copy). The function is no
+// longer needed in this file.
 
+// ValidateSettings delegates to internal/services/validation.Settings.
 func ValidateSettings(settings models.AppSettings) error {
-	settings.Normalize()
-	if len(settings.Subnets) > maxSubnets {
-		return fmt.Errorf("too many subnets configured")
-	}
-	if settings.ScanConcurrency < 1 || settings.ScanConcurrency > 256 {
-		return fmt.Errorf("scan concurrency must be between 1 and 256")
-	}
-	if settings.ScanTimeout < 0.2 || settings.ScanTimeout > 30 {
-		return fmt.Errorf("scan timeout must be between 0.2 and 30 seconds")
-	}
-	if settings.RefreshTimeout < 0.2 || settings.RefreshTimeout > 30 {
-		return fmt.Errorf("refresh timeout must be between 0.2 and 30 seconds")
-	}
-	total := 0
-	for _, subnet := range settings.Subnets {
-		ips, err := scanner.ExpandCIDR(subnet)
-		if err != nil {
-			return err
-		}
-		total += len(ips)
-	}
-	if settings.EnableMDNS {
-		total++
-	}
-	if total == 0 {
-		return errors.New("no scan targets configured; add at least one subnet in Settings or enable mDNS discovery")
-	}
-	if total > maxScanTargets {
-		return fmt.Errorf("scan target count %d exceeds limit %d", total, maxScanTargets)
-	}
-	if mode := settings.Compliance.WSTLSMode; mode != "" && mode != "no_validation" && mode != "default" && mode != "user" {
-		return fmt.Errorf("websocket tls mode must be no_validation, default, or user")
-	}
-	if settings.Compliance.RPCUDPPort != nil && *settings.Compliance.RPCUDPPort < 0 {
-		return fmt.Errorf("rpc udp port must be 0 or greater")
-	}
-	if lat := settings.Compliance.Lat; lat != nil && (*lat < -90 || *lat > 90) {
-		return fmt.Errorf("latitude must be between -90 and 90")
-	}
-	if lon := settings.Compliance.Lon; lon != nil && (*lon < -180 || *lon > 180) {
-		return fmt.Errorf("longitude must be between -180 and 180")
-	}
-	if settings.MCPEnabled && len(settings.MCPToken) < 16 {
-		return fmt.Errorf("mcp token must be at least 16 characters when MCP is enabled")
-	}
-	// T11 — webhook URL must be a valid absolute http(s) URL with a
-	// host. Empty disables the forwarder.
-	if err := validateWebhookURL(settings.AuditWebhookURL); err != nil {
-		return err
-	}
-	// MCP auth accepts the token either as Authorization: Bearer or as the
-	// first URL path segment. The path-form interprets "/" as a segment
-	// separator, so a token containing "/" (or other URL-reserved chars)
-	// breaks the path auth. Restrict to URL-safe charset to keep both
-	// transport forms working unconditionally.
-	if settings.MCPToken != "" && settings.MCPToken != MCPTokenRedacted {
-		if !mcpTokenPattern.MatchString(settings.MCPToken) {
-			return fmt.Errorf("mcp token must match [A-Za-z0-9_-]{16,128} (URL-safe alphabet, 16-128 chars)")
-		}
-	}
-	// Fail-fast on bad regex patterns in custom rules. Without this, a typo in
-	// the UI would silently classify every device as "mismatch" because the
-	// compile error is swallowed at evaluation time (compliance.go:checkOp).
-	for i, rule := range settings.Compliance.CustomRules {
-		if rule.Op != "regex" {
-			continue
-		}
-		if _, err := regexp.Compile(rule.Value); err != nil {
-			label := rule.Label
-			if label == "" {
-				label = fmt.Sprintf("#%d", i+1)
-			}
-			return fmt.Errorf("custom rule %q has invalid regex: %v", label, err)
-		}
-	}
-	return nil
+	return validation.Settings(settings)
 }
 
+// ValidateTemplate delegates to internal/services/validation.Template.
 func ValidateTemplate(template map[string]interface{}) error {
-	body, err := json.Marshal(template)
-	if err != nil {
-		return err
-	}
-	if len(body) > MaxTemplateBytes {
-		return fmt.Errorf("template exceeds %d bytes", MaxTemplateBytes)
-	}
-	return nil
+	return validation.Template(template)
 }
 
 // secretPattern matches the three forms credentials appear in our log

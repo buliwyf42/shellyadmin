@@ -4,13 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
 	"shellyadmin/internal/models"
+	"shellyadmin/internal/services/validation"
 )
 
 // AuditWebhookEvent is the JSON payload posted to operator-supplied
@@ -49,25 +48,10 @@ func shouldForward(level, minLevel string) bool {
 	return lvl >= floor
 }
 
-// validateWebhookURL accepts only absolute http(s) URLs with a host —
-// rejects file:// + relative paths + missing scheme so a typo in the
-// settings UI surfaces immediately rather than at first delivery.
-func validateWebhookURL(raw string) error {
-	if raw == "" {
-		return nil
-	}
-	u, err := url.Parse(raw)
-	if err != nil {
-		return fmt.Errorf("invalid webhook url: %w", err)
-	}
-	if u.Scheme != "http" && u.Scheme != "https" {
-		return fmt.Errorf("webhook url must be http:// or https://")
-	}
-	if u.Host == "" {
-		return fmt.Errorf("webhook url must include a host")
-	}
-	return nil
-}
+// validateWebhookURL delegates to internal/services/validation.WebhookURL.
+// Kept as an unexported wrapper so the audit_webhook_test.go suite (which
+// references this name) continues to compile.
+func validateWebhookURL(raw string) error { return validation.WebhookURL(raw) }
 
 // forwardAudit performs the webhook delivery. Runs on its own
 // goroutine so a slow / unreachable webhook does not block the
