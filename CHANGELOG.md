@@ -4,6 +4,64 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.8] - 2026-05-11 — Dep pin refresh (x/net CVE close, Alpine 3.19→3.21)
+
+Periodic dep pin review (originally scheduled ~2026-08-11, pulled
+forward today). Audit covered Go direct + indirect deps, npm packages,
+Docker base images, CI actions, and the Go toolchain. Two pins moved.
+
+### Changed
+
+- **`go.mod`** — `golang.org/x/net` v0.51.0 → **v0.54.0** and
+  `golang.org/x/crypto` v0.48.0 → **v0.51.0**. `go mod tidy` pulled
+  transitive bumps of `golang.org/x/sys` (v0.41→v0.44) and
+  `golang.org/x/text` (v0.35→v0.37). The `go` directive stayed at
+  `1.25.0` — verified with the CLAUDE.md dep-bump-trap check
+  (`go list -m … | sort -V -r | head` highest required = `1.25.0`),
+  so CI / Dockerfile / `go.mod` remain in sync. No source changes.
+- **`docker/Dockerfile:20`** — runtime base `alpine:3.19` → **`alpine:3.21`**.
+  Alpine 3.19 reached end-of-community-support in November 2025 and no
+  longer receives apk security updates. 3.21 (Dec 2024 release) is
+  supported through November 2026 — the minimum jump that gets the
+  runtime back inside the support window. Build stage (`golang:1.25-alpine`
+  matched to `go.mod`) and frontend build stage (`node:20-alpine`,
+  build-only) are unchanged.
+
+### Security
+
+- Closes **GO-2026-4918** (HTTP/2 transport infinite loop on bad
+  `SETTINGS_MAX_FRAME_SIZE` frame in `golang.org/x/net`). `govulncheck`
+  before the bump reported the vuln in `golang.org/x/net@v0.51.0` as
+  "imported but not called" (no reachable call site in ShellyAdmin
+  code); after the bump it reports `No vulnerabilities found.`. Defense
+  in depth — we did not have a known reachable path, but the fix is now
+  in the binary regardless.
+
+### Audited but unchanged
+
+- Other direct Go deps (`gin v1.12.0`, `gin-contrib/sessions v1.1.0`,
+  `modelcontextprotocol/go-sdk v1.6.0`, `modernc.org/sqlite v1.34.5`,
+  `lumberjack.v2 v2.2.1`) — all on current versions.
+- Frontend npm — `npm outdated --json` returned `{}` (the v0.2.0
+  major sweep plus the v0.2.7 oxc swap left us caught up).
+- CI actions — `actions/checkout@v6`, `actions/setup-go@v6`,
+  `actions/setup-node@v6`, `golangci/golangci-lint-action@v9` (v2.6)
+  all on current majors.
+- Go toolchain — left at 1.25 to match `go.mod`; pre-emptive 1.26
+  bump deferred until a forcing function.
+- `shellyctl` CLI (pre-v1) — still on backlog, not in this release.
+
+### Verification
+
+- Backend: `go vet ./...`, `golangci-lint run` (v2.6), `go test ./...`
+  all green on the bumped deps.
+- Vuln scan: `govulncheck ./...` clean post-bump.
+- Frontend: `npx prettier --check .`, `npx eslint src/`, `npx vite build`,
+  `npm test`, `npm run check:bundle-size` all green; bundle size
+  unchanged (no frontend deltas).
+- Docker: `docker build` on `alpine:3.21` produces a working image
+  carrying the new `shellyctl` binary.
+
 ## [0.2.7] - 2026-05-11 — Vite oxc minifier (drop esbuild devDep)
 
 Closes the v0.2.0 tech-debt item: vite 8 made `oxc` the default

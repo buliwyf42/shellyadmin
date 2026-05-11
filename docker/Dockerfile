@@ -17,7 +17,7 @@ COPY --from=frontend /app/web/dist ./cmd/shellyctl/dist
 RUN V=${VERSION:-$(cat VERSION 2>/dev/null || echo "dev")} && \
     go build -ldflags="-s -w -X main.AppVersion=${V} -X main.CommitHash=${VCS_REF}" -o /shellyadmin ./cmd/shellyctl
 
-FROM alpine:3.19
+FROM alpine:3.21
 RUN apk add --no-cache ca-certificates tzdata su-exec
 RUN addgroup -S shelly && adduser -S -G shelly -h /app shelly
 RUN mkdir -p /data /tmp /app
