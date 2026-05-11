@@ -232,4 +232,84 @@ describe('api client', () => {
       expect(e.message).toMatch(/expected JSON/i);
     }
   });
+
+  // S16 from the consolidated review — lock in the high-blast-radius
+  // mutation paths (bulk reboot, firmware update, provision). Each
+  // exercises the CSRF + body-shape contract that the corresponding
+  // page (Devices.svelte / Firmware.svelte / Provision.svelte) relies
+  // on. A regression that breaks the request body silently here would
+  // show up in production as "reboot did nothing".
+
+  it('bulk reboot sends action+macs body with CSRF header', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        calls.push({ input, init });
+        const path = typeof input === 'string' ? input : input.toString();
+        if (path === '/api/csrf-token') {
+          return jsonResponse({ csrf_token: 'tok' });
+        }
+        if (path === '/api/bulk') {
+          return jsonResponse({
+            dry_run: false,
+            results: [{ mac: 'AA:BB:CC:DD:EE:01', status: 'ok' }],
+          });
+        }
+        throw new Error('unexpected: ' + path);
+      }),
+    );
+    const res = await api.bulk({ action: 'reboot', macs: ['AA:BB:CC:DD:EE:01'] });
+    expect(res.results[0].status).toBe('ok');
+    const bulk = calls.find((c) => (typeof c.input === 'string' ? c.input : '') === '/api/bulk');
+    expect(bulk).toBeDefined();
+    const body = JSON.parse(bulk!.init!.body as string);
+    expect(body.action).toBe('reboot');
+    expect(body.macs).toEqual(['AA:BB:CC:DD:EE:01']);
+    expect(body.dry_run).toBe(false);
+    const headers = bulk!.init!.headers as Record<string, string>;
+    expect(headers['X-CSRF-Token']).toBe('tok');
+  });
+
+  it('firmwareUpdate carries stage in body, not query', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        calls.push({ input, init });
+        const path = typeof input === 'string' ? input : input.toString();
+        if (path === '/api/csrf-token') {
+          return jsonResponse({ csrf_token: 'tok' });
+        }
+        if (path === '/api/firmware/update') {
+          return jsonResponse({ status: 'started', job_id: 42, total: 1 });
+        }
+        throw new Error('unexpected: ' + path);
+      }),
+    );
+    const res = await api.firmwareUpdate(['AA'], 'beta');
+    expect(res.job_id).toBe(42);
+    const fw = calls.find(
+      (c) => (typeof c.input === 'string' ? c.input : '') === '/api/firmware/update',
+    );
+    const body = JSON.parse(fw!.init!.body as string);
+    expect(body.stage).toBe('beta');
+    expect(body.macs).toEqual(['AA']);
+  });
+
+  it('previewBulk forces dry_run=true regardless of caller', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        calls.push({ input, init });
+        const path = typeof input === 'string' ? input : input.toString();
+        if (path === '/api/csrf-token') return jsonResponse({ csrf_token: 'tok' });
+        if (path === '/api/bulk')
+          return jsonResponse({ dry_run: true, preview: { eligible: [], skipped: [] } });
+        throw new Error('unexpected: ' + path);
+      }),
+    );
+    await api.previewBulk({ action: 'reboot', macs: ['AA'] });
+    const bulk = calls.find((c) => (typeof c.input === 'string' ? c.input : '') === '/api/bulk');
+    const body = JSON.parse(bulk!.init!.body as string);
+    expect(body.dry_run).toBe(true);
+  });
 });
