@@ -70,6 +70,11 @@ type Store interface {
 	GetLoginState(username string) (db.LoginState, error)
 	SetLoginState(state db.LoginState) error
 
+	// TOTP 2FA (T1, v0.3.0)
+	GetTOTP(username string) (db.TOTPState, error)
+	SetTOTP(state db.TOTPState) error
+	DeleteTOTP(username string) error
+
 	// Audit-log retention + chain verification (S1+S2)
 	PruneAuditLogOlderThan(cutoff time.Time) (int64, error)
 	VerifyAuditChain() (int64, error)

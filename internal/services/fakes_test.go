@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"testing"
 	"time"
@@ -112,6 +113,12 @@ func (f *fakeStore) ClearLogs() (int64, error) { return 0, errUnimplemented }
 
 func (f *fakeStore) GetLoginState(string) (db.LoginState, error) { return db.LoginState{}, nil }
 func (f *fakeStore) SetLoginState(db.LoginState) error           { return nil }
+
+func (f *fakeStore) GetTOTP(string) (db.TOTPState, error) {
+	return db.TOTPState{}, sql.ErrNoRows
+}
+func (f *fakeStore) SetTOTP(db.TOTPState) error { return nil }
+func (f *fakeStore) DeleteTOTP(string) error    { return nil }
 
 func (f *fakeStore) PruneAuditLogOlderThan(time.Time) (int64, error) { return 0, nil }
 func (f *fakeStore) VerifyAuditChain() (int64, error)                { return 0, nil }
