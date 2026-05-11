@@ -53,8 +53,12 @@ type ListDevicesInput struct {
 }
 
 type ListDevicesOutput struct {
-	Devices []models.Device `json:"devices"`
-	Total   int             `json:"total"`
+	// Devices is returned in the slim DeviceListView shape (M8 — drops
+	// supported_methods + batch + fw_id + consecutive_misses +
+	// mqtt_flags_na). Callers that need those fields should follow up
+	// with get_device, which still returns the full Device.
+	Devices []models.DeviceListView `json:"devices"`
+	Total   int                     `json:"total"`
 }
 
 func filterDevices(in []models.Device, q ListDevicesInput) []models.Device {
@@ -100,7 +104,7 @@ func registerDeviceTools(server *mcp.Server, svc *services.AppService) {
 			return ListDevicesOutput{}, err
 		}
 		filtered := filterDevices(devices, in)
-		return ListDevicesOutput{Devices: filtered, Total: len(filtered)}, nil
+		return ListDevicesOutput{Devices: models.ToListViews(filtered), Total: len(filtered)}, nil
 	}))
 
 	mcp.AddTool(server, &mcp.Tool{

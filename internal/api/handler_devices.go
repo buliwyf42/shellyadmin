@@ -7,18 +7,21 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"shellyadmin/internal/models"
 	"shellyadmin/internal/services"
 )
 
-// GetDevices returns the full fleet inventory with compliance verdicts
-// stamped per device.
+// GetDevices returns the fleet inventory as the slim DeviceListView shape
+// (M8 — docs/plans/phase-4b-refactor-block.md Block 4b.2). Compliance
+// verdicts + per-component counts are stamped on the underlying
+// models.Device by AppService.GetDevices() before the projection runs.
 func (h *Handler) GetDevices(c *gin.Context) {
 	devices, err := h.service.GetDevices()
 	if err != nil {
 		h.respondError(c, http.StatusInternalServerError, "internal error", err)
 		return
 	}
-	c.JSON(http.StatusOK, devices)
+	c.JSON(http.StatusOK, models.ToListViews(devices))
 }
 
 // GetDeviceDetail returns the full per-device detail (raw config +
@@ -62,19 +65,19 @@ func (h *Handler) ExecuteDeviceAction(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-// RefreshDevices kicks off a refresh of every known device. Returns
-// the updated inventory once the job completes.
+// RefreshDevices kicks off a refresh of every known device. Returns the
+// updated inventory (DeviceListView shape) once the job completes.
 func (h *Handler) RefreshDevices(c *gin.Context) {
 	devices, err := h.service.RefreshDevices(c.Request.Context())
 	if err != nil {
 		h.respondError(c, http.StatusInternalServerError, "internal error", err)
 		return
 	}
-	c.JSON(http.StatusOK, devices)
+	c.JSON(http.StatusOK, models.ToListViews(devices))
 }
 
 // RefreshDevice refreshes a single device. Target accepts MAC, IP, or
-// device name.
+// device name. Returns the post-refresh inventory in DeviceListView shape.
 func (h *Handler) RefreshDevice(c *gin.Context) {
 	var req struct {
 		Target string `json:"target"`
@@ -88,7 +91,7 @@ func (h *Handler) RefreshDevice(c *gin.Context) {
 		h.respondUserError(c, http.StatusBadRequest, err)
 		return
 	}
-	c.JSON(http.StatusOK, devices)
+	c.JSON(http.StatusOK, models.ToListViews(devices))
 }
 
 // ForgetDevice removes a device row from the inventory entirely. The
