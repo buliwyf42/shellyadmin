@@ -10,7 +10,8 @@ Security fixes are best-effort while the project is in active early development.
 
 | Version                                    | Supported   | Notes                                                                                                                                 |
 | ------------------------------------------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `v0.2.6`                                   | Yes         | Current baseline. Zigbee operations form (UI-only; write-mostly).                                                                     |
+| `v0.2.7`                                   | Yes         | Current baseline. Vite oxc minifier swap + drop `esbuild` devDep (build-tooling only; no runtime change).                             |
+| `v0.2.6`                                   | Best effort | Zigbee operations form (UI-only; write-mostly).                                                                                       |
 | `v0.2.5`                                   | Best effort | Cover (slat-tilt) provisioner form (UI-only).                                                                                         |
 | `v0.2.4`                                   | Best effort | Webhooks provisioner form (UI-only).                                                                                                  |
 | `v0.2.3`                                   | Best effort | MCP `shellyctl mcp` stdio subcommand + `firmware_status` paging.                                                                      |

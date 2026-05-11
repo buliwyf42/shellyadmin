@@ -24,10 +24,11 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    // Vite 8 made oxc the default minifier and unbundled esbuild. Pinning
-    // esbuild here preserves byte-for-byte output across the v6→v8 jump;
-    // revisit `minify: 'oxc'` as a separate task to drop the esbuild devDep.
-    minify: 'esbuild',
+    // Vite 8 made oxc the default minifier and unbundled esbuild. v0.2.7
+    // adopted oxc to drop the esbuild devDep (added in v0.2.0 just to keep
+    // byte-stable output across the v6→v8 rolldown jump). oxc is also
+    // rolldown's native transformer, so the build pipeline is single-tooled.
+    minify: 'oxc',
     target: 'es2020',
     cssMinify: true,
     reportCompressedSize: true,

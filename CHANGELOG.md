@@ -4,6 +4,40 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-05-11 — Vite oxc minifier (drop esbuild devDep)
+
+Closes the v0.2.0 tech-debt item: vite 8 made `oxc` the default
+minifier and unbundled `esbuild`. v0.2.0 pinned `minify: 'esbuild'` +
+the `esbuild` devDep just to keep byte-stable build output across the
+v6→v8 rolldown jump. The "esbuild as a separate devDep" was the
+cleanup item; this release does it.
+
+### Changed
+
+- **`web/vite.config.ts`** — `minify: 'esbuild'` → `minify: 'oxc'`.
+  oxc is rolldown's native transformer (rolldown is vite 8's bundler),
+  so the build pipeline is single-tooled now. Comment updated to
+  document the swap.
+- **`esbuild` removed from `web/package.json` devDependencies**. It was
+  added in v0.2.0 only to keep the deprecated `transformWithEsbuild`
+  path working.
+
+### Bundle impact
+
+oxc actually shrinks this codebase's output a bit:
+- JS raw: 321.95 → **309.18 kB** (-12.77 kB / -4%)
+- JS gzip: 89.16 → **81.10 kB** (-8.06 kB / -9%)
+
+Bundle budgets tightened from 328/92 KB → 320/86 KB to leave ~5%
+headroom on the new baseline rather than carrying the v0.2.6 ceiling.
+
+### Verification
+
+- Local build with oxc minifier produces a working bundle (vite v8.0.11,
+  195 modules transformed, no warnings).
+- All 54 vitest cases still pass.
+- Frontend lint, prettier, Go test, golangci-lint all green.
+
 ## [0.2.6] - 2026-05-11 — Zigbee operations form (write-mostly)
 
 Closes the third "no first-class UI for X" gap. Direct ZCL operations
