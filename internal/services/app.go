@@ -22,6 +22,8 @@ import (
 	"shellyadmin/internal/db"
 	"shellyadmin/internal/middleware"
 	"shellyadmin/internal/models"
+	"shellyadmin/internal/services/credentials"
+	"shellyadmin/internal/services/sessions"
 )
 
 const (
@@ -66,6 +68,18 @@ type AppService struct {
 	// been called. nil for tests / callers that never wire MCP up;
 	// see internal/services/app_mcp.go for the controller type.
 	mcp *MCPController
+
+	// sessions owns server-side session row lifecycle (issue, revoke,
+	// validate). Extracted to internal/services/sessions in v0.3.0 (M7);
+	// delegators on AppService preserve the public surface — see
+	// internal/services/sessions.go.
+	sessions *sessions.Service
+
+	// creds owns credential + credential-group + per-device-assignment
+	// CRUD. Extracted to internal/services/credentials in v0.3.0 (M7);
+	// delegators on AppService preserve the public surface — see
+	// internal/services/app_credentials.go.
+	creds *credentials.Service
 
 	// metrics is the Prometheus-format counter/gauge registry. nil for
 	// callers that don't wire it up (tests, MCP-only stdio mode); the
@@ -125,6 +139,8 @@ func NewAppService(database Store, dataDir string, logf func(ctx context.Context
 		activeFirmware:  map[string]bool{},
 		ctx:             ctx,
 		cancel:          cancel,
+		sessions:        sessions.New(database),
+		creds:           credentials.New(database),
 	}
 }
 
