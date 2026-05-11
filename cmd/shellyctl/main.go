@@ -26,6 +26,7 @@ import (
 	"shellyadmin/internal/mcp"
 	"shellyadmin/internal/observability"
 	"shellyadmin/internal/services"
+	"shellyadmin/internal/services/runtimelock"
 )
 
 //go:embed all:dist
@@ -44,6 +45,9 @@ func main() {
 			return
 		case "mcp":
 			runMCPStdio()
+			return
+		case "unlock":
+			runUnlock(os.Args[2:])
 			return
 		}
 	}
@@ -126,6 +130,36 @@ func main() {
 	}
 	defer database.Close()
 	_ = database.MarkRunningJobsInterrupted()
+
+	// ADR-0015 — claim the single-instance primary lock. Refuses to
+	// start when another container is alive on the same SQLite file
+	// (the heartbeat-fresh row is the "alive" signal). A stale row
+	// (5+ minutes without heartbeat — kill-9'd previous container)
+	// is taken over automatically. Operators who don't want to wait
+	// out the staleness window can run `shellyctl unlock --force`.
+	lock := runtimelock.New(database)
+	lockCtx, lockCancel := context.WithCancel(context.Background())
+	defer lockCancel()
+	if err := lock.Acquire(lockCtx); err != nil {
+		panic(fmt.Sprintf("runtime lock: %v", err))
+	}
+	lock.StartHeartbeat(lockCtx, func(hbErr error) {
+		// A heartbeat failure is logged but not fatal — the SQLite
+		// write may have lost a single tick (busy timeout, brief
+		// disk hiccup) and the next tick recovers. A sustained
+		// failure means the row will go stale; ADR-0015 treats
+		// that as "this container is wedged, another can take
+		// over". We surface the error so operators see it in
+		// `docker logs` if it persists.
+		slog.Warn("runtime lock heartbeat failed", "err", hbErr)
+	})
+	defer func() {
+		releaseCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := lock.Release(releaseCtx); err != nil {
+			slog.Warn("runtime lock release failed", "err", err)
+		}
+	}()
 
 	// Single shared AppService — backs HTTP handlers, background workers,
 	// AND the MCP listener so SaveSettings can reconcile live state in
@@ -261,14 +295,31 @@ func runHashPassword(args []string) {
 }
 
 // loadEncryptionKey resolves the at-rest encryption key used for credential
-// password/ha1 columns. Resolution order:
-//  1. SHELLYADMIN_ENCRYPTION_KEY or SHELLYADMIN_ENCRYPTION_KEY_FILE — base64
-//     of a 32-byte key (operator-managed).
-//  2. {dataDir}/shellyadmin.key — a previously generated key file, 0600.
-//  3. Otherwise generate a fresh key, write it to {dataDir}/shellyadmin.key
-//     with 0600 perms, and log a warning so operators know to back it up.
+// password/ha1 columns. v0.3.0 closes the S6 deprecation window: an
+// operator-supplied key is REQUIRED. Resolution order:
+//
+//  1. SHELLYADMIN_ENCRYPTION_KEY — base64 of a 32-byte key. The
+//     DecodeSecretValue helper also accepts SHELLYADMIN_ENCRYPTION_KEY_FILE
+//     pointing at a file whose trimmed contents are the base64 string
+//     (Docker secret pattern, Kubernetes secret-as-volume, etc.).
+//  2. Anything else → hard fail with an actionable error pointing at
+//     the migration recipe.
+//
+// The v0.2.x auto-generation-next-to-the-database fallback is GONE.
+// Operators upgrading from v0.2.x must copy the existing key out of
+// {dataDir}/shellyadmin.key, store it in their secrets manager / Docker
+// secret / NixOS secret store, and set SHELLYADMIN_ENCRYPTION_KEY_FILE
+// to the new path before starting v0.3.0. The dataDir copy can stay
+// on disk as a rollback safety net but is no longer consulted.
+//
+// Why: the at-rest encryption defends against an offline DB exfil
+// (stolen backup, container escape reading /data, misconfigured
+// volume). When the key lives ON the same volume, a volume snapshot
+// leaks BOTH halves of the envelope — the encryption is ceremonial.
+// External key management closes that.
 func loadEncryptionKey(dataDir string, logger *slog.Logger) error {
-	if raw := services.DecodeSecretValue("SHELLYADMIN_ENCRYPTION_KEY"); raw != "" {
+	raw := services.DecodeSecretValue("SHELLYADMIN_ENCRYPTION_KEY")
+	if raw != "" {
 		key, err := base64.StdEncoding.DecodeString(raw)
 		if err != nil {
 			return fmt.Errorf("SHELLYADMIN_ENCRYPTION_KEY is not valid base64: %w", err)
@@ -280,49 +331,24 @@ func loadEncryptionKey(dataDir string, logger *slog.Logger) error {
 		return nil
 	}
 
-	keyPath := filepath.Join(dataDir, "shellyadmin.key")
-	if body, err := os.ReadFile(keyPath); err == nil {
-		key, decErr := base64.StdEncoding.DecodeString(strings.TrimSpace(string(body)))
-		if decErr != nil {
-			return fmt.Errorf("%s: %w", keyPath, decErr)
-		}
-		if err := secretbox.SetKey(key); err != nil {
-			return err
-		}
-		logger.Info("encryption key loaded from file", "path", keyPath)
-		return nil
-	} else if !os.IsNotExist(err) {
-		return fmt.Errorf("%s: %w", keyPath, err)
+	// S6 (v0.3.0) — no env key set. Refuse to start. Hint at the
+	// existing on-disk file if there is one so the operator's recovery
+	// path is one `cat` away from set.
+	legacyPath := filepath.Join(dataDir, "shellyadmin.key")
+	legacyHint := ""
+	if _, err := os.Stat(legacyPath); err == nil {
+		legacyHint = fmt.Sprintf(
+			" An auto-generated key from v0.2.x is still present at %s; copy its contents "+
+				"to your secrets store and set SHELLYADMIN_ENCRYPTION_KEY_FILE to point at the new path.",
+			legacyPath,
+		)
 	}
-
-	// S6 — Phase 2 (v0.2.11) emits a deprecation warning when no
-	// external key is provided and we fall back to auto-generating
-	// one alongside the database. Phase 4 (v0.3.0) will turn this
-	// into a hard error: storing the key on the same volume as the
-	// DB means a volume snapshot exfiltrates both, defeating the
-	// at-rest encryption. The two-version deprecation window gives
-	// operators time to migrate their `.env` to set
-	// SHELLYADMIN_ENCRYPTION_KEY_FILE before the breaking change.
-	fresh, err := secretbox.GenerateKey()
-	if err != nil {
-		return err
-	}
-	encoded := base64.StdEncoding.EncodeToString(fresh)
-	if err := os.WriteFile(keyPath, []byte(encoded+"\n"), 0o600); err != nil {
-		return fmt.Errorf("write %s: %w", keyPath, err)
-	}
-	if err := secretbox.SetKey(fresh); err != nil {
-		return err
-	}
-	logger.Warn(
-		"DEPRECATED: encryption key auto-generated next to the database. "+
-			"v0.3.0 will refuse to start without an external key. "+
-			"Move the file to a separate volume or set SHELLYADMIN_ENCRYPTION_KEY / "+
-			"SHELLYADMIN_ENCRYPTION_KEY_FILE before upgrading.",
-		"path", keyPath,
-		"deprecation_window", "v0.2.11 warn, v0.3.0 hard-fail",
+	return fmt.Errorf(
+		"S6: encryption key not configured. Set SHELLYADMIN_ENCRYPTION_KEY (base64 of a "+
+			"32-byte key) or SHELLYADMIN_ENCRYPTION_KEY_FILE (path to that base64 string). "+
+			"See docs/adr/0013-encryption-key-externalization.md for the migration recipe.%s",
+		legacyHint,
 	)
-	return nil
 }
 
 func resolveBackendVersion() string {
@@ -397,4 +423,43 @@ func gitOutput(args ...string) string {
 		return ""
 	}
 	return strings.TrimSpace(string(out))
+}
+
+// runUnlock is the `shellyctl unlock --force` subcommand. Clears the
+// runtime_locks `primary` row regardless of acquired_at freshness so
+// an operator who knows the previous container died can recover
+// without waiting the 5-minute staleness window. Idempotent — running
+// it when no row exists is a successful no-op.
+//
+// Refuses to run without --force to avoid a stray invocation
+// invalidating an actively-running instance.
+func runUnlock(args []string) {
+	force := false
+	for _, arg := range args {
+		switch arg {
+		case "--force", "-f":
+			force = true
+		default:
+			fmt.Fprintf(os.Stderr, "unknown arg: %q\n", arg)
+			fmt.Fprintln(os.Stderr, "usage: shellyctl unlock --force")
+			os.Exit(2)
+		}
+	}
+	if !force {
+		fmt.Fprintln(os.Stderr, "usage: shellyctl unlock --force")
+		fmt.Fprintln(os.Stderr, "Refusing without --force; an active container's lock would be cleared.")
+		os.Exit(2)
+	}
+	dataDir := getenv("DATA_DIR", "./data")
+	database, err := db.Open(dataDir)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "database open:", err)
+		os.Exit(1)
+	}
+	defer database.Close()
+	if err := runtimelock.ForceClear(database); err != nil {
+		fmt.Fprintln(os.Stderr, "force clear:", err)
+		os.Exit(1)
+	}
+	fmt.Println("runtime lock cleared")
 }
