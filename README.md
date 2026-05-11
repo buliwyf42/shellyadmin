@@ -90,6 +90,9 @@ Use strong secrets for real installs. The `COOKIE_SECURE=false` example above is
   - full `Wifi.SetConfig` surface: primary STA, secondary STA (STA1), roaming (RSSI threshold, interval), static IPv4 per STA
   - Script section (per-id loop), UI.SetConfig, Ethernet IPv6/DNS
   - `auto_update` section (off / stable / beta) — synthesised onto the device as a `Schedule.*` job
+  - **Webhooks** form (v0.2.4): `delete_all` toggle, delete-by-id, new-webhook entries (cid/event/name/enable/URLs)
+  - **Cover** form (v0.2.5): id, name, maxtime open/close, swap_inputs, power_limit, and the FW 2.0.0-beta1 `slat` sub-object for venetian-blind tilt
+  - **Zigbee operations** form (v0.2.6): write-mostly cards for `Zigbee.SendCommand` / `Zigbee.ReadAttr` / `Zigbee.WriteAttr`, generates a `gen2_rpc` template section
   - `restart_required` badge per device in results; "Reboot restart-required devices" button
 - Auth Groups page:
   - groups contain their own auth credentials (`username`, `password`/`ha1`, tags)
