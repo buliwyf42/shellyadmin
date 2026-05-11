@@ -4,6 +4,118 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.10] - 2026-05-11 — Phase 1 security hardening (consolidated review)
+
+Three-PR security-hardening sprint shipping the Phase 1 quick wins
+from the consolidated architecture + security review. The review
+abandoned the "trusted LAN" assumption — these changes harden the
+SPA-cookie-session attack path and the supply chain against a
+compromised IoT device on the same subnet. No breaking API
+changes; one operational note for MCP-exposing operators.
+
+### Added
+
+- **`.github/dependabot.yml`** — weekly gomod + npm + GitHub-Actions,
+  monthly Docker base-image updates. Closes the supply-chain
+  blindspot the review flagged (E5).
+- **`govulncheck ./...`** as a CI job in `test.yml` (Go-vulnerability
+  database). Fails the build on known-vulnerable transitive deps.
+- **`npm audit --omit=dev --audit-level=high`** as a CI step on the
+  frontend job. Production-dep-only — devDeps are accepted upstream
+  noise.
+- **MCP-token format validation** at `SaveSettings` — restricted to
+  `[A-Za-z0-9_-]{16,128}`. A `/` in the token would silently break
+  the URL-path MCP auth form; other URL-reserved chars would need
+  encoding the client may skip.
+- **Account-lockout** (`internal/db/migrations/025_login_state.sql`
+  + `services.AppService` + `internal/api/handler.go`): after 20
+  consecutive failed logins the account locks for 15 min. State
+  persists in SQLite, so killing the container does not reset it.
+  Returns `423 Locked` + `Retry-After` header.
+- **Snapshot test** for `GET /api/settings → MCPToken == "<set>"`
+  to lock in the redaction contract.
+- **Login regression tests** (6) — happy path, wrong password,
+  wrong username, lockout-after-N, unlock-on-success, timing-
+  flatness check that catches >20 ms gaps between wrong-user and
+  wrong-password paths.
+
+### Changed
+
+- **All GitHub Actions SHA-pinned** in both `test.yml` and
+  `publish-image.yml` with the tag preserved as a comment.
+  Closes the `tj-actions/changed-files`-style maintainer-compromise
+  window (E1 in the review).
+- **Dockerfile base images digest-pinned** —
+  `node:20-alpine@sha256:fb4cd1…`,
+  `golang:1.25-alpine@sha256:8d22e2…`,
+  `alpine:3.21@sha256:48b030…`. Docker Hub tag-pivot can no longer
+  slip into a release build. Dependabot's `docker`-ecosystem will
+  bump these weekly.
+- **`npm ci --ignore-scripts`** in the frontend build stage —
+  blocks malicious postinstall hooks in compromised npm deps.
+- **SQLite DSN** now applies `_pragma=foreign_keys(on)`,
+  `busy_timeout(5000)`, `journal_mode(WAL)` per-connection. Closes
+  the silent FK-not-enforced gap that the review flagged (S2/S3) —
+  migrations declare FKs but SQLite needs the pragma per
+  connection. Write contention now backs off for 5 s instead of
+  failing immediately.
+- **`SHELLYADMIN_MCP_BIND` defaults to `127.0.0.1`** (was
+  `0.0.0.0`). MCP-token-only auth warrants the tighter default.
+  **Operator note:** Dockhand / compose stacks that map
+  `:8101→:8081` from the host must now set
+  `SHELLYADMIN_MCP_BIND=0.0.0.0` in the stack `.env`; otherwise
+  the listener is unreachable.
+- **Cookie `SameSite`** Lax → Strict. Cross-site top-level GETs
+  no longer attach the session cookie. Following an external
+  link into ShellyAdmin requires a fresh sign-in on that tab.
+- **CSRF token no longer echoed** as the `X-CSRF-Token` response
+  header on every authenticated GET. Previously a single XSS sink
+  in the SPA could grab the token via
+  `fetch('/api/devices').then(r => r.headers.get('X-CSRF-Token'))`.
+  The token now flows only through the login response body and
+  the dedicated `GET /api/csrf-token` endpoint. Frontend updated
+  to match.
+- **Login-handler timing-oracle closed** — argon2id verification
+  always runs, even on username mismatch. Pre-fix the
+  short-circuit `||` skipped the ~80 ms hash check on a wrong
+  username, letting an attacker enumerate valid usernames by
+  response timing.
+- **slog now multi-writes** to the lumberjack file sink + stderr.
+  Cluster log collectors (Loki, docker-logs, k8s log streams)
+  finally see the structured JSON that previously lived only in
+  the volume's `shellyctl.log`.
+- **`gin.Default()` → `gin.New()` + custom `StructuredLogger`
+  middleware**. Request lines flow through slog (same sink as
+  audit), query strings are stripped from logged paths, request
+  IDs are correlated.
+- **`r.NoMethod`** returns JSON for `/api/*` paths instead of
+  gin's default HTML 405 page, mirroring the existing
+  `r.NoRoute` JSON-for-API behaviour.
+- **`shellyctl hash-password <plain>`** emits a stderr warning
+  about argv leaking via `ps`/shell history/container logs.
+  Stdin form is unchanged and preferred.
+- **`CLAUDE.md`** `SHELLYADMIN_USER`-drift fix — variable still
+  exists and defaults to `admin`. Only `SHELLYADMIN_PASS`
+  plaintext was removed in v0.2.0, not the user concept.
+- **`.golangci.yml`** `go: "1.24" → "1.25"`. CI Go-version has
+  been 1.25 since the v0.1.16 floor bump.
+
+### Security
+
+The review identified the most realistic attack path as
+"compromised IoT device on the LAN brute-forces the SPA login";
+account-lockout + timing-oracle closure + Strict cookies +
+no-header CSRF together raise that bar from "~10 min Top-1k
+wordlist" to "no programmatic path without 2FA". The supply-chain
+hardening (SHA-pinned actions, digest-pinned base images,
+`govulncheck`, `npm audit`, Dependabot) closes the highest-impact
+long-tail (compromised image-build pipeline) that the review
+rated as the worst-case single-event scenario.
+
+Phase 2 (Cosign image signing, audit-log retention + hash-chain,
+server-side session store with revocation, externalised
+encryption-key requirement) is queued behind this release.
+
 ## [0.2.9] - 2026-05-11 — Deploy docs + WebhooksForm a11y fix
 
 Housekeeping pair: the v0.2.8 deploy this morning moved production
