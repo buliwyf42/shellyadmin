@@ -41,6 +41,7 @@ func TestDocumentedAPIRoutesMatchExpectedRouteSet(t *testing.T) {
 		http.MethodGet + " /api/settings",
 		http.MethodGet + " /api/templates",
 		http.MethodGet + " /api/templates/{name}",
+		http.MethodGet + " /api/totp/status",
 		http.MethodGet + " /api/version",
 		http.MethodGet + " /health",
 		http.MethodGet + " /ready",
@@ -63,6 +64,9 @@ func TestDocumentedAPIRoutesMatchExpectedRouteSet(t *testing.T) {
 		http.MethodPost + " /api/scan/start",
 		http.MethodPost + " /api/settings",
 		http.MethodPost + " /api/templates/{name}",
+		http.MethodPost + " /api/totp/disable",
+		http.MethodPost + " /api/totp/enroll",
+		http.MethodPost + " /api/totp/verify-enroll",
 	}
 	sort.Strings(want)
 

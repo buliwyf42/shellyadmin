@@ -2,8 +2,10 @@ package api
 
 import (
 	"crypto/subtle"
+	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-contrib/sessions"
@@ -16,10 +18,19 @@ import (
 // argon2id PHC hash, issues a server-side session row (S5), and returns
 // the CSRF nonce in the response body. Failed attempts feed the
 // per-account lockout counter (Q20); account-locked responses use 423.
+//
+// TOTP 2FA gate (T1, v0.3.0): when the operator has an active
+// totp_state row, password-only auth is refused. An empty totp_code
+// returns 401 `{"error": "totp_required"}` so the SPA can show the
+// second-step prompt; a wrong code returns 401
+// `{"error": "invalid_totp_code"}` AND bumps the lockout counter so
+// brute-forcing the 6-digit code is bounded by the same
+// LoginMaxFailures budget as the password.
 func (h *Handler) Login(c *gin.Context) {
 	var req struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
+		TOTPCode string `json:"totp_code"`
 	}
 	if err := decodeJSON(c, &req, 4*1024); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
@@ -55,6 +66,45 @@ func (h *Handler) Login(c *gin.Context) {
 		}
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
 		return
+	}
+	// Password gate cleared. If the operator has an active TOTP row, run
+	// the second-factor check before we record a "successful" login. The
+	// status lookup is keyed on cfg.User (NOT req.Username) for the same
+	// reason the lockout counter is — a future multi-user model will key
+	// on the verified principal, but in v0.3.0 the only enrollable
+	// account is the configured admin.
+	if status, statErr := h.service.TOTPStatusFor(h.cfg.User); statErr != nil {
+		h.logReq(c, "ERROR", fmt.Sprintf("totp status lookup failed: %v", statErr))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "totp lookup failed"})
+		return
+	} else if status.Enrolled {
+		// Empty code is the SPA's first-pass; not a failed attempt — do
+		// NOT bump the lockout counter. The follow-up POST will carry
+		// the code and either succeed or land in the wrong-code branch
+		// below.
+		if strings.TrimSpace(req.TOTPCode) == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "totp_required"})
+			return
+		}
+		usedBackup, vErr := h.service.VerifyTOTPForLogin(h.cfg.User, req.TOTPCode)
+		if vErr != nil {
+			if errors.Is(vErr, services.ErrTOTPInvalidCode) {
+				if rErr := h.service.RecordLoginFailure(h.cfg.User); rErr != nil {
+					h.logReq(c, "ERROR", fmt.Sprintf("record totp failure: %v", rErr))
+				}
+				h.logReq(c, "WARN", "login: invalid totp code")
+				c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid_totp_code"})
+				return
+			}
+			h.logReq(c, "ERROR", fmt.Sprintf("totp verify failed: %v", vErr))
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "totp verify failed"})
+			return
+		}
+		if usedBackup {
+			// Recovery-code usage is an audit-worthy event — the operator
+			// (or attacker) just consumed one of the 10 one-time codes.
+			h.logReq(c, "WARN", "login: backup code used")
+		}
 	}
 	if err := h.service.RecordLoginSuccess(h.cfg.User); err != nil {
 		h.logReq(c, "WARN", fmt.Sprintf("record login success: %v", err))

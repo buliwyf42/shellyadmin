@@ -35,8 +35,13 @@ const DIST = path.resolve(HERE, '..', 'dist', 'assets');
 // gzip — oxc squeezes more out than esbuild on this codebase. New
 // baseline 309.18 kB raw / 81.10 kB gzip; tightened budgets to leave
 // ~5% headroom rather than carrying the v0.2.6 ceiling.
+// v0.3.0 T1: TOTPCard.svelte (3-state enroll flow + clipboard + backup
+// codes download) added ~12 KB raw / ~3 KB gzip. Login.svelte's two-
+// step prompt added negligible. Measured 320.87 kB raw / 84.21 kB
+// gzip — bumped js raw budget +5 KB to leave headroom for the upcoming
+// T3 PAT card.
 const BUDGETS = {
-  js: { raw: 320 * 1024, gzip: 86 * 1024 },
+  js: { raw: 325 * 1024, gzip: 86 * 1024 },
   css: { raw: 30 * 1024, gzip: 8 * 1024 },
 };
 

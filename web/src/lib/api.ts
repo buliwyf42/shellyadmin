@@ -18,6 +18,8 @@ import type {
   ProvisionResult,
   ScanStatus,
   TemplateRecord,
+  TOTPEnrollResponse,
+  TOTPStatus,
   UploadUserCAResult,
   VersionInfo,
 } from './types';
@@ -186,8 +188,11 @@ export function triggerDownload(filename: string, blob: Blob): void {
 }
 
 export const api = {
-  login: (username: string, password: string) =>
-    req<{ ok: true; csrf_token?: string }>('POST', '/api/login', { username, password }),
+  login: (username: string, password: string, totpCode?: string) => {
+    const body: Record<string, string> = { username, password };
+    if (totpCode) body.totp_code = totpCode;
+    return req<{ ok: true; csrf_token?: string }>('POST', '/api/login', body);
+  },
   logout: () => req<{ ok: true }>('POST', '/api/logout', {}),
   getDevices: () => req<Device[]>('GET', '/api/devices'),
   getDeviceDetail: (target: string) =>
@@ -286,4 +291,10 @@ export const api = {
   importBackup: (data: BackupExport, apply: boolean) =>
     req<ImportReport>('POST', '/api/backup/import', { data, apply }),
   getOpenAPIV1: () => req<Record<string, unknown>>('GET', '/api/openapi/v1.json'),
+  totp: {
+    status: () => req<TOTPStatus>('GET', '/api/totp/status'),
+    enroll: () => req<TOTPEnrollResponse>('POST', '/api/totp/enroll', {}),
+    verifyEnroll: (code: string) => req<{ ok: true }>('POST', '/api/totp/verify-enroll', { code }),
+    disable: (code: string) => req<{ ok: true }>('POST', '/api/totp/disable', { code }),
+  },
 };

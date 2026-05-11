@@ -73,6 +73,14 @@ type AppSettings struct {
 	// A noisy DEBUG-forwarder would saturate a low-throughput sink
 	// (Slack, Discord) on every refresh tick.
 	AuditWebhookMinLevel string `json:"audit_webhook_min_level,omitempty"`
+	// TOTPRequired gates password-only login for enrolled operators.
+	// When true AND the operator has an active totp_state row, the
+	// login handler refuses password-only auth and returns the
+	// `totp_required` 401 shape so the SPA can prompt for the
+	// second-factor code. Non-enrolled operators can still log in
+	// password-only (escape hatch for the first-time enrolment flow).
+	// T1 from the consolidated review, v0.3.0.
+	TOTPRequired bool `json:"totp_required,omitempty"`
 }
 
 type ComplianceRules struct {
