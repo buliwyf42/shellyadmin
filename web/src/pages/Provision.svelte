@@ -4,7 +4,6 @@
   import { APIError, api } from '../lib/api';
   import type { Credential, CredentialGroup, Device, ProvisionResult } from '../lib/types';
   import ErrorNotice from '../components/ErrorNotice.svelte';
-  import Select from '../components/Select.svelte';
   import SysForm from './provision/SysForm.svelte';
   import MqttForm from './provision/MqttForm.svelte';
   import WsForm from './provision/WsForm.svelte';
@@ -21,6 +20,7 @@
   import ZigbeeOpsForm from './provision/ZigbeeOpsForm.svelte';
   import ResultsPanel from './provision/ResultsPanel.svelte';
   import IPListPanel from './provision/IPListPanel.svelte';
+  import TemplatesPanel from './provision/TemplatesPanel.svelte';
   import type {
     AuthState,
     AutoUpdateState,
@@ -720,82 +720,21 @@
 
   <div class="col-lg-6 provision-settings-col">
     <div class="card bg-dark border-secondary">
-      <div class="card-header">
-        <div class="provision-toolbar">
-          <div class="sa-cluster">
-            <div>
-              <span class="sa-cluster-label">Template</span>
-              <div class="sa-cluster-inner">
-                <Select
-                  bind:value={selectedTemplate}
-                  options={templateOptions}
-                  placeholder="Select a template…"
-                  ariaLabel="Load template"
-                />
-                <button
-                  class="btn btn-sm btn-outline-light"
-                  on:click={loadCurrentTemplate}
-                  disabled={!selectedTemplate}>Load</button
-                >
-                <button
-                  class="btn btn-sm btn-outline-danger"
-                  on:click={deleteCurrentTemplate}
-                  disabled={!selectedTemplate}>Delete</button
-                >
-              </div>
-            </div>
-          </div>
-          <div class="sa-cluster">
-            <div>
-              <span class="sa-cluster-label">Save as</span>
-              <div class="sa-cluster-inner">
-                <input class="form-control" placeholder="template name" bind:value={templateName} />
-                <button class="btn btn-sm btn-outline-light" on:click={saveCurrentTemplate}
-                  >Save</button
-                >
-                <button
-                  class="btn btn-sm btn-outline-secondary"
-                  on:click={renameCurrentTemplate}
-                  disabled={!selectedTemplate ||
-                    !templateName.trim() ||
-                    selectedTemplate === templateName.trim()}>Rename</button
-                >
-              </div>
-            </div>
-          </div>
-          <div class="sa-cluster">
-            <div>
-              <span class="sa-cluster-label">Credential</span>
-              <div class="sa-cluster-inner">
-                <Select
-                  bind:value={selectedTemplateCredentialRef}
-                  options={credentialOptions}
-                  placeholder="No credential"
-                  ariaLabel="Credential"
-                />
-              </div>
-            </div>
-          </div>
-          {#if advancedModeEnabled}
-            <div class="sa-cluster-spacer"></div>
-            <div class="sa-view-switch" role="group" aria-label="View mode">
-              <button
-                type="button"
-                class:is-active={viewMode === 'form'}
-                on:click={() => setView('form')}>Form</button
-              >
-              <button
-                type="button"
-                class:is-active={viewMode === 'json'}
-                on:click={() => setView('json')}>JSON</button
-              >
-            </div>
-          {/if}
-        </div>
-        {#if groupCredentialHint}
-          <div class="text-secondary mt-2 text-hint-md">{groupCredentialHint}</div>
-        {/if}
-      </div>
+      <TemplatesPanel
+        bind:selectedTemplate
+        {templateOptions}
+        bind:templateName
+        bind:selectedTemplateCredentialRef
+        {credentialOptions}
+        {advancedModeEnabled}
+        {viewMode}
+        {groupCredentialHint}
+        onLoad={loadCurrentTemplate}
+        onDelete={deleteCurrentTemplate}
+        onSave={saveCurrentTemplate}
+        onRename={renameCurrentTemplate}
+        onSetView={setView}
+      />
 
       <div class="card-body">
         {#if templateLoadNotice}
