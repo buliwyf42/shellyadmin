@@ -24,6 +24,7 @@ import (
 	"shellyadmin/internal/core/secretbox"
 	"shellyadmin/internal/db"
 	"shellyadmin/internal/mcp"
+	"shellyadmin/internal/observability"
 	"shellyadmin/internal/services"
 )
 
@@ -68,6 +69,13 @@ func main() {
 	// because that surface is auth+CSRF+rate-limited; MCP-token-only auth
 	// warrants a tighter default.
 	mcpBind := getenv("SHELLYADMIN_MCP_BIND", "127.0.0.1")
+	// M4 — optional Prometheus metrics listener. Default off (empty bind)
+	// because most homelab operators don't run Prometheus and the
+	// metrics surface is small; opt in via SHELLYADMIN_METRICS_BIND
+	// (e.g. `127.0.0.1:9100`). The endpoint itself is unauthenticated —
+	// pair with `127.0.0.1` binding + reverse-proxy auth, or a
+	// firewall rule limiting access to the Prometheus host.
+	metricsBind := getenv("SHELLYADMIN_METRICS_BIND", "")
 	// S11 — comma-separated trusted-proxy CIDR list. Without this, gin's
 	// ClientIP() falls back to the X-Forwarded-For header from ANY peer,
 	// which lets an attacker on the LAN spoof "client_ip" in audit rows
@@ -142,6 +150,33 @@ func main() {
 	service.StartMCPFromConfig()
 	if mcpToken == "" && !service.MCPRunning() {
 		slog.Info("MCP disabled (no token in env or settings)")
+	}
+
+	// M4 — optional Prometheus metrics listener. Empty bind = disabled.
+	// Registry is constructed regardless so the service layer can call
+	// Inc/Set without nil checks; only the listener and the URL routing
+	// are gated on the env var.
+	metrics := observability.NewRegistry()
+	metrics.RegisterCounter("shellyadmin_http_requests_total", "Total HTTP requests routed through the SPA + API listener.")
+	metrics.RegisterGauge("shellyadmin_devices_total", "Number of devices currently tracked in the inventory.")
+	metrics.RegisterCounter("shellyadmin_refresh_jobs_total", "Refresh jobs spawned since service start.")
+	metrics.RegisterCounter("shellyadmin_firmware_jobs_total", "Firmware-check + firmware-install jobs spawned since service start.")
+	metrics.RegisterLabelledCounter("shellyadmin_audit_rows_written_total", "Audit-log rows written, labelled by level (INFO/WARN/ERROR/DEBUG).")
+	service.SetMetrics(metrics)
+	if metricsBind != "" {
+		metricsServer := &http.Server{
+			Addr:              metricsBind,
+			Handler:           metrics,
+			ReadHeaderTimeout: 5 * time.Second,
+			ReadTimeout:       10 * time.Second,
+			WriteTimeout:      10 * time.Second,
+		}
+		go func() {
+			slog.Info("metrics listener", "addr", metricsBind)
+			if err := metricsServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				slog.Error("metrics listener exited", "err", err)
+			}
+		}()
 	}
 
 	server := &http.Server{

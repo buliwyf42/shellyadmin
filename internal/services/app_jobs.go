@@ -86,6 +86,7 @@ func (s *AppService) RefreshDevices(ctx context.Context) ([]models.Device, error
 	if err != nil {
 		return nil, err
 	}
+	s.metricInc("shellyadmin_refresh_jobs_total")
 	jobCtx, cancel := s.linkedContext(ctx)
 	done := make(chan error, 1)
 	s.bgJobs.Add(1)
@@ -432,6 +433,7 @@ func (s *AppService) StartFirmwareCheck() (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	s.metricInc("shellyadmin_firmware_jobs_total")
 	s.bgJobs.Add(1)
 	go func() {
 		defer s.bgJobs.Done()
