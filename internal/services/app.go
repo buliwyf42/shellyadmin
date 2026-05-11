@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/netip"
-	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -24,6 +22,7 @@ import (
 	"shellyadmin/internal/services/templates"
 	"shellyadmin/internal/services/validation"
 	"shellyadmin/internal/services/workers"
+	"shellyadmin/internal/util"
 )
 
 const (
@@ -427,23 +426,11 @@ func ValidateTemplate(template map[string]interface{}) error {
 // importing services.SanitizeLogMessage; the implementation lives in audit.
 func SanitizeLogMessage(msg string) string { return audit.SanitizeLogMessage(msg) }
 
-func BoundedConcurrency(value int) int {
-	switch {
-	case value <= 0:
-		return 32
-	case value > 128:
-		return 128
-	default:
-		return value
-	}
-}
+// DecodeSecretValue delegates to internal/util.DecodeSecretValue.
+// cmd/shellyctl/main.go imports services for several things at boot;
+// keeping this re-export means main.go doesn't need a separate util
+// import just for the four secret reads.
+func DecodeSecretValue(envKey string) string { return util.DecodeSecretValue(envKey) }
 
-func DecodeSecretValue(envKey string) string {
-	if value := os.Getenv(envKey + "_FILE"); value != "" {
-		body, err := os.ReadFile(value)
-		if err == nil {
-			return strings.TrimSpace(string(body))
-		}
-	}
-	return strings.TrimSpace(os.Getenv(envKey))
-}
+// BoundedConcurrency moved to internal/services/jobs (the only caller).
+// Removed here as dead code in v0.3.0 (M7).
