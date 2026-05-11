@@ -2,9 +2,7 @@ package services
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"net/netip"
 	"os"
 	"regexp"
@@ -13,7 +11,6 @@ import (
 	"time"
 
 	"shellyadmin/internal/core/compliance"
-	"shellyadmin/internal/core/scanner"
 	"shellyadmin/internal/core/secretbox"
 	"shellyadmin/internal/db"
 	"shellyadmin/internal/middleware"
@@ -22,8 +19,10 @@ import (
 	"shellyadmin/internal/services/credentials"
 	"shellyadmin/internal/services/jobs"
 	"shellyadmin/internal/services/loginlock"
+	"shellyadmin/internal/services/logs"
 	"shellyadmin/internal/services/provisioning"
 	"shellyadmin/internal/services/sessions"
+	"shellyadmin/internal/services/templates"
 	"shellyadmin/internal/services/validation"
 	"shellyadmin/internal/services/workers"
 )
@@ -121,6 +120,15 @@ type AppService struct {
 	// in v0.3.0 (M7); AppService keeps delegators on Provision / UploadUserCA.
 	provisioning *provisioning.Service
 
+	// templates owns template-table CRUD with credential_ref + size +
+	// JSON-shape validation. Extracted to internal/services/templates in
+	// v0.3.0 (M7).
+	templates *templates.Service
+
+	// logs is a thin pass-through over the audit_log table CRUD. Extracted
+	// to internal/services/logs in v0.3.0 (M7).
+	logs *logs.Service
+
 	// metrics is the Prometheus-format counter/gauge registry. nil for
 	// callers that don't wire it up (tests, MCP-only stdio mode); the
 	// service-layer Inc/Set helpers tolerate nil so the metrics path is
@@ -163,11 +171,9 @@ func (s *AppService) metricIncLabelled(name string, labels map[string]string) {
 	}
 }
 
-type TemplateRecord struct {
-	Name          string `json:"name"`
-	Content       string `json:"content"`
-	CredentialRef string `json:"credential_ref"`
-}
+// TemplateRecord is re-exported from internal/services/templates so
+// existing api/handler_templates.go references compile unchanged.
+type TemplateRecord = templates.Record
 
 func NewAppService(database Store, dataDir string, logf func(ctx context.Context, level, msg string)) *AppService {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -200,6 +206,10 @@ func NewAppService(database Store, dataDir string, logf func(ctx context.Context
 	// reservation maps + ProvisionOptions; constructed last so the Host
 	// pointer is non-nil at call time.
 	svc.provisioning = provisioning.New(database, svc)
+	// templates + logs are thin pass-throughs over Store; constructed
+	// here for symmetry with the rest of the sub-service tree.
+	svc.templates = templates.New(database)
+	svc.logs = logs.New(database)
 	return svc
 }
 
@@ -301,102 +311,11 @@ func (s *AppService) ForgetDevice(target string) error {
 	return s.db.ForgetDevice(target)
 }
 
+// RefreshDevice delegates to jobs.Service.RefreshDevice. The single-device
+// refresh path moved to internal/services/jobs/refresh.go alongside the
+// fleet-wide RefreshDevices in v0.3.0 (M7 Block 4b.1).
 func (s *AppService) RefreshDevice(ctx context.Context, target string) ([]models.Device, error) {
-	devices, err := s.db.ListDevices()
-	if err != nil {
-		return nil, err
-	}
-
-	var current *models.Device
-	for i := range devices {
-		if devices[i].MAC == target || devices[i].IP == target || devices[i].Name == target {
-			current = &devices[i]
-			break
-		}
-	}
-	if current == nil {
-		return nil, fmt.Errorf("device not found")
-	}
-
-	settings, err := s.db.GetSettings()
-	if err != nil {
-		return nil, err
-	}
-	timeout := refreshProbeTimeout(settings)
-	attemptedAt := time.Now().UTC().Format(time.RFC3339)
-	opts := s.scannerProbeOptions(*current, timeout)
-	probed := scanner.ProbeDeviceWithOptions(ctx, current.IP, opts, s.Log)
-	if probed == nil {
-		current.LastRefreshAttempt = attemptedAt
-		current.LastRefreshOK = false
-		required, reason := checkAuthRequired(ctx, current.IP, timeout)
-		if required {
-			current.AuthRequired = true
-			current.AuthError = reason
-			current.LastRefreshError = reason
-			current.Online = true
-			current.ConsecutiveMisses = 0
-		} else {
-			current.LastRefreshError = "refresh timed out"
-			current.ConsecutiveMisses++
-			if current.ConsecutiveMisses >= 2 {
-				current.Online = false
-			}
-		}
-		if err := s.db.UpsertDevice(*current); err != nil {
-			return nil, err
-		}
-		return s.GetDevices()
-	}
-
-	// Probe may return a partial device (auth-required / locked / TLS-bad)
-	// when the underlying error is recoverable but the full snapshot is not
-	// available. In that case, persist the failure state and keep the
-	// existing rich fields from `current`.
-	if probed.AuthRequired || probed.AuthLockedUntil != "" || (probed.TLSCertValid != nil && !*probed.TLSCertValid) {
-		current.LastRefreshAttempt = attemptedAt
-		current.LastRefreshOK = false
-		current.AuthRequired = probed.AuthRequired
-		current.AuthError = probed.AuthError
-		if probed.AuthLockedUntil != "" {
-			current.AuthLockedUntil = probed.AuthLockedUntil
-		}
-		if probed.TLSCertValid != nil {
-			current.TLSCertValid = probed.TLSCertValid
-		}
-		current.LastRefreshError = probed.AuthError
-		current.Online = true
-		current.ConsecutiveMisses = 0
-		if err := s.db.UpsertDevice(*current); err != nil {
-			return nil, err
-		}
-		return s.GetDevices()
-	}
-
-	probed.DeviceNum = current.DeviceNum
-	probed.FirstSeen = current.FirstSeen
-	probed.LastRefreshAttempt = attemptedAt
-	probed.LastRefreshOK = true
-	probed.LastRefreshError = ""
-	probed.ConsecutiveMisses = 0
-	probed.Online = true
-	probed.AuthRequired = false
-	probed.AuthError = ""
-	probed.AuthLockedUntil = ""
-	// Carry forward operator-set TLS opt-out — it isn't reported by the device.
-	probed.TLSAllowInsecure = current.TLSAllowInsecure
-	// Carry forward the firmware cache so a Refresh that fails to re-check
-	// firmware (e.g. transient cloud blip) doesn't blank out the fields. The
-	// helper below overwrites these on success.
-	probed.FWAvailableStable = current.FWAvailableStable
-	probed.FWAvailableBeta = current.FWAvailableBeta
-	probed.FWCheckedAt = current.FWCheckedAt
-	probed.FWAutoUpdate = current.FWAutoUpdate
-	s.refreshDeviceCapabilities(ctx, probed)
-	if err := s.db.UpsertDevice(*probed); err != nil {
-		return nil, err
-	}
-	return s.GetDevices()
+	return s.jobsSvc.RefreshDevice(ctx, target)
 }
 
 // Provision delegates to internal/services/provisioning.Service.Provision.
@@ -424,22 +343,8 @@ func isProvisionTargetAllowed(addr netip.Addr) bool {
 	return provisioning.IsTargetAllowed(addr)
 }
 
-func checkAuthRequired(ctx context.Context, ip string, timeout time.Duration) (bool, string) {
-	client := &http.Client{Timeout: timeout}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://"+ip+"/shelly", nil)
-	if err != nil {
-		return false, ""
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return false, ""
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
-		return true, resp.Status
-	}
-	return false, ""
-}
+// checkAuthRequired moved with its caller (the single-device RefreshDevice
+// path) to internal/services/jobs/service.go. Removed here in v0.3.0.
 
 // MCP token validation now happens entirely inside
 // internal/services/validation.Settings; the local mcpTokenPattern alias
@@ -503,57 +408,24 @@ func (s *AppService) SaveSettings(settings models.AppSettings) error {
 	return nil
 }
 
-func (s *AppService) ListTemplates() ([]string, error) {
-	return s.db.ListTemplateNames()
-}
-
+// Templates CRUD delegates to internal/services/templates.Service.
+func (s *AppService) ListTemplates() ([]string, error) { return s.templates.List() }
 func (s *AppService) GetTemplate(name string) (TemplateRecord, error) {
-	content, credentialRef, err := s.db.GetTemplate(name)
-	if err != nil {
-		return TemplateRecord{}, err
-	}
-	return TemplateRecord{
-		Name:          name,
-		Content:       content,
-		CredentialRef: credentialRef,
-	}, nil
+	return s.templates.Get(name)
 }
-
 func (s *AppService) SaveTemplate(name, content, credentialRef string) error {
-	if len(content) > MaxTemplateBytes {
-		return fmt.Errorf("template exceeds %d bytes", MaxTemplateBytes)
-	}
-	var body map[string]interface{}
-	if err := json.Unmarshal([]byte(content), &body); err != nil {
-		return err
-	}
-	if err := ValidateTemplate(body); err != nil {
-		return err
-	}
-	credentialRef = strings.TrimSpace(credentialRef)
-	if credentialRef != "" {
-		if _, err := s.db.GetCredential(credentialRef); err != nil {
-			return fmt.Errorf("credential_ref %q not found", credentialRef)
-		}
-	}
-	return s.db.SaveTemplate(name, content, credentialRef)
+	return s.templates.Save(name, content, credentialRef)
 }
+func (s *AppService) DeleteTemplate(name string) error { return s.templates.Delete(name) }
 
-func (s *AppService) DeleteTemplate(name string) error {
-	return s.db.DeleteTemplate(name)
-}
-
+// Logs read + clear delegates to internal/services/logs.Service.
 func (s *AppService) GetLogs(level, search string) ([]db.LogEntry, error) {
-	return s.db.GetLogs(level, search)
+	return s.logs.Get(level, search)
 }
-
 func (s *AppService) GetLogsFiltered(level, search, risk string) ([]db.LogEntry, error) {
-	return s.db.GetLogsFiltered(level, search, risk)
+	return s.logs.GetFiltered(level, search, risk)
 }
-
-func (s *AppService) ClearLogs() (int64, error) {
-	return s.db.ClearLogs()
-}
+func (s *AppService) ClearLogs() (int64, error) { return s.logs.Clear() }
 
 // Log emits an audit entry without a request-scoped context. Prefer LogCtx
 // when a context is in scope so the audit row can be correlated back to the
