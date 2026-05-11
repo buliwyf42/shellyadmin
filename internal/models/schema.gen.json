@@ -18,6 +18,24 @@
           ]
         },
         {
+          "name": "AuditWebhookMinLevel",
+          "json_name": "audit_webhook_min_level",
+          "go_type": "string",
+          "tag": "audit_webhook_min_level,omitempty",
+          "options": [
+            "omitempty"
+          ]
+        },
+        {
+          "name": "AuditWebhookURL",
+          "json_name": "audit_webhook_url",
+          "go_type": "string",
+          "tag": "audit_webhook_url,omitempty",
+          "options": [
+            "omitempty"
+          ]
+        },
+        {
           "name": "AutoBackupEnabled",
           "json_name": "auto_backup_enabled",
           "go_type": "bool",
