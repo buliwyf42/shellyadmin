@@ -55,7 +55,16 @@ func NewRouter(database *db.DB, cfg Config) *gin.Engine {
 		MaxAge:   86400 * 7,
 		HttpOnly: true,
 		Secure:   cfg.CookieSecure,
-		SameSite: http.SameSiteLaxMode,
+		// SameSite=Strict (was Lax) prevents the session cookie from being
+		// sent on cross-site top-level navigations entirely. Combined with
+		// the CSRF middleware this raises the bar for cross-site request
+		// forgery — a victim opening an attacker's `<form action=
+		// "https://shellyadmin/api/...">` no longer leaks the cookie. The
+		// trade-off is that links into ShellyAdmin from external sites
+		// (e.g. a bookmark sent in chat) require the user to follow the
+		// link and re-authenticate on the same tab session. Acceptable for
+		// a Single-Operator admin tool.
+		SameSite: http.SameSiteStrictMode,
 	})
 	r.Use(sessions.Sessions("shellyadmin", store))
 

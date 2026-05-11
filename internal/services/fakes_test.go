@@ -109,6 +109,9 @@ func (f *fakeStore) GetLogsForExportFiltered(string, string, string, int) ([]db.
 }
 func (f *fakeStore) ClearLogs() (int64, error) { return 0, errUnimplemented }
 
+func (f *fakeStore) GetLoginState(string) (db.LoginState, error) { return db.LoginState{}, nil }
+func (f *fakeStore) SetLoginState(db.LoginState) error           { return nil }
+
 // Compile-time guarantee: fakeStore implements Store.
 var _ Store = (*fakeStore)(nil)
 

@@ -771,6 +771,48 @@ func (db *DB) GetLogsForExportFiltered(level, search, risk string, limit int) ([
 	return out, rows.Err()
 }
 
+// LoginState is the failure-counter + lockout-window row backing Q20's
+// per-account lockout. LockedUntil is "" when the account is unlocked.
+type LoginState struct {
+	Username     string
+	FailedCount  int
+	LastFailedAt string
+	LockedUntil  string
+}
+
+// GetLoginState returns the persisted counter for username, or a zero
+// value (no failures) if no row exists yet. The zero value is the
+// "never tried" state, treated as unlocked.
+func (db *DB) GetLoginState(username string) (LoginState, error) {
+	var ls LoginState
+	ls.Username = username
+	err := db.sql.QueryRow(
+		`SELECT failed_count, last_failed_at, locked_until FROM login_state WHERE username = ?`,
+		username,
+	).Scan(&ls.FailedCount, &ls.LastFailedAt, &ls.LockedUntil)
+	if err == sql.ErrNoRows {
+		return ls, nil
+	}
+	if err != nil {
+		return LoginState{}, err
+	}
+	return ls, nil
+}
+
+// SetLoginState upserts the row keyed by username.
+func (db *DB) SetLoginState(state LoginState) error {
+	_, err := db.sql.Exec(
+		`INSERT INTO login_state(username, failed_count, last_failed_at, locked_until)
+		 VALUES (?, ?, ?, ?)
+		 ON CONFLICT(username) DO UPDATE SET
+			failed_count = excluded.failed_count,
+			last_failed_at = excluded.last_failed_at,
+			locked_until = excluded.locked_until`,
+		state.Username, state.FailedCount, state.LastFailedAt, state.LockedUntil,
+	)
+	return err
+}
+
 func (db *DB) ClearLogs() (int64, error) {
 	res, err := db.sql.Exec(`DELETE FROM audit_log`)
 	if err != nil {
