@@ -101,10 +101,18 @@ func NewRouter(database *db.DB, cfg Config) *gin.Engine {
 	// router without an AppService (Service == nil) fall back to
 	// cookie-only auth via a nil validator, keeping the regression
 	// surface manageable.
+	//
+	// T3 — RequireAuth also accepts PAT bearer tokens. The patValidator
+	// is the *AppService itself (it satisfies middleware.PATValidator
+	// via the LookupPAT method); nil for tests that don't wire the
+	// service.
 	var validator middleware.SessionValidator
+	var patValidator middleware.PATValidator
 	if h.service != nil {
 		validator = h.service.SessionValidator()
+		patValidator = h.service
 	}
+	authMW := middleware.RequireAuthWithPAT(validator, patValidator)
 
 	r.GET("/login", func(c *gin.Context) {
 		session := sessions.Default(c)
@@ -115,10 +123,10 @@ func NewRouter(database *db.DB, cfg Config) *gin.Engine {
 		serveSPAIndex(c, cfg)
 	})
 	r.POST("/login", middleware.LoginRateLimit(), h.Login)
-	r.POST("/logout", middleware.RequireAuth(validator), middleware.RequireCSRF(), h.Logout)
+	r.POST("/logout", authMW, middleware.RequireCSRF(), h.Logout)
 
 	auth := r.Group("/")
-	auth.Use(middleware.RequireAuth(validator))
+	auth.Use(authMW)
 	auth.Use(middleware.APIRateLimit())
 	auth.Use(middleware.RequireCSRF())
 	registerDocumentedAPIRoutes(r, auth, h)

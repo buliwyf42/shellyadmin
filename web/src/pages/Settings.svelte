@@ -4,6 +4,7 @@
   import type { AppSettings, BackupExport, Credential, ImportReport } from '../lib/types';
   import ErrorNotice from '../components/ErrorNotice.svelte';
   import TOTPCard from './settings/TOTPCard.svelte';
+  import TokensCard from './settings/TokensCard.svelte';
 
   let settings: AppSettings = {
     subnets: [],
@@ -440,7 +441,12 @@
     <TOTPCard />
   </div>
 
-  <!-- Card 5: Display -->
+  <!-- Card 5: Personal Access Tokens (T3, v0.3.0) -->
+  <div class="col-lg-12">
+    <TokensCard />
+  </div>
+
+  <!-- Card 6: Display -->
   <div class="col-lg-6">
     <div class="card bg-dark border-secondary h-100">
       <div class="card-body">

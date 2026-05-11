@@ -15,7 +15,14 @@ type apiRouteDoc struct {
 	Summary     string
 	Description string
 	Auth        bool
-	Register    func(routes gin.IRoutes, h *Handler)
+	// Scope declares the per-route PAT scope required by T3. Empty
+	// string means "no scope required" — i.e. cookie-only routes that
+	// reject PAT-authed callers entirely (managed by the handler
+	// itself via requirePATCallerCookieOnly). When non-empty, the
+	// route is wrapped in middleware.RequireScope(Scope) at register
+	// time so a PAT without that scope (or `admin`) gets a 403.
+	Scope    string
+	Register func(routes gin.IRoutes, h *Handler)
 }
 
 func documentedAPIRoutes() []apiRouteDoc {
@@ -71,6 +78,7 @@ func documentedAPIRoutes() []apiRouteDoc {
 			Path:    "/api/version",
 			Summary: "Read runtime version",
 			Auth:    true,
+			Scope:   "devices:read",
 			Register: func(routes gin.IRoutes, h *Handler) {
 				routes.GET("/api/version", h.Version)
 			},
@@ -80,6 +88,7 @@ func documentedAPIRoutes() []apiRouteDoc {
 			Path:    "/api/devices",
 			Summary: "List devices",
 			Auth:    true,
+			Scope:   "devices:read",
 			Register: func(routes gin.IRoutes, h *Handler) {
 				routes.GET("/api/devices", h.GetDevices)
 			},
@@ -89,6 +98,7 @@ func documentedAPIRoutes() []apiRouteDoc {
 			Path:    "/api/devices/{target}",
 			Summary: "Get device detail",
 			Auth:    true,
+			Scope:   "devices:read",
 			Register: func(routes gin.IRoutes, h *Handler) {
 				routes.GET("/api/devices/:target", h.GetDeviceDetail)
 			},
@@ -98,6 +108,7 @@ func documentedAPIRoutes() []apiRouteDoc {
 			Path:    "/api/devices/{target}/actions",
 			Summary: "List supported single-device actions",
 			Auth:    true,
+			Scope:   "devices:read",
 			Register: func(routes gin.IRoutes, h *Handler) {
 				routes.GET("/api/devices/:target/actions", h.ListDeviceActions)
 			},
@@ -108,6 +119,7 @@ func documentedAPIRoutes() []apiRouteDoc {
 			Summary:     "Export device snapshot as JSON",
 			Description: "Return the device's record, parsed config/status, and discovered capabilities as a downloadable JSON snapshot.",
 			Auth:        true,
+			Scope:       "devices:read",
 			Register: func(routes gin.IRoutes, h *Handler) {
 				routes.GET("/api/devices/:target/export", h.ExportDevice)
 			},
@@ -117,6 +129,7 @@ func documentedAPIRoutes() []apiRouteDoc {
 			Path:    "/api/devices/{target}/actions/{action}",
 			Summary: "Execute a supported single-device action",
 			Auth:    true,
+			Scope:   "devices:write",
 			Register: func(routes gin.IRoutes, h *Handler) {
 				routes.POST("/api/devices/:target/actions/:action", h.ExecuteDeviceAction)
 			},
@@ -126,6 +139,7 @@ func documentedAPIRoutes() []apiRouteDoc {
 			Path:    "/api/devices/refresh",
 			Summary: "Refresh all known devices",
 			Auth:    true,
+			Scope:   "devices:write",
 			Register: func(routes gin.IRoutes, h *Handler) {
 				routes.POST("/api/devices/refresh", h.RefreshDevices)
 			},
@@ -135,6 +149,7 @@ func documentedAPIRoutes() []apiRouteDoc {
 			Path:    "/api/devices/refresh-one",
 			Summary: "Refresh one device by MAC or IP",
 			Auth:    true,
+			Scope:   "devices:write",
 			Register: func(routes gin.IRoutes, h *Handler) {
 				routes.POST("/api/devices/refresh-one", h.RefreshDevice)
 			},
@@ -144,6 +159,7 @@ func documentedAPIRoutes() []apiRouteDoc {
 			Path:    "/api/devices/forget",
 			Summary: "Forget one device",
 			Auth:    true,
+			Scope:   "devices:write",
 			Register: func(routes gin.IRoutes, h *Handler) {
 				routes.POST("/api/devices/forget", h.ForgetDevice)
 			},
@@ -154,6 +170,7 @@ func documentedAPIRoutes() []apiRouteDoc {
 			Summary:     "Preview or apply a documented bulk settings action",
 			Description: "Send `dry_run=true` to receive preview targets and warnings without changing devices.",
 			Auth:        true,
+			Scope:       "devices:write",
 			Register: func(routes gin.IRoutes, h *Handler) {
 				routes.POST("/api/bulk", h.BulkAction)
 			},
@@ -163,6 +180,7 @@ func documentedAPIRoutes() []apiRouteDoc {
 			Path:    "/api/scan/start",
 			Summary: "Start a discovery scan",
 			Auth:    true,
+			Scope:   "devices:write",
 			Register: func(routes gin.IRoutes, h *Handler) {
 				routes.POST("/api/scan/start", h.ScanStart)
 			},
@@ -172,6 +190,7 @@ func documentedAPIRoutes() []apiRouteDoc {
 			Path:    "/api/scan/status",
 			Summary: "Get current or latest scan status",
 			Auth:    true,
+			Scope:   "devices:read",
 			Register: func(routes gin.IRoutes, h *Handler) {
 				routes.GET("/api/scan/status", h.ScanStatus)
 			},
@@ -181,6 +200,7 @@ func documentedAPIRoutes() []apiRouteDoc {
 			Path:    "/api/scan/confirm",
 			Summary: "Confirm discovered devices into inventory",
 			Auth:    true,
+			Scope:   "devices:write",
 			Register: func(routes gin.IRoutes, h *Handler) {
 				routes.POST("/api/scan/confirm", h.ScanConfirm)
 			},
@@ -190,6 +210,7 @@ func documentedAPIRoutes() []apiRouteDoc {
 			Path:    "/api/firmware/check",
 			Summary: "Start a fleet firmware check",
 			Auth:    true,
+			Scope:   "firmware:read",
 			Register: func(routes gin.IRoutes, h *Handler) {
 				routes.POST("/api/firmware/check", h.FirmwareCheck)
 			},
@@ -199,6 +220,7 @@ func documentedAPIRoutes() []apiRouteDoc {
 			Path:    "/api/firmware/status",
 			Summary: "Read fleet firmware check status",
 			Auth:    true,
+			Scope:   "firmware:read",
 			Register: func(routes gin.IRoutes, h *Handler) {
 				routes.GET("/api/firmware/status", h.FirmwareStatus)
 			},
@@ -208,6 +230,7 @@ func documentedAPIRoutes() []apiRouteDoc {
 			Path:    "/api/firmware/update",
 			Summary: "Trigger firmware updates for selected devices",
 			Auth:    true,
+			Scope:   "firmware:write",
 			Register: func(routes gin.IRoutes, h *Handler) {
 				routes.POST("/api/firmware/update", h.FirmwareUpdate)
 			},
@@ -217,6 +240,7 @@ func documentedAPIRoutes() []apiRouteDoc {
 			Path:    "/api/firmware/install/status",
 			Summary: "Read fleet firmware install status",
 			Auth:    true,
+			Scope:   "firmware:read",
 			Register: func(routes gin.IRoutes, h *Handler) {
 				routes.GET("/api/firmware/install/status", h.FirmwareInstallStatus)
 			},
@@ -226,6 +250,7 @@ func documentedAPIRoutes() []apiRouteDoc {
 			Path:    "/api/provision",
 			Summary: "Provision selected IP targets",
 			Auth:    true,
+			Scope:   "provision",
 			Register: func(routes gin.IRoutes, h *Handler) {
 				routes.POST("/api/provision", h.Provision)
 			},
@@ -236,6 +261,7 @@ func documentedAPIRoutes() []apiRouteDoc {
 			Summary:     "Upload a user CA PEM to selected devices",
 			Description: "Chunked Shelly certificate upload. Accepts an optional kind field (\"user_ca\"|\"tls_client_cert\"|\"tls_client_key\"; default \"user_ca\") that selects Shelly.PutUserCA, Shelly.PutTLSClientCert, or Shelly.PutTLSClientKey. Sends the PEM in ~1KB chunks and commits so MQTT/WS configs referencing the corresponding file take effect.",
 			Auth:        true,
+			Scope:       "provision",
 			Register: func(routes gin.IRoutes, h *Handler) {
 				routes.POST("/api/provision/user-ca", h.UploadUserCA)
 			},
@@ -245,6 +271,7 @@ func documentedAPIRoutes() []apiRouteDoc {
 			Path:    "/api/settings",
 			Summary: "Read application settings",
 			Auth:    true,
+			Scope:   "settings:read",
 			Register: func(routes gin.IRoutes, h *Handler) {
 				routes.GET("/api/settings", h.GetSettings)
 			},
@@ -254,6 +281,7 @@ func documentedAPIRoutes() []apiRouteDoc {
 			Path:    "/api/settings",
 			Summary: "Save application settings",
 			Auth:    true,
+			Scope:   "settings:write",
 			Register: func(routes gin.IRoutes, h *Handler) {
 				routes.POST("/api/settings", h.SaveSettings)
 			},
@@ -299,10 +327,41 @@ func documentedAPIRoutes() []apiRouteDoc {
 			},
 		},
 		{
+			Method:      http.MethodGet,
+			Path:        "/api/tokens",
+			Summary:     "List Personal Access Tokens",
+			Description: "Returns metadata (no plaintext secrets) for every PAT owned by the authenticated operator, plus the available_scopes catalog. Cookie-only — PAT-authed callers receive 403 to keep the operator's machine-credential inventory out of reach of a leaked single token.",
+			Auth:        true,
+			Register: func(routes gin.IRoutes, h *Handler) {
+				routes.GET("/api/tokens", h.ListTokens)
+			},
+		},
+		{
+			Method:      http.MethodPost,
+			Path:        "/api/tokens",
+			Summary:     "Mint a Personal Access Token",
+			Description: "Creates a new bearer-token credential with the supplied scopes. The plaintext token is surfaced exactly once in the response body — the SPA copies it to clipboard then drops the field from memory. Cookie-only — PAT-authed callers cannot mint new tokens (privilege-escalation guard).",
+			Auth:        true,
+			Register: func(routes gin.IRoutes, h *Handler) {
+				routes.POST("/api/tokens", h.CreateToken)
+			},
+		},
+		{
+			Method:      http.MethodDelete,
+			Path:        "/api/tokens/{id}",
+			Summary:     "Revoke a Personal Access Token",
+			Description: "Marks the row revoked. Subsequent requests carrying the token receive 401. Idempotent. Cookie-only.",
+			Auth:        true,
+			Register: func(routes gin.IRoutes, h *Handler) {
+				routes.DELETE("/api/tokens/:id", h.RevokeToken)
+			},
+		},
+		{
 			Method:  http.MethodGet,
 			Path:    "/api/templates",
 			Summary: "List provisioning templates",
 			Auth:    true,
+			Scope:   "provision",
 			Register: func(routes gin.IRoutes, h *Handler) {
 				routes.GET("/api/templates", h.ListTemplates)
 			},
@@ -312,6 +371,7 @@ func documentedAPIRoutes() []apiRouteDoc {
 			Path:    "/api/templates/{name}",
 			Summary: "Read one provisioning template",
 			Auth:    true,
+			Scope:   "provision",
 			Register: func(routes gin.IRoutes, h *Handler) {
 				routes.GET("/api/templates/:name", h.GetTemplate)
 			},
@@ -321,6 +381,7 @@ func documentedAPIRoutes() []apiRouteDoc {
 			Path:    "/api/templates/{name}",
 			Summary: "Create or update one provisioning template",
 			Auth:    true,
+			Scope:   "provision",
 			Register: func(routes gin.IRoutes, h *Handler) {
 				routes.POST("/api/templates/:name", h.SaveTemplate)
 			},
@@ -330,6 +391,7 @@ func documentedAPIRoutes() []apiRouteDoc {
 			Path:    "/api/templates/{name}",
 			Summary: "Delete one provisioning template",
 			Auth:    true,
+			Scope:   "provision",
 			Register: func(routes gin.IRoutes, h *Handler) {
 				routes.DELETE("/api/templates/:name", h.DeleteTemplate)
 			},
@@ -339,6 +401,7 @@ func documentedAPIRoutes() []apiRouteDoc {
 			Path:    "/api/credentials",
 			Summary: "List credentials",
 			Auth:    true,
+			Scope:   "provision",
 			Register: func(routes gin.IRoutes, h *Handler) {
 				routes.GET("/api/credentials", h.ListCredentials)
 			},
@@ -348,6 +411,7 @@ func documentedAPIRoutes() []apiRouteDoc {
 			Path:    "/api/credentials",
 			Summary: "Create or update one credential",
 			Auth:    true,
+			Scope:   "provision",
 			Register: func(routes gin.IRoutes, h *Handler) {
 				routes.POST("/api/credentials", h.SaveCredential)
 			},
@@ -357,6 +421,7 @@ func documentedAPIRoutes() []apiRouteDoc {
 			Path:    "/api/credentials/{name}",
 			Summary: "Delete one credential",
 			Auth:    true,
+			Scope:   "provision",
 			Register: func(routes gin.IRoutes, h *Handler) {
 				routes.DELETE("/api/credentials/:name", h.DeleteCredential)
 			},
@@ -366,6 +431,7 @@ func documentedAPIRoutes() []apiRouteDoc {
 			Path:    "/api/credential-groups",
 			Summary: "List credential groups",
 			Auth:    true,
+			Scope:   "provision",
 			Register: func(routes gin.IRoutes, h *Handler) {
 				routes.GET("/api/credential-groups", h.ListCredentialGroups)
 			},
@@ -375,6 +441,7 @@ func documentedAPIRoutes() []apiRouteDoc {
 			Path:    "/api/credential-groups",
 			Summary: "Create or update one credential group",
 			Auth:    true,
+			Scope:   "provision",
 			Register: func(routes gin.IRoutes, h *Handler) {
 				routes.POST("/api/credential-groups", h.SaveCredentialGroup)
 			},
@@ -384,6 +451,7 @@ func documentedAPIRoutes() []apiRouteDoc {
 			Path:    "/api/credential-groups/{name}",
 			Summary: "Delete one credential group",
 			Auth:    true,
+			Scope:   "provision",
 			Register: func(routes gin.IRoutes, h *Handler) {
 				routes.DELETE("/api/credential-groups/:name", h.DeleteCredentialGroup)
 			},
@@ -393,6 +461,7 @@ func documentedAPIRoutes() []apiRouteDoc {
 			Path:    "/api/credential-groups/assignments",
 			Summary: "List device-to-group assignments",
 			Auth:    true,
+			Scope:   "provision",
 			Register: func(routes gin.IRoutes, h *Handler) {
 				routes.GET("/api/credential-groups/assignments", h.GetCredentialGroupAssignments)
 			},
@@ -402,6 +471,7 @@ func documentedAPIRoutes() []apiRouteDoc {
 			Path:    "/api/credential-groups/assignments",
 			Summary: "Save device-to-group assignments",
 			Auth:    true,
+			Scope:   "provision",
 			Register: func(routes gin.IRoutes, h *Handler) {
 				routes.POST("/api/credential-groups/assignments", h.SaveCredentialGroupAssignments)
 			},
@@ -464,12 +534,26 @@ func documentedAPIRoutes() []apiRouteDoc {
 	}
 }
 
-func registerDocumentedAPIRoutes(publicRoutes gin.IRoutes, authRoutes gin.IRoutes, h *Handler) {
+func registerDocumentedAPIRoutes(publicRoutes gin.IRoutes, authRoutes *gin.RouterGroup, h *Handler) {
 	for _, route := range documentedAPIRoutes() {
-		target := publicRoutes
-		if route.Auth {
-			target = authRoutes
+		if !route.Auth {
+			route.Register(publicRoutes, h)
+			continue
 		}
+		// Per-route scope gate (T3). Routes without an explicit Scope
+		// default to "admin" — meaning a PAT-authed caller without the
+		// admin scope (e.g. devices:read PAT calling /api/logs) gets a
+		// 403. Cookie-authed callers pass through RequireScope
+		// unconditionally; the gate only fires on the PAT path.
+		scope := route.Scope
+		if scope == "" {
+			scope = middleware.ScopeAdmin
+		}
+		// Sub-group isolates the middleware to this route — calling
+		// .Use on the shared authRoutes itself would attach the scope
+		// guard to every subsequent route.
+		target := authRoutes.Group("")
+		target.Use(middleware.RequireScope(scope))
 		route.Register(target, h)
 	}
 }

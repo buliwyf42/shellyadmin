@@ -24,6 +24,15 @@ func RequireCSRF() gin.HandlerFunc {
 			c.Next()
 			return
 		}
+		// PAT-authed requests skip CSRF entirely (T3). The bearer
+		// token IS the proof-of-intent — the entire reason CSRF exists
+		// is to defend against a victim's browser auto-attaching a
+		// cookie cross-origin. Bearer tokens are never auto-attached,
+		// so there's no CSRF vector to defend against.
+		if AuthMethod(c) == AuthMethodPAT {
+			c.Next()
+			return
+		}
 		session := sessions.Default(c)
 		nonce, _ := session.Get("nonce").(string)
 		if nonce == "" {

@@ -20,6 +20,7 @@ import (
 	"shellyadmin/internal/services/sessions"
 	servicessettings "shellyadmin/internal/services/settings"
 	"shellyadmin/internal/services/templates"
+	"shellyadmin/internal/services/tokens"
 	"shellyadmin/internal/services/totp"
 	"shellyadmin/internal/services/validation"
 	"shellyadmin/internal/services/workers"
@@ -146,6 +147,12 @@ type AppService struct {
 	// totp sub-package import.
 	totp *totp.Service
 
+	// tokens owns the Personal Access Token lifecycle (create / list /
+	// revoke / middleware lookup). T3 in v0.3.0 (Block 4c.2); the
+	// *AppService delegators in internal/services/tokens.go preserve the
+	// public surface for the api package + the auth middleware.
+	tokens *tokens.Service
+
 	// metrics is the Prometheus-format counter/gauge registry. nil for
 	// callers that don't wire it up (tests, MCP-only stdio mode); the
 	// service-layer Inc/Set helpers tolerate nil so the metrics path is
@@ -239,6 +246,10 @@ func NewAppService(database Store, dataDir string, logf func(ctx context.Context
 	// Store-only dependency; secretbox key is read at the package level
 	// during seal/open so no key wiring is needed here.
 	svc.totp = totp.New(database)
+	// tokens.Service handles Personal Access Token lifecycle. Pure
+	// Store-only deps; the bearer-string hash comparison is done in-
+	// package via sha256+ConstantTimeCompare.
+	svc.tokens = tokens.New(database)
 	return svc
 }
 

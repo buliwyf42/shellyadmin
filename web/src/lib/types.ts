@@ -185,6 +185,40 @@ export interface TOTPEnrollResponse {
   qrcode_format: string;
 }
 
+/** Per-token metadata returned by GET /api/tokens. Never carries the
+ *  plaintext secret — that's only emitted in the Create response. */
+export interface ListedPAT {
+  id: string;
+  name: string;
+  scopes: string[];
+  created_at: string;
+  last_used_at?: string;
+  expires_at?: string;
+  revoked_at?: string;
+  revoked: boolean;
+  expired: boolean;
+}
+
+/** GET /api/tokens response. available_scopes is the live catalog so
+ *  the create-token form can render the checkbox list without a
+ *  separate endpoint. */
+export interface ListTokensResponse {
+  tokens: ListedPAT[];
+  available_scopes: string[];
+}
+
+/** POST /api/tokens response. token field surfaces the plaintext
+ *  bearer string ONCE — the SPA flashes it to the operator and drops
+ *  it from memory after a copy-to-clipboard. */
+export interface CreateTokenResponse {
+  token: string;
+  id: string;
+  name: string;
+  scopes: string[];
+  created_at: string;
+  expires_at?: string;
+}
+
 export interface FWResult {
   ip: string;
   mac: string;

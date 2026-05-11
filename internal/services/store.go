@@ -75,6 +75,13 @@ type Store interface {
 	SetTOTP(state db.TOTPState) error
 	DeleteTOTP(username string) error
 
+	// Personal Access Tokens (T3, v0.3.0)
+	CreatePAT(p db.PAT) error
+	GetPAT(id string) (db.PAT, error)
+	ListPATs(username string) ([]db.PAT, error)
+	TouchPAT(id string) error
+	RevokePAT(id string) error
+
 	// Audit-log retention + chain verification (S1+S2)
 	PruneAuditLogOlderThan(cutoff time.Time) (int64, error)
 	VerifyAuditChain() (int64, error)
