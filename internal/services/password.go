@@ -12,16 +12,24 @@ import (
 	"golang.org/x/crypto/argon2"
 )
 
-// Argon2id parameters. Values are moderate: suitable for a low-login-volume
-// admin surface without making startup password hashing painful. Tuned per
-// OWASP's 2023 recommendation for argon2id (m=64MiB, t=2, p=1) and
-// constant-time verified.
+// Argon2id parameters. Values are tuned for OWASP's 2025 recommendation
+// (m=96MiB, t=2, p=1) — a single-step bump from the 2023 m=64MiB defaults
+// that v0.1.x through v0.2.x used. Old PHC hashes with m=64MiB still verify
+// correctly; IsLegacyParameters reports whether a stored hash should be
+// regenerated (T6 in the consolidated review).
 const (
 	argonTime    uint32 = 2
-	argonMemory  uint32 = 64 * 1024 // KiB
+	argonMemory  uint32 = 96 * 1024 // KiB; was 64*1024 in v0.2.x.
 	argonThreads uint8  = 1
 	argonKeyLen  uint32 = 32
 	argonSaltLen        = 16
+
+	// recommendedMinMemory is the floor below which a stored hash is
+	// considered legacy and should be regenerated. Bumped together with
+	// argonMemory; the threshold deliberately tracks the current
+	// argonMemory value so future Argon2id-defaults bumps automatically
+	// flag the previous tier as legacy.
+	recommendedMinMemory uint32 = 96 * 1024
 )
 
 // HashPassword produces a PHC-formatted argon2id string from the supplied
@@ -106,4 +114,26 @@ func parseArgonParams(s string) (memory, time uint32, threads uint8, err error) 
 // IsPasswordHash reports whether s is a PHC-formatted argon2id string.
 func IsPasswordHash(s string) bool {
 	return strings.HasPrefix(s, "$argon2id$")
+}
+
+// IsLegacyParameters reports whether the parameters encoded in phc fall
+// below the current recommended floor. v0.3 ships with the OWASP-2025
+// argon2id defaults (m=96MiB); a stored hash generated with the v0.2.x
+// defaults (m=64MiB) verifies fine but should be regenerated to keep the
+// per-attempt CPU/memory cost current. Login callers can surface this
+// to the operator without forcing a rehash (no DB write path exists for
+// the env-var-supplied hash).
+func IsLegacyParameters(phc string) bool {
+	if !IsPasswordHash(phc) {
+		return false
+	}
+	parts := strings.Split(phc, "$")
+	if len(parts) != 6 {
+		return false
+	}
+	m, _, _, err := parseArgonParams(parts[3])
+	if err != nil {
+		return false
+	}
+	return m < recommendedMinMemory
 }

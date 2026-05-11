@@ -59,3 +59,28 @@ func TestHashPassword_RejectsEmpty(t *testing.T) {
 		t.Errorf("empty password must not hash")
 	}
 }
+
+// TestIsLegacyParameters locks T6's behaviour: hashes produced with the
+// current defaults are NOT legacy; a hand-crafted hash with the v0.2.x
+// m=64MiB parameter IS legacy. Non-argon2id strings return false (the
+// helper is "is the parameter set below the floor", not a general
+// validity check).
+func TestIsLegacyParameters(t *testing.T) {
+	current, err := HashPassword("test-current")
+	if err != nil {
+		t.Fatalf("HashPassword error = %v", err)
+	}
+	if IsLegacyParameters(current) {
+		t.Errorf("freshly hashed password reported as legacy: %s", current)
+	}
+	legacy := "$argon2id$v=19$m=65536,t=2,p=1$YWFhYWFhYWFhYWFhYWFhYQ$YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE"
+	if !IsLegacyParameters(legacy) {
+		t.Errorf("v0.2.x-shaped m=64MiB hash should be flagged as legacy: %s", legacy)
+	}
+	if IsLegacyParameters("not a phc string") {
+		t.Errorf("non-PHC input should not be flagged as legacy")
+	}
+	if IsLegacyParameters("$bcrypt$2y$10$ldsmaSGDSGklfsfkl") {
+		t.Errorf("non-argon2id PHC should not be flagged as legacy")
+	}
+}
