@@ -1,3 +1,10 @@
+// Device is the per-row shape the SPA consumes from /api/devices,
+// /api/devices/refresh, /api/devices/refresh-one, and (wrapped in
+// DeviceDetail) /api/devices/{target}. v0.3.0 (M8) split the wire
+// payload into a slim DeviceListView (the list endpoints) and the full
+// Device (only on /api/devices/{target}). The fields below cover the
+// slim shape; detail-only fields (batch, fw_id, mqtt_flags_na) are
+// optional here because they're only populated by the detail endpoint.
 export interface Device {
   mac: string;
   ip: string;
@@ -8,12 +15,11 @@ export interface Device {
    * primary "what is this device" label, with `model` demoted to the
    * tooltip. Empty until a scan / refresh has run on v0.1.11+. */
   app?: string;
-  /** Production batch from Shelly.GetDeviceInfo (e.g. "2430-Broadwell").
-   * Useful for warranty / hardware-quirk diagnostics. */
+  /** Production batch from Shelly.GetDeviceInfo. M8: only present on the
+   * detail endpoint; the list endpoint drops it. */
   batch?: string;
-  /** Long firmware identifier with build hash (e.g.
-   * "20260423-102547/2.0.0-beta1-g8c7700a"). Distinct from `fw` which
-   * is the user-friendly version string. */
+  /** Long firmware identifier with build hash. M8: only present on the
+   * detail endpoint; the list endpoint drops it. */
   fw_id?: string;
   fw: string;
   gen: number;
@@ -28,7 +34,8 @@ export interface Device {
   mqtt_server: string;
   mqtt_client_id: string;
   mqtt_topic_prefix: string;
-  mqtt_flags_na: string;
+  /** M8: only present on the detail endpoint; the list endpoint drops it. */
+  mqtt_flags_na?: string;
   lat: number | null;
   lon: number | null;
   tz: string;
