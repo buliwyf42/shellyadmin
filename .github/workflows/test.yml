@@ -45,8 +45,14 @@ jobs:
       - name: go vet
         run: go vet ./...
 
+      # -coverpkg=./... counts cross-package coverage so the M7
+      # services-split tests in internal/services/*_test.go register
+      # against the sub-packages they exercise (jobs/, credentials/,
+      # backup/, etc.) instead of leaving each sub-package at 0%
+      # package-local coverage. Without this flag the same code looks
+      # ~12 points less covered than it actually is.
       - name: Run tests with coverage
-        run: go test ./... -coverprofile=coverage.out -covermode=atomic
+        run: go test ./... -coverpkg=./... -coverprofile=coverage.out -covermode=atomic
 
       # M3 — drift check between `internal/models.*` and the canonical
       # snapshot in `internal/models/schema.gen.json`. A new field on a
@@ -56,21 +62,22 @@ jobs:
       - name: Model schema drift check
         run: go run ./cmd/modelschema --check
 
-      # S15 — coverage gate. Baseline at the v0.2.10 cut is 41.6%;
-      # 40% gate guards against regression while Phase 3 (handler.go
-      # split + services split + frontend page tests) lifts the
-      # ceiling toward the 50% target. Bump this floor when the
+      # S15 — coverage gate. Baseline at the v0.2.10 cut was 41.6%
+      # measured with the default package-local coverage; v0.3.0
+      # switched to -coverpkg=./... (see Run tests step) which gives
+      # a more honest cross-package count and durably reads ~50%.
+      # 45% gate guards against regression. Bump this floor when the
       # measured number durably exceeds it. Note: models/, util/,
       # and cmd/ have no tests by design (data structs / entry).
-      - name: Coverage gate (>=40%)
+      - name: Coverage gate (>=45%)
         run: |
           set -euo pipefail
           go tool cover -func=coverage.out | grep total: | awk '{print $3}' > coverage.txt
           pct=$(sed 's/%//' coverage.txt)
           echo "coverage: ${pct}%"
-          ok=$(awk -v p="$pct" 'BEGIN{print (p >= 40.0) ? 1 : 0}')
+          ok=$(awk -v p="$pct" 'BEGIN{print (p >= 45.0) ? 1 : 0}')
           if [ "$ok" -ne 1 ]; then
-            echo "::error::coverage ${pct}% < 40% floor"
+            echo "::error::coverage ${pct}% < 45% floor"
             exit 1
           fi
 
