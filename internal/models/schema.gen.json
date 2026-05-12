@@ -169,6 +169,15 @@
           "json_name": "subnets",
           "go_type": "[]string",
           "tag": "subnets"
+        },
+        {
+          "name": "TOTPRequired",
+          "json_name": "totp_required",
+          "go_type": "bool",
+          "tag": "totp_required,omitempty",
+          "options": [
+            "omitempty"
+          ]
         }
       ]
     },
