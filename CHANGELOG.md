@@ -4,14 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-## [0.3.0-rc1] - 2026-05-12 — Phase 4c (TOTP 2FA + PAT bearer tokens) + breaking auth hardening
-
-> **Release candidate.** Ships under the rc1 tag so the breaking
-> changes (S6 + ADR-0015) can soak on docker.home.lan for ~1 week
-> before the final v0.3.0 release. Surface identical to the planned
-> final cut. Promotion path: after the soak completes without
-> regressions, bump VERSION + web/package.json + lockfile to `0.3.0`,
-> rename this header to `[0.3.0]`, re-tag.
+## [0.3.0] - 2026-05-12 — Phase 4c (TOTP 2FA + PAT bearer tokens) + breaking auth hardening
 
 The Phase 4c half of the consolidated review — the operator-facing auth
 strategics. Two new auth surfaces (TOTP 2FA + Personal Access Tokens),
