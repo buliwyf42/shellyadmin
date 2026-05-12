@@ -4,6 +4,38 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-05-12 — Post-v0.3.0 CI hygiene + dependabot housekeeping
+
+Patch release. **No runtime behavior change** vs. v0.3.0 — the image
+built from this tag is functionally identical to `:v0.3.0`. Operators
+already on v0.3.0 have no reason to upgrade beyond getting a green
+CI badge on the deployed commit.
+
+Cut to clear three post-tag failures on the v0.3.0 commit's Test
+workflow, then to land a coordinated dependabot bump:
+
+### Fixed
+
+- **`internal/models/schema.gen.json` drift** (commit a833f9d).
+  Missed step 2 of the v0.3.0 pre-flight (regenerate model schema).
+  The TOTPRequired field added to AppSettings in T1 caused the M3
+  drift-check gate to fail. Regenerated; the schema now reflects
+  the live struct. Pure CI artifact — not read at runtime.
+- **Coverage gate** (commit 6e899d7). The M7 services-split in
+  v0.2.14 moved code into sub-packages whose tests stayed in the
+  parent `internal/services` package; with the default package-local
+  `-coverprofile` those sub-packages registered as 0% covered even
+  though integration tests fully exercised them. Switched CI to
+  `go test -coverpkg=./...` for an honest cross-package count
+  (`38.5% → 51.1%` durable baseline) and bumped the floor from 40%
+  to 45%. Added 17 package-local middleware tests so middleware
+  itself reads 44.9% directly.
+- **Coordinated dependabot bump** (commit 3835d32). Three separate
+  Dependabot PRs for `@typescript-eslint/*` 8.59.2 → 8.59.3 each
+  failed `npm install` because the peer-dep contract requires all
+  three to land together. Bundled them into one local bump; the
+  three Dependabot PRs will auto-close when this lands.
+
 ## [0.3.0] - 2026-05-12 — Phase 4c (TOTP 2FA + PAT bearer tokens) + breaking auth hardening
 
 The Phase 4c half of the consolidated review — the operator-facing auth
