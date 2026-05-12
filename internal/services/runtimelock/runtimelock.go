@@ -38,10 +38,21 @@ const (
 	// abandoned". 60s matches the ADR-0015 description.
 	HeartbeatInterval = 60 * time.Second
 
-	// StaleAfter is the cutoff a passive observer uses. 5 minutes = 5×
-	// the heartbeat interval, giving slack for GC pauses + clock
-	// skew + a slow snapshot pause.
-	StaleAfter = 5 * time.Minute
+	// StaleAfter is the cutoff a passive observer uses. 60 s ≈ 1×
+	// the heartbeat interval. v0.3.0–0.3.2 used 5 minutes — too long
+	// for the common-case "same container crash-restart loop" that
+	// dominates a single-operator deployment with `restart:
+	// unless-stopped`. 60 s is still long enough that the genuine
+	// two-instance misconfiguration (operator starts a second
+	// container while the first is still alive) cannot sneak past:
+	// it takes more than 60 s of deliberate action to set up two
+	// containers pointing at the same SQLite. The same-hostname
+	// fast-path in Acquire (see below) covers the crash-restart
+	// case immediately without even waiting for the staleness
+	// window, so this 60 s cap is the worst-case wait for the
+	// hostname-collision scenario (rare; requires
+	// `hostname: shellyadmin` override).
+	StaleAfter = 60 * time.Second
 )
 
 // ErrLocked is returned by Acquire when the table already has a fresh
@@ -153,16 +164,38 @@ func (s *Service) Acquire(ctx context.Context) error {
 		return fmt.Errorf("runtimelock: read existing lock: %w", err)
 	}
 	if err == nil && existing.InstanceID != "" {
-		acquiredAt, parseErr := time.Parse(time.RFC3339, existing.AcquiredAt)
-		if parseErr == nil && now.Sub(acquiredAt) < StaleAfter {
-			return &LockedError{
-				Hostname:   existing.Hostname,
-				PID:        existing.PID,
-				AcquiredAt: existing.AcquiredAt,
-				StaleAfter: acquiredAt.Add(StaleAfter),
+		// Same-hostname fast path: if the existing row's hostname
+		// matches the current process's hostname, this is the same
+		// Docker container restarting itself after a crash. The
+		// instance_id won't match (regenerated on every New()) but
+		// hostname-equality is the right signal because Docker sets
+		// each container's hostname to its container ID prefix —
+		// two different containers have different hostnames by
+		// default. Take over the row immediately without waiting
+		// for the staleness window, since the previous instance
+		// (us, before the crash) is definitely dead by the time
+		// this Acquire runs.
+		//
+		// The edge case this misses: an operator who explicitly
+		// sets `hostname: shellyadmin` in BOTH compose stacks
+		// pointing at the same DB would have hostname collision
+		// even between genuinely-different containers. That's
+		// contrived enough to leave on the staleness window (60s)
+		// as the fallback gate.
+		if existing.Hostname == s.hostname && s.hostname != "" {
+			// Fall through to the upsert below — overwrite the row.
+		} else {
+			acquiredAt, parseErr := time.Parse(time.RFC3339, existing.AcquiredAt)
+			if parseErr == nil && now.Sub(acquiredAt) < StaleAfter {
+				return &LockedError{
+					Hostname:   existing.Hostname,
+					PID:        existing.PID,
+					AcquiredAt: existing.AcquiredAt,
+					StaleAfter: acquiredAt.Add(StaleAfter),
+				}
 			}
+			// Stale row — log path is the caller's; we take it over.
 		}
-		// Stale row — log path is the caller's; we take it over.
 	}
 	row := db.RuntimeLockRow{
 		Key:        PrimaryKey,
