@@ -12,16 +12,15 @@
                     cookie cannot quietly turn 2FA off).
 
   T1 in v0.3.0 (docs/plans/phase-4c-auth-strategics.md, Block 4c.1).
-
-  Out of scope for this PR: visual QR-code rendering. The operator
-  pastes either the secret string into their authenticator's manual-
-  entry form or follows the otpauth:// link on a mobile device that
-  has 1Password / Google Authenticator installed. Bundling a QR
-  encoder + the accompanying visual review of the encoded data is a
-  v0.3.0-rc improvement.
+  QR-code rendering landed post-v0.3.1 — operators can now scan the
+  enrolment with a phone-based authenticator instead of typing the
+  base32 secret by hand. Manual entry stays as a fallback for
+  desktop-managed password vaults (Bitwarden, 1Password) that don't
+  scan.
 -->
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
+  import QRCode from 'qrcode';
   import { APIError, api } from '../../lib/api';
   import type { TOTPEnrollResponse, TOTPStatus } from '../../lib/types';
 
@@ -63,10 +62,39 @@
     try {
       pending = await api.totp.enroll();
       confirmCode = '';
+      // Wait for the canvas to mount, then render the QR from the
+      // freshly-minted otpauth URI. errorCorrectionLevel='M' is a
+      // safe default (15% redundancy — recoverable on a phone camera
+      // even with mild glare on the screen).
+      await tick();
+      await renderQR(pending.otpauth_uri);
     } catch (err) {
       captureError(err);
     } finally {
       busy = false;
+    }
+  }
+
+  // qrCanvas is bound by the <canvas> element below; renderQR draws
+  // the otpauth URI onto it via the qrcode library. Width chosen so
+  // the QR scans cleanly on a phone camera held ~20cm from a
+  // standard-DPI monitor.
+  let qrCanvas: HTMLCanvasElement | null = null;
+
+  async function renderQR(uri: string) {
+    if (!qrCanvas) return;
+    try {
+      await QRCode.toCanvas(qrCanvas, uri, {
+        width: 220,
+        margin: 2,
+        errorCorrectionLevel: 'M',
+        color: { dark: '#000000', light: '#ffffff' },
+      });
+    } catch (err) {
+      // QR render failure is non-fatal — the operator can still type
+      // the secret manually. Surface a status message but don't break
+      // the enrollment flow.
+      captureError(err);
     }
   }
 
@@ -186,42 +214,53 @@
            into their authenticator and verifies a fresh code. -->
       <h3 class="h6">Step 1 — Add to your authenticator</h3>
       <p class="text-secondary small mb-2">
-        Either tap the link on a device that has an authenticator app installed, or type the secret
-        manually.
+        Scan the QR code with your authenticator app, or type the secret manually if you're using a
+        desktop password manager that doesn't scan.
       </p>
-      <label class="form-label" for="totp-otpauth-uri">Authenticator link</label>
-      <div class="input-group mb-2">
-        <input
-          id="totp-otpauth-uri"
-          class="form-control font-monospace"
-          readonly
-          value={pending.otpauth_uri}
-        />
-        <button
-          class="btn btn-outline-light"
-          type="button"
-          on:click={() => copyToClipboard(pending!.otpauth_uri, 'otpauth URI')}
-        >
-          Copy
-        </button>
-        <a class="btn btn-outline-warning" href={pending.otpauth_uri}>Open</a>
+      <div class="d-flex justify-content-center mb-3">
+        <canvas
+          bind:this={qrCanvas}
+          width="220"
+          height="220"
+          aria-label="TOTP enrollment QR code"
+          class="bg-white rounded p-2"
+        ></canvas>
       </div>
-      <label class="form-label" for="totp-manual-secret">Manual entry secret</label>
-      <div class="input-group mb-3">
-        <input
-          id="totp-manual-secret"
-          class="form-control font-monospace"
-          readonly
-          value={pending.secret}
-        />
-        <button
-          class="btn btn-outline-light"
-          type="button"
-          on:click={() => copyToClipboard(pending!.secret, 'Secret')}
-        >
-          Copy
-        </button>
-      </div>
+      <details class="mb-3">
+        <summary class="text-secondary small">Manual entry / otpauth link</summary>
+        <label class="form-label small mt-2" for="totp-manual-secret">Manual entry secret</label>
+        <div class="input-group input-group-sm mb-2">
+          <input
+            id="totp-manual-secret"
+            class="form-control font-monospace"
+            readonly
+            value={pending.secret}
+          />
+          <button
+            class="btn btn-outline-light"
+            type="button"
+            on:click={() => copyToClipboard(pending!.secret, 'Secret')}
+          >
+            Copy
+          </button>
+        </div>
+        <label class="form-label small" for="totp-otpauth-uri">otpauth:// URI</label>
+        <div class="input-group input-group-sm">
+          <input
+            id="totp-otpauth-uri"
+            class="form-control font-monospace"
+            readonly
+            value={pending.otpauth_uri}
+          />
+          <button
+            class="btn btn-outline-light"
+            type="button"
+            on:click={() => copyToClipboard(pending!.otpauth_uri, 'otpauth URI')}
+          >
+            Copy
+          </button>
+        </div>
+      </details>
 
       <h3 class="h6">Step 2 — Save your backup codes</h3>
       <p class="text-secondary small mb-2">

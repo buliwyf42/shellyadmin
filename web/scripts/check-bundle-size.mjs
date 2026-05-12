@@ -44,8 +44,13 @@ const DIST = path.resolve(HERE, '..', 'dist', 'assets');
 // matrix) added ~15 KB raw / ~5 KB gzip. Measured 335.54 kB raw /
 // 88.91 kB gzip — bumped both axes to leave ~3% headroom for the
 // remaining v0.3.0 work (Settings page split, audit-webhook UI).
+// Post-v0.3.1 polish: `qrcode` library (~24 KB raw / ~11 KB gzip)
+// bundled for TOTP enrollment QR-code rendering — operators can now
+// scan with a phone instead of typing the secret. Measured 351.72 kB
+// raw / 95.24 kB gzip. Bumped budget to leave ~3% headroom; if a
+// future minifier swap shrinks this back down, tighten the floor.
 const BUDGETS = {
-  js: { raw: 345 * 1024, gzip: 92 * 1024 },
+  js: { raw: 365 * 1024, gzip: 100 * 1024 },
   css: { raw: 30 * 1024, gzip: 8 * 1024 },
 };
 
