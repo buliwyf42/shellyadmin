@@ -4,6 +4,46 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-05-12 — TOTP QR code + dependabot housekeeping
+
+Patch release. **One user-visible change** (TOTP enrollment now shows
+a scannable QR code) plus a handful of dev-dep + CI-action bumps.
+Operators on v0.3.0 / v0.3.1 with no TOTP enrollment in flight have
+no functional reason to upgrade.
+
+### Added
+
+- **TOTP enrollment QR code.** The Settings 2FA card draws the
+  freshly-minted otpauth:// URI into a 220 px `<canvas>` via the
+  `qrcode` library (~24 KB raw / ~11 KB gzip). Operators can now
+  scan with a phone-based authenticator (Google Authenticator,
+  1Password, Authy, Bitwarden, etc.) instead of typing the base32
+  secret by hand. Manual-entry secret + the raw otpauth URI move
+  into a collapsed `<details>` block as the fallback for desktop
+  password vaults that don't scan. The previously-deferred T1
+  polish item is now done.
+
+### Changed
+
+- **Bundle-size budget** raised 345/92 → 365/100 KB raw/gzip to
+  absorb the qrcode encoder. Measured 351.72 KB raw / 95.24 KB gzip.
+- **Dev-dependency bumps** (closes 3 dependabot PRs):
+  - `vitest` 4.1.5 → 4.1.6 (#16)
+  - `@vitest/ui` 4.1.5 → 4.1.6 (#17)
+  - `prettier-plugin-svelte` 3.5.1 → 3.5.2 (#20)
+- **CI action bumps** in `.github/workflows/publish-image.yml`
+  (closes 2 dependabot PRs):
+  - `sigstore/cosign-installer` (#14)
+  - `aquasecurity/trivy-action` (#15)
+
+### Fixed
+
+- The "pre-existing a11y warning at
+  `web/src/pages/provision/WebhooksForm.svelte:97`" mentioned in the
+  v0.3.0 release notes was actually fixed earlier (likely during the
+  M2 frontend split in v0.2.14) — verified all 5 `<label>` elements
+  have proper `for=` attributes. Stale memory note cleared.
+
 ## [0.3.1] - 2026-05-12 — Post-v0.3.0 CI hygiene + dependabot housekeeping
 
 Patch release. **No runtime behavior change** vs. v0.3.0 — the image
