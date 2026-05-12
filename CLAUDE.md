@@ -194,8 +194,18 @@ stack** named `shellyadmin` (environment id 1 in Dockhand's
 - Volumes: `/docker/shellyadmin → /data` bind mount.
 - Networks: `homestack_docker` external network.
 - Hardening: `read_only: true` + `tmpfs: /tmp`, `cap_drop: [ALL]`
-  with `cap_add: [CHOWN, DAC_OVERRIDE, SETGID, SETUID]`,
+  with `cap_add: [CHOWN, DAC_OVERRIDE, SETGID, SETUID, KILL]`,
   `no-new-privileges:true`, `pids_limit: 256`, `init: true`.
+  **`KILL` is mandatory when `init: true`** — tini (PID 1, running as
+  root) needs `CAP_KILL` to forward SIGTERM across the UID gap to
+  `shellyctl` (running as the `shelly` user after `su-exec` in the
+  entrypoint). Without it, `[FATAL tini (1)] Unexpected error when
+  forwarding signal: 'Operation not permitted'` fires on every
+  graceful stop, the deferred `runtime_locks.Release` never runs,
+  and the next boot panic-loops on a stranded lock row until the
+  staleness window (60 s on v0.3.3+, 5 min on v0.3.0–0.3.2)
+  expires. Discovered the hard way on the v0.3.3 production deploy
+  (2026-05-12).
 - Env in `.env` (managed via Dockhand UI, never committed):
   `SHELLYADMIN_PASS_HASH` (argon2id PHC from `shellyctl hash-password`),
   `SHELLYADMIN_SECRET` (cookie secret), `COOKIE_SECURE=false`
