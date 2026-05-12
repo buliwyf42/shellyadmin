@@ -73,7 +73,7 @@ jobs:
       #     --certificate-oidc-issuer https://token.actions.githubusercontent.com \
       #     ghcr.io/buliwyf42/shellyadmin:vX.Y.Z
       - name: Install cosign
-        uses: sigstore/cosign-installer@f713795cb21599bc4e5c4b58cbad1da852d7eeb9 # v3
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
         with:
           cosign-release: 'v2.4.1'
 
@@ -97,7 +97,7 @@ jobs:
       # workflow but the release has already been pushed — the operator
       # gets a notification and decides whether to roll the tag back.
       - name: Trivy image scan
-        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
           format: table
