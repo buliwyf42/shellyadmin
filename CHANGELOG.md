@@ -4,6 +4,52 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-05-12 — runtime_locks: same-hostname fast path + 60 s window
+
+Hotfix patch. Softens ADR-0015 (`runtime_locks`) to recover gracefully
+from the common-case **single-container crash-restart loop** that bit
+the first production v0.3.0 deploy. Recommended upgrade for everyone
+on v0.3.0–0.3.2.
+
+### Fixed
+
+- **Same-container restart no longer requires `shellyctl unlock
+  --force`.** v0.3.0–0.3.2's lock policy was designed for the "two
+  containers pointing at the same SQLite" misconfiguration, but it
+  also punished the much more common "Docker `restart:
+  unless-stopped` cycling a crashed container" case. When the
+  previous boot died without releasing (SIGKILL, OOM, panic before
+  the `defer Release` registered) the restarting container would
+  read its own previous row, treat it as a foreign lock, and panic
+  for 5 minutes until the staleness window expired. v0.3.3 adds a
+  hostname fast path in `runtimelock.Service.Acquire`: when the
+  existing row's hostname matches the current process's, take over
+  immediately. Docker sets each container's hostname to the
+  container ID prefix, so two genuinely-different containers have
+  different hostnames by default — the fast path covers the
+  crash-restart case without weakening the original protection.
+- **StaleAfter window tightened from 5 min → 60 s.** Backstop for
+  the residual case where the operator explicitly sets
+  `hostname: shellyadmin` in two compose stacks pointing at the
+  same DB (contrived but possible). 60 s is still long enough to
+  catch a genuine two-instance misconfiguration — it takes >60 s
+  of deliberate operator action to start two containers — without
+  forcing a 5-minute wait when something legitimately crashed.
+
+### Recovery path for operators on v0.3.0–0.3.2 stuck in the lock loop
+
+Until v0.3.3 image is pulled, use the one-shot escape:
+
+```
+docker run --rm -v /docker/shellyadmin:/data -e DATA_DIR=/data \
+  ghcr.io/buliwyf42/shellyadmin:v0.3.3 \
+  unlock --force
+```
+
+(Note the absence of a leading `shellyctl` — the image ENTRYPOINT
+is the docker-entrypoint.sh wrapper which already invokes shellyctl
+with the passed args.) Then `docker compose start shellyadmin`.
+
 ## [0.3.2] - 2026-05-12 — TOTP QR code + dependabot housekeeping
 
 Patch release. **One user-visible change** (TOTP enrollment now shows

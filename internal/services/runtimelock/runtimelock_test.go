@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -159,6 +160,50 @@ func TestReleaseIsSafeBeforeAcquire(t *testing.T) {
 	svc := New(newFakeStore())
 	if err := svc.Release(context.Background()); err != nil {
 		t.Errorf("Release before Acquire: %v", err)
+	}
+}
+
+// TestAcquireTakesOverOwnHostname locks in the v0.3.3 fast path:
+// when the existing row's hostname matches the current process's
+// hostname (i.e. the same Docker container restarting itself after a
+// crash), Acquire takes over the row immediately without waiting for
+// the staleness window. This is the crash-restart-loop case that
+// dominated operator pain on v0.3.0–0.3.2 deployments.
+func TestAcquireTakesOverOwnHostname(t *testing.T) {
+	store := newFakeStore()
+	myHostname, _ := os.Hostname()
+	if myHostname == "" {
+		t.Skip("test host has no hostname")
+	}
+	now := time.Date(2026, 5, 12, 12, 0, 0, 0, time.UTC)
+	// Pre-seed a row with OUR hostname, only 10s old (well within
+	// the 60s staleness window). A pre-v0.3.3 service would refuse;
+	// the new fast path takes over.
+	store.row = &db.RuntimeLockRow{
+		Key:        PrimaryKey,
+		InstanceID: "previous-boot-of-same-container",
+		AcquiredAt: now.Add(-10 * time.Second).Format(time.RFC3339),
+		PID:        7,
+		Hostname:   myHostname,
+	}
+
+	svc := New(store)
+	svc.SetClock(func() time.Time { return now })
+
+	if err := svc.Acquire(context.Background()); err != nil {
+		t.Fatalf("Acquire with own hostname: %v (want takeover)", err)
+	}
+	if store.row.InstanceID == "previous-boot-of-same-container" {
+		t.Errorf("Acquire did not overwrite own-hostname row: %+v", store.row)
+	}
+}
+
+// TestStaleAfterIs60Seconds locks in the v0.3.3 window-tightening.
+// A future change that lifts this back to 5min would re-introduce
+// the crash-restart pain v0.3.3 was cut to fix.
+func TestStaleAfterIs60Seconds(t *testing.T) {
+	if StaleAfter != 60*time.Second {
+		t.Errorf("StaleAfter = %v, want 60s (v0.3.3 lock-window tightening)", StaleAfter)
 	}
 }
 
