@@ -4,6 +4,7 @@
   import { currentPath, uiScale } from '../lib/stores';
   import type { VersionInfo } from '../lib/types';
   import { APP_VERSION } from '../lib/version';
+  import { isNavLinkActive, normalizeNavVersion } from './navbar';
 
   const links = [
     { path: '/', label: 'Devices', icon: 'grid' },
@@ -29,9 +30,7 @@
     }
   });
 
-  // The badge prefixes "v", so strip a leading "v" the backend may already
-  // carry (release images embed the git tag "v0.3.4") to avoid "vv0.3.4".
-  $: navVersion = (runtimeVersion.backend_version || APP_VERSION).replace(/^v/, '');
+  $: navVersion = normalizeNavVersion(runtimeVersion.backend_version || APP_VERSION);
 
   function closeNav() {
     navOpen = false;
@@ -73,10 +72,7 @@
   }
 
   function isActive(path: string): boolean {
-    if (path === '/' && $currentPath.startsWith('/devices/')) {
-      return true;
-    }
-    return $currentPath === path;
+    return isNavLinkActive(path, $currentPath);
   }
 
   async function logout() {
