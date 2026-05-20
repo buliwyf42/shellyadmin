@@ -21,6 +21,7 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 
 	"shellyadmin/internal/api"
+	"shellyadmin/internal/cli"
 	"shellyadmin/internal/core/secretbox"
 	"shellyadmin/internal/db"
 	"shellyadmin/internal/mcp"
@@ -49,6 +50,11 @@ func main() {
 		case "unlock":
 			runUnlock(os.Args[2:])
 			return
+		}
+		// Read-only operator CLI (HTTP + PAT, ADR-0016). A matching verb
+		// dispatches here; bare `shellyctl` falls through to the server.
+		if cli.Handles(os.Args[1]) {
+			os.Exit(cli.Run(os.Args[1:]))
 		}
 	}
 
