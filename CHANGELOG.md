@@ -4,6 +4,51 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-05-20 — Responsive nav + a11y, table-overflow fixes, CI image-build gate
+
+Frontend responsiveness/accessibility pass plus CI hardening. No backend
+behavior change.
+
+### Added
+
+- **Docker image build CI gate.** `test.yml` now smoke-builds
+  `docker/Dockerfile` (single-platform amd64, no push) on every PR and
+  push, and it's a required check on `main`. Closes the gap where a
+  breaking base-image bump only surfaced 17-22 min into
+  `publish-image.yml` at release time.
+
+### Changed
+
+- **Collapsible mobile navigation.** The 10-link top bar wrapped 3-4
+  rows below ~1024px (~380px of vertical space eaten on mobile). It now
+  collapses into a hamburger-toggled vertical drawer under 1024px; the
+  horizontal bar is unchanged at >=1024px.
+- **Accessibility baseline.** Nav toggle carries
+  `aria-label`/`aria-expanded`/`aria-controls`; active links get
+  `aria-current="page"`. Added a keyboard-only `:focus-visible` ring
+  (0-specificity `:where()` so component styles still win) and a
+  `prefers-reduced-motion` rule.
+- **CI toolchains aligned to the Dockerfile.** `setup-go` 1.25 → 1.26
+  and `setup-node` 20 → 26 (the `go.mod` floor stays `go 1.25.0`);
+  `golangci-lint` bumped to v2.12 (v2.6 panics on the Go 1.26 stdlib).
+- Docs refreshed for v0.3.4, the CI automation, and the new toolchains.
+
+### Fixed
+
+- **Narrow-viewport table overflow.** The Logs and Firmware tables were
+  bare `<table>`s with no scroll wrapper, forcing document-level
+  horizontal scroll on mobile. Both now use `.table-responsive`.
+- **Badge contrast (WCAG AA).** Small badge labels with white text on
+  `--danger` (3.94:1) and `--success` (2.71:1) were below the 4.5:1
+  threshold; darkened to `#c93544` (5.15:1) and `#18804a` (4.97:1).
+  Both tokens are consumed only by `.bg-danger`/`.bg-success`.
+- **Navbar version badge** rendered `vv0.3.4` when the backend version
+  already carried a leading `v`; the duplicate is now stripped.
+- **`make dev-backend`** still set `SHELLYADMIN_PASS` (removed v0.2.0)
+  and no `SHELLYADMIN_ENCRYPTION_KEY` (mandatory v0.3.0) and panicked at
+  startup; it now derives the hash from a dev password and sets a fixed
+  dev-only key (login: `admin` / `dev-secret`).
+
 ## [0.3.4] - 2026-05-20 — Clear-Logs trigger fix + Dependabot grouping/auto-merge
 
 Maintenance release. Fixes the audit-log "Clear Logs" button (broken
