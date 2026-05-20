@@ -4,6 +4,37 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-05-20 — shellyctl CLI, E2E + unit tests, deploy/test tooling
+
+Tooling and test-coverage release. The one operator-facing addition is the
+read-only `shellyctl` CLI; the rest hardens testing and the deploy workflow.
+No change to the running server's behavior.
+
+### Added
+
+- **`shellyctl` read-only CLI (ADR-0016).** Queries a running instance over
+  `/api` with a Personal Access Token: `devices` (list), `device
+  <mac|ip|name>` (detail), `logs` (audit tail, with `--level/--search/--risk`).
+  Human-aligned tables by default, `--json` for raw payloads; `--url` /
+  `--token` or `SHELLYADMIN_URL` / `SHELLYADMIN_TOKEN`. Bare `shellyctl`
+  still starts the server. Read-only first, mirroring the MCP server's
+  staging (ADR-0011) — no new auth or data-access surface.
+- **Playwright E2E (roadmap T8).** Smoke specs for login + the responsive
+  nav (desktop bar, mobile hamburger drawer, version badge), plus a
+  non-required `E2E (Playwright)` CI job that builds the SPA into the binary,
+  boots it, and drives a real browser against it.
+- **Pre-deploy DB snapshot tooling.** `scripts/snapshot-prod-db.sh`
+  (host-side SSH copy, since Dockhand's container exec can't write the
+  snapshot) + a documented pre-deploy step in `docs/DEPLOYMENT.md`.
+
+### Changed
+
+- Extracted the navbar's pure logic into `web/src/components/navbar.ts`
+  (version-badge normalization + active-link detection) with unit tests,
+  mirroring the `sortHeader.ts` pattern.
+- Docs now use repo-relative markdown links instead of absolute local
+  filesystem paths that only resolved on one machine.
+
 ## [0.3.5] - 2026-05-20 — Responsive nav + a11y, table-overflow fixes, CI image-build gate
 
 Frontend responsiveness/accessibility pass plus CI hardening. No backend
