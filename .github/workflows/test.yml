@@ -116,9 +116,12 @@ jobs:
           go-version: '1.26'
           cache: true
 
+      # golangci-lint must be built with a Go >= the toolchain it analyzes;
+      # v2.6 (built with Go 1.25) panics on the Go 1.26 stdlib with
+      # "file requires newer Go version go1.26". v2.12 is built with 1.26.
       - uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9
         with:
-          version: v2.6
+          version: v2.12
 
   # Smoke-build the production image on every PR + push. None of the
   # other jobs touch docker/Dockerfile, so a breaking base-image bump

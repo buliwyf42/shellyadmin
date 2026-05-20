@@ -160,7 +160,7 @@ func parseJSONTag(tag, fallback string) (string, []string) {
 // "map[K]V"; everything else is the Go-source rendering.
 func describeType(t reflect.Type) string {
 	switch t.Kind() {
-	case reflect.Ptr:
+	case reflect.Pointer:
 		return "*" + describeType(t.Elem())
 	case reflect.Slice, reflect.Array:
 		return "[]" + describeType(t.Elem())
