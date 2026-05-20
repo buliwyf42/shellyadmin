@@ -489,123 +489,127 @@
   </div>
 {/if}
 
-<table class="table table-dark table-striped">
-  <thead>
-    <tr>
-      <th>
-        <input
-          type="checkbox"
-          class="form-check-input"
-          aria-label="Select every device in the table"
-          title={selectableMacs.length === 0
-            ? 'No devices to select'
-            : `Select all ${selectableMacs.length} devices`}
-          checked={allChecked}
-          indeterminate={!allChecked && someChecked}
-          disabled={selectableMacs.length === 0 || installStatus.running}
-          on:change={toggleAll}
-        />
-      </th>
-      <SortHeader label="Name" column="name" {sortKey} {sortDir} onSort={setSort} />
-      <SortHeader label="Gen" column="gen" {sortKey} {sortDir} onSort={setSort} />
-      <SortHeader label="Model" column="model" {sortKey} {sortDir} onSort={setSort} />
-      <SortHeader label="IP" column="ip" {sortKey} {sortDir} onSort={setSort} />
-      <SortHeader label="Current" column="current" {sortKey} {sortDir} onSort={setSort} />
-      <SortHeader label="Available Stable" column="stable" {sortKey} {sortDir} onSort={setSort} />
-      <SortHeader label="Available Beta" column="beta" {sortKey} {sortDir} onSort={setSort} />
-      <SortHeader label="Auto-Update" column="auto_update" {sortKey} {sortDir} onSort={setSort} />
-      <SortHeader label="Status" column="status" {sortKey} {sortDir} onSort={setSort} />
-    </tr>
-  </thead>
-  <tbody>
-    {#each sortedRows as row (row.mac)}
-      {@const badge = statusBadge(row)}
-      {@const ab = autoUpdateBadge(row.autoUpdate)}
+<div class="table-responsive">
+  <table class="table table-dark table-striped">
+    <thead>
       <tr>
-        <td>
+        <th>
           <input
             type="checkbox"
             class="form-check-input"
-            value={row.mac}
-            bind:group={selectedMacs}
-            disabled={installStatus.running}
-            title={hasUpdateOnChannel(row, stage)
-              ? 'Eligible for both update and auto-update bulk actions'
-              : 'Eligible for auto-update bulk actions only (no update on this channel)'}
+            aria-label="Select every device in the table"
+            title={selectableMacs.length === 0
+              ? 'No devices to select'
+              : `Select all ${selectableMacs.length} devices`}
+            checked={allChecked}
+            indeterminate={!allChecked && someChecked}
+            disabled={selectableMacs.length === 0 || installStatus.running}
+            on:change={toggleAll}
           />
-        </td>
-        <td>{row.name || '-'}</td>
-        <td>
-          <span class={`badge ${genBadgeClass(row.gen, appSettings)}`} title={genTitle(row.gen)}
-            >{genLabel(row.gen)}</span
+        </th>
+        <SortHeader label="Name" column="name" {sortKey} {sortDir} onSort={setSort} />
+        <SortHeader label="Gen" column="gen" {sortKey} {sortDir} onSort={setSort} />
+        <SortHeader label="Model" column="model" {sortKey} {sortDir} onSort={setSort} />
+        <SortHeader label="IP" column="ip" {sortKey} {sortDir} onSort={setSort} />
+        <SortHeader label="Current" column="current" {sortKey} {sortDir} onSort={setSort} />
+        <SortHeader label="Available Stable" column="stable" {sortKey} {sortDir} onSort={setSort} />
+        <SortHeader label="Available Beta" column="beta" {sortKey} {sortDir} onSort={setSort} />
+        <SortHeader label="Auto-Update" column="auto_update" {sortKey} {sortDir} onSort={setSort} />
+        <SortHeader label="Status" column="status" {sortKey} {sortDir} onSort={setSort} />
+      </tr>
+    </thead>
+    <tbody>
+      {#each sortedRows as row (row.mac)}
+        {@const badge = statusBadge(row)}
+        {@const ab = autoUpdateBadge(row.autoUpdate)}
+        <tr>
+          <td>
+            <input
+              type="checkbox"
+              class="form-check-input"
+              value={row.mac}
+              bind:group={selectedMacs}
+              disabled={installStatus.running}
+              title={hasUpdateOnChannel(row, stage)
+                ? 'Eligible for both update and auto-update bulk actions'
+                : 'Eligible for auto-update bulk actions only (no update on this channel)'}
+            />
+          </td>
+          <td>{row.name || '-'}</td>
+          <td>
+            <span class={`badge ${genBadgeClass(row.gen, appSettings)}`} title={genTitle(row.gen)}
+              >{genLabel(row.gen)}</span
+            >
+          </td>
+          <td>
+            {#if row.app || row.model}
+              {@const tip = [
+                row.app ? `App: ${row.app}` : '',
+                row.model ? `Model: ${row.model}` : '',
+                `Gen ${row.gen}`,
+                row.switchCount ? `Switch: ${row.switchCount}` : '',
+                row.coverCount ? `Cover: ${row.coverCount}` : '',
+                row.lightCount ? `Light: ${row.lightCount}` : '',
+              ]
+                .filter(Boolean)
+                .join('\n')}
+              <div title={tip}>
+                {row.app || row.model}
+              </div>
+            {:else}
+              -
+            {/if}
+          </td>
+          <td
+            ><a href={`http://${row.ip}/`} target="_blank" rel="noreferrer noopener">{row.ip}</a
+            ></td
           >
-        </td>
-        <td>
-          {#if row.app || row.model}
-            {@const tip = [
-              row.app ? `App: ${row.app}` : '',
-              row.model ? `Model: ${row.model}` : '',
-              `Gen ${row.gen}`,
-              row.switchCount ? `Switch: ${row.switchCount}` : '',
-              row.coverCount ? `Cover: ${row.coverCount}` : '',
-              row.lightCount ? `Light: ${row.lightCount}` : '',
-            ]
-              .filter(Boolean)
-              .join('\n')}
-            <div title={tip}>
-              {row.app || row.model}
-            </div>
-          {:else}
-            -
-          {/if}
-        </td>
-        <td><a href={`http://${row.ip}/`} target="_blank" rel="noreferrer noopener">{row.ip}</a></td
-        >
-        <td>{row.currentVer || '-'}</td>
-        <td>
-          {#if row.stableVer && row.stableUpdate}
-            <span class="text-info">{row.stableVer}</span>
-          {:else if row.stableVer}
-            <span class="text-secondary">{row.stableVer}</span>
-          {:else}
-            <span class="text-secondary">-</span>
-          {/if}
-        </td>
-        <td>
-          {#if row.betaVer && row.betaUpdate}
-            <span class="text-info">{row.betaVer}</span>
-          {:else if row.betaVer}
-            <span class="text-secondary">{row.betaVer}</span>
-          {:else}
-            <span class="text-secondary">-</span>
-          {/if}
-        </td>
-        <td>
-          <span class={`badge ${ab.cls}`}>{ab.label}</span>
-        </td>
-        <td>
-          <span class={`badge ${badge.cls}`}>
-            {#if badge.spinner}<span
-                class="spinner-border spinner-border-sm me-1"
-                role="status"
-                aria-hidden="true"
-              ></span>{/if}{badge.label}
-          </span>
-          {#if row.installState?.detail && (row.installState.status === 'error' || row.installState.status === 'unknown')}
-            <div class="small text-secondary mt-1">{row.installState.detail}</div>
-          {:else if row.checkErr}
-            <div class="small text-secondary mt-1">{row.checkErr}</div>
-          {/if}
-        </td>
-      </tr>
-    {/each}
-    {#if sortedRows.length === 0}
-      <tr>
-        <td colspan="10" class="text-secondary text-center py-3">No devices known yet.</td>
-      </tr>
-    {/if}
-  </tbody>
-</table>
+          <td>{row.currentVer || '-'}</td>
+          <td>
+            {#if row.stableVer && row.stableUpdate}
+              <span class="text-info">{row.stableVer}</span>
+            {:else if row.stableVer}
+              <span class="text-secondary">{row.stableVer}</span>
+            {:else}
+              <span class="text-secondary">-</span>
+            {/if}
+          </td>
+          <td>
+            {#if row.betaVer && row.betaUpdate}
+              <span class="text-info">{row.betaVer}</span>
+            {:else if row.betaVer}
+              <span class="text-secondary">{row.betaVer}</span>
+            {:else}
+              <span class="text-secondary">-</span>
+            {/if}
+          </td>
+          <td>
+            <span class={`badge ${ab.cls}`}>{ab.label}</span>
+          </td>
+          <td>
+            <span class={`badge ${badge.cls}`}>
+              {#if badge.spinner}<span
+                  class="spinner-border spinner-border-sm me-1"
+                  role="status"
+                  aria-hidden="true"
+                ></span>{/if}{badge.label}
+            </span>
+            {#if row.installState?.detail && (row.installState.status === 'error' || row.installState.status === 'unknown')}
+              <div class="small text-secondary mt-1">{row.installState.detail}</div>
+            {:else if row.checkErr}
+              <div class="small text-secondary mt-1">{row.checkErr}</div>
+            {/if}
+          </td>
+        </tr>
+      {/each}
+      {#if sortedRows.length === 0}
+        <tr>
+          <td colspan="10" class="text-secondary text-center py-3">No devices known yet.</td>
+        </tr>
+      {/if}
+    </tbody>
+  </table>
+</div>
 
 {#if confirmOpen}
   <div

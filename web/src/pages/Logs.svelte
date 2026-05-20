@@ -90,45 +90,47 @@
   <div class="alert alert-danger py-2">{error}</div>
 {/if}
 
-<table class="table table-dark table-striped">
-  <thead
-    ><tr
-      ><th>Timestamp</th><th>Level</th><th title="Catalog risk level on action-execution rows"
-        >Risk</th
-      ><th>Request</th><th>Message</th></tr
-    ></thead
-  >
-  <tbody>
-    {#each logs as log (log.id)}
-      <tr>
-        <td>{log.ts}</td>
-        <td
-          ><span
-            class={`badge ${log.level === 'ERROR' ? 'bg-danger' : log.level === 'WARN' ? 'bg-warning text-dark' : log.level === 'DEBUG' ? 'bg-info text-dark' : 'bg-secondary'}`}
-            >{log.level}</span
-          ></td
-        >
-        <td>
-          {#if log.risk_level === 'high'}<span class="badge bg-danger" title="high-risk action"
-              >high</span
-            >{:else if log.risk_level === 'medium'}<span
-              class="badge bg-warning text-dark"
-              title="medium-risk action">medium</span
-            >{:else if log.risk_level === 'low'}<span
-              class="badge bg-secondary"
-              title="low-risk action">low</span
-            >{:else}<span class="text-muted">—</span>{/if}
-        </td>
-        <td class="log-request-id"
-          >{#if log.request_id}<code title={log.request_id}>{log.request_id}</code>{:else}<span
-              class="text-muted">—</span
-            >{/if}</td
-        >
-        <td>{log.message}</td>
-      </tr>
-    {/each}
-  </tbody>
-</table>
+<div class="table-responsive">
+  <table class="table table-dark table-striped">
+    <thead
+      ><tr
+        ><th>Timestamp</th><th>Level</th><th title="Catalog risk level on action-execution rows"
+          >Risk</th
+        ><th>Request</th><th>Message</th></tr
+      ></thead
+    >
+    <tbody>
+      {#each logs as log (log.id)}
+        <tr>
+          <td>{log.ts}</td>
+          <td
+            ><span
+              class={`badge ${log.level === 'ERROR' ? 'bg-danger' : log.level === 'WARN' ? 'bg-warning text-dark' : log.level === 'DEBUG' ? 'bg-info text-dark' : 'bg-secondary'}`}
+              >{log.level}</span
+            ></td
+          >
+          <td>
+            {#if log.risk_level === 'high'}<span class="badge bg-danger" title="high-risk action"
+                >high</span
+              >{:else if log.risk_level === 'medium'}<span
+                class="badge bg-warning text-dark"
+                title="medium-risk action">medium</span
+              >{:else if log.risk_level === 'low'}<span
+                class="badge bg-secondary"
+                title="low-risk action">low</span
+              >{:else}<span class="text-muted">—</span>{/if}
+          </td>
+          <td class="log-request-id"
+            >{#if log.request_id}<code title={log.request_id}>{log.request_id}</code>{:else}<span
+                class="text-muted">—</span
+              >{/if}</td
+          >
+          <td>{log.message}</td>
+        </tr>
+      {/each}
+    </tbody>
+  </table>
+</div>
 
 <style>
   .log-request-id code {
