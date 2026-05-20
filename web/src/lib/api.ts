@@ -95,7 +95,11 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
   if (body) {
     headers['Content-Type'] = 'application/json';
   }
-  const requiresCSRF = !SAFE_METHODS.has(method) && path !== '/login' && path !== '/api/login';
+  const requiresCSRF =
+    !SAFE_METHODS.has(method) &&
+    path !== '/login' &&
+    path !== '/api/login' &&
+    path !== '/api/setup';
   if (requiresCSRF) {
     await ensureCSRFToken();
     if (csrfToken) {
@@ -196,6 +200,15 @@ export const api = {
     return req<{ ok: true; csrf_token?: string }>('POST', '/api/login', body);
   },
   logout: () => req<{ ok: true }>('POST', '/api/logout', {}),
+  setupStatus: () => req<{ configured: boolean }>('GET', '/api/setup/status'),
+  setup: (username: string, password: string) =>
+    req<{ ok: true }>('POST', '/api/setup', { username, password }),
+  changeCredentials: (currentPassword: string, username: string, newPassword: string) =>
+    req<{ ok: true }>('POST', '/api/account/credentials', {
+      current_password: currentPassword,
+      username,
+      new_password: newPassword,
+    }),
   getDevices: () => req<Device[]>('GET', '/api/devices'),
   getDeviceDetail: (target: string) =>
     req<DeviceDetail>('GET', `/api/devices/${encodeURIComponent(target)}`),

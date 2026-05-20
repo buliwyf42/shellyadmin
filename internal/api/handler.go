@@ -72,6 +72,26 @@ func NewHandler(database *db.DB, cfg Config) *Handler {
 	return handler
 }
 
+// adminCredential resolves the operator login. The database row (first-run
+// setup) is authoritative; when none exists it falls back to the env-derived
+// cfg.User/cfg.PassHash. configured is false only when neither source has a
+// credential — the "setup mode" state in which Login must reject everything.
+//
+// In production main.go imports any env hash into the DB at boot, so the DB
+// wins there; the cfg fallback keeps handler tests that seed cfg (rather than
+// the DB) working.
+func (h *Handler) adminCredential() (username, passHash string, configured bool) {
+	if h.service != nil {
+		if u, p, ok := h.service.AdminCredential(); ok {
+			return u, p, true
+		}
+	}
+	if h.cfg.PassHash != "" {
+		return h.cfg.User, h.cfg.PassHash, true
+	}
+	return "", "", false
+}
+
 // logReq persists an audit entry tagged with the current request's
 // correlation ID. Callers that already have a gin.Context should prefer this
 // over h.logFn so the audit row links back to the originating request.

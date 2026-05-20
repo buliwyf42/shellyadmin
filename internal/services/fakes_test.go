@@ -17,6 +17,10 @@ import (
 type fakeStore struct {
 	devices  map[string]models.Device
 	settings models.AppSettings
+
+	adminUser string
+	adminHash string
+	adminOK   bool
 }
 
 func newFakeStore() *fakeStore {
@@ -113,6 +117,18 @@ func (f *fakeStore) ClearLogs() (int64, error) { return 0, errUnimplemented }
 
 func (f *fakeStore) GetLoginState(string) (db.LoginState, error) { return db.LoginState{}, nil }
 func (f *fakeStore) SetLoginState(db.LoginState) error           { return nil }
+
+func (f *fakeStore) GetAdminCredential() (string, string, bool, error) {
+	return f.adminUser, f.adminHash, f.adminOK, nil
+}
+func (f *fakeStore) SaveAdminCredential(username, passHash string) error {
+	f.adminUser, f.adminHash, f.adminOK = username, passHash, true
+	return nil
+}
+func (f *fakeStore) ClearAdminCredential() error {
+	f.adminUser, f.adminHash, f.adminOK = "", "", false
+	return nil
+}
 
 func (f *fakeStore) GetTOTP(string) (db.TOTPState, error) {
 	return db.TOTPState{}, sql.ErrNoRows

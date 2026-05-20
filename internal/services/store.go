@@ -70,6 +70,11 @@ type Store interface {
 	GetLoginState(username string) (db.LoginState, error)
 	SetLoginState(state db.LoginState) error
 
+	// Admin credential (first-run setup, replaces SHELLYADMIN_PASS_HASH)
+	GetAdminCredential() (username, passHash string, ok bool, err error)
+	SaveAdminCredential(username, passHash string) error
+	ClearAdminCredential() error
+
 	// TOTP 2FA (T1, v0.3.0)
 	GetTOTP(username string) (db.TOTPState, error)
 	SetTOTP(state db.TOTPState) error

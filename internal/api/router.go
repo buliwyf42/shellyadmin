@@ -122,6 +122,12 @@ func NewRouter(database *db.DB, cfg Config) *gin.Engine {
 		}
 		serveSPAIndex(c, cfg)
 	})
+	// First-run setup screen. Served unauthenticated like /login so a fresh
+	// instance with no operator login can render the setup form. The SPA
+	// itself decides setup-vs-login from GET /api/setup/status.
+	r.GET("/setup", func(c *gin.Context) {
+		serveSPAIndex(c, cfg)
+	})
 	r.POST("/login", middleware.LoginRateLimit(), h.Login)
 	r.POST("/logout", authMW, middleware.RequireCSRF(), h.Logout)
 

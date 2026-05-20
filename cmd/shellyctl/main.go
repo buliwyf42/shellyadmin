@@ -50,6 +50,9 @@ func main() {
 		case "unlock":
 			runUnlock(os.Args[2:])
 			return
+		case "reset-auth":
+			runResetAuth(os.Args[2:])
+			return
 		}
 		// Read-only operator CLI (HTTP + PAT, ADR-0016). A matching verb
 		// dispatches here; bare `shellyctl` falls through to the server.
@@ -59,10 +62,12 @@ func main() {
 	}
 
 	user := getenv("SHELLYADMIN_USER", "admin")
+	// SHELLYADMIN_PASS_HASH is no longer the source of truth for the operator
+	// login (first-run setup stores it in the DB). It is still read here so an
+	// existing deployment's hash can be imported into the DB exactly once at
+	// boot (see ImportEnvCredentialOnce below). Absent + no DB credential =
+	// the server boots into setup mode rather than panicking.
 	passHash := services.DecodeSecretValue("SHELLYADMIN_PASS_HASH")
-	if passHash == "" {
-		panic("set SHELLYADMIN_PASS_HASH (argon2id PHC from `shellyctl hash-password`)")
-	}
 	secret := services.DecodeSecretValue("SHELLYADMIN_SECRET")
 	if secret == "" {
 		secret = api.RandomSecret()
@@ -122,8 +127,8 @@ func main() {
 	// so the operator gets a single clear line in the log instead of one
 	// on every login attempt. Action: rerun `shellyctl hash-password`
 	// against the same plaintext and update SHELLYADMIN_PASS_HASH.
-	if services.IsLegacyParameters(passHash) {
-		logger.Warn("admin password hash uses legacy argon2id parameters (OWASP 2023 defaults). Regenerate with `shellyctl hash-password` and update SHELLYADMIN_PASS_HASH before the next deployment.")
+	if passHash != "" && services.IsLegacyParameters(passHash) {
+		logger.Warn("admin password hash uses legacy argon2id parameters (OWASP 2023 defaults). Regenerate with `shellyctl hash-password` and re-run setup, or change the password in Settings.")
 	}
 
 	database, err := db.Open(dataDir)
@@ -173,6 +178,20 @@ func main() {
 	service := services.NewAppService(database, dataDir, func(_ context.Context, level, msg string) {
 		_ = database.AddLog(level, services.SanitizeLogMessage(msg))
 	})
+
+	// First-run setup migration: if no operator login is stored yet but a
+	// legacy SHELLYADMIN_PASS_HASH is set, import it once so an existing
+	// deployment upgrades seamlessly. After this the DB is authoritative and
+	// the env var is irrelevant.
+	if imported, err := service.ImportEnvCredentialOnce(user, passHash); err != nil {
+		logger.Warn("could not import SHELLYADMIN_PASS_HASH into the database", "err", err)
+	} else if imported {
+		logger.Info("imported SHELLYADMIN_PASS_HASH into the database; the env var is no longer the source of truth")
+	}
+	if !service.IsAuthConfigured() {
+		logger.Warn("no operator login configured — starting in first-run setup mode; open the web UI to create the admin account")
+	}
+
 	router := api.NewRouter(database, api.Config{
 		User:           user,
 		PassHash:       passHash,
@@ -468,4 +487,41 @@ func runUnlock(args []string) {
 		os.Exit(1)
 	}
 	fmt.Println("runtime lock cleared")
+}
+
+// runResetAuth is the `shellyctl reset-auth` recovery subcommand. It clears
+// the stored operator login from the database so the next startup boots into
+// first-run setup mode — the supported recovery path for a forgotten
+// password once SHELLYADMIN_PASS_HASH is no longer the source of truth.
+// Requires --force so a stray invocation can't silently lock the operator
+// out of their current login.
+func runResetAuth(args []string) {
+	force := false
+	for _, arg := range args {
+		switch arg {
+		case "--force", "-f":
+			force = true
+		default:
+			fmt.Fprintf(os.Stderr, "unknown arg: %q\n", arg)
+			fmt.Fprintln(os.Stderr, "usage: shellyctl reset-auth --force")
+			os.Exit(2)
+		}
+	}
+	if !force {
+		fmt.Fprintln(os.Stderr, "usage: shellyctl reset-auth --force")
+		fmt.Fprintln(os.Stderr, "Refusing without --force; this clears the operator login and forces first-run setup on next start.")
+		os.Exit(2)
+	}
+	dataDir := getenv("DATA_DIR", "./data")
+	database, err := db.Open(dataDir)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "database open:", err)
+		os.Exit(1)
+	}
+	defer database.Close()
+	if err := database.ClearAdminCredential(); err != nil {
+		fmt.Fprintln(os.Stderr, "clear admin credential:", err)
+		os.Exit(1)
+	}
+	fmt.Println("operator login cleared — next start will boot into first-run setup")
 }

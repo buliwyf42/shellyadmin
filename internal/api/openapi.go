@@ -45,6 +45,24 @@ func documentedAPIRoutes() []apiRouteDoc {
 			},
 		},
 		{
+			Method:      http.MethodGet,
+			Path:        "/api/setup/status",
+			Summary:     "Report first-run setup state",
+			Description: "Public, pre-auth probe returning {configured: bool}. The SPA calls this on load to choose between the first-run setup screen and the login screen. Never returns credential material.",
+			Register: func(routes gin.IRoutes, h *Handler) {
+				routes.GET("/api/setup/status", h.SetupStatus)
+			},
+		},
+		{
+			Method:      http.MethodPost,
+			Path:        "/api/setup",
+			Summary:     "Complete first-run setup",
+			Description: "Public, rate-limited, one-shot. With no operator login configured, stores the supplied username + password (argon2id-hashed) as the operator account. Returns 409 once an account exists.",
+			Register: func(routes gin.IRoutes, h *Handler) {
+				routes.POST("/api/setup", middleware.LoginRateLimit(), h.Setup)
+			},
+		},
+		{
 			Method:      http.MethodPost,
 			Path:        "/api/login",
 			Summary:     "Start authenticated session",
@@ -71,6 +89,16 @@ func documentedAPIRoutes() []apiRouteDoc {
 			Auth:        true,
 			Register: func(routes gin.IRoutes, h *Handler) {
 				routes.GET("/api/csrf-token", h.CSRFToken)
+			},
+		},
+		{
+			Method:      http.MethodPost,
+			Path:        "/api/account/credentials",
+			Summary:     "Change operator username/password",
+			Description: "Cookie-only. Verifies the current password, then updates the operator login and revokes all existing sessions so a stolen cookie cannot outlive the rotation. PAT-authed callers are rejected with 403.",
+			Auth:        true,
+			Register: func(routes gin.IRoutes, h *Handler) {
+				routes.POST("/api/account/credentials", h.ChangeCredentials)
 			},
 		},
 		{

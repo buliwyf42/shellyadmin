@@ -3,6 +3,7 @@
   import { APIError, api } from '../lib/api';
   import type { AppSettings, BackupExport, Credential, ImportReport } from '../lib/types';
   import ErrorNotice from '../components/ErrorNotice.svelte';
+  import AccountCard from './settings/AccountCard.svelte';
   import TOTPCard from './settings/TOTPCard.svelte';
   import TokensCard from './settings/TokensCard.svelte';
 
@@ -434,6 +435,11 @@
         </button>
       </div>
     </div>
+  </div>
+
+  <!-- Card 3b: Operator Account (first-run setup, change login) -->
+  <div class="col-lg-6">
+    <AccountCard />
   </div>
 
   <!-- Card 4: Two-Factor Authentication (T1, v0.3.0) -->

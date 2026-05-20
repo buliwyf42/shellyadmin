@@ -52,6 +52,12 @@ type AppService struct {
 	activeProvision map[string]bool
 	activeFirmware  map[string]bool
 
+	// authMu serialises the check-then-write of the admin credential so two
+	// concurrent setup POSTs within a process cannot both pass the
+	// "not configured yet" guard. Cross-process is already covered by the
+	// single-instance runtime lock (ADR-0015).
+	authMu sync.Mutex
+
 	// jobSpawnMu serialises the "is a job of this type still running" check
 	// against the actual spawn so two concurrent requests cannot both
 	// observe "no job running" between GetLatestJob and CreateJob. Each

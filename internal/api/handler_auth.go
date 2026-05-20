@@ -36,20 +36,29 @@ func (h *Handler) Login(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 		return
 	}
+	// Resolve the operator login. The DB row (first-run setup) wins; cfg is
+	// the env fallback. When neither is configured the server is in setup
+	// mode — there is no secret to protect, so reject directly.
+	adminUser, adminHash, configured := h.adminCredential()
+	if !configured {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not configured"})
+		return
+	}
+
 	// Username + password must each be evaluated to a boolean BEFORE the
 	// short-circuit `||` collapses them — otherwise verifyAdminPassword
 	// (argon2id, ~80 ms) would be skipped on a username mismatch, giving
 	// the attacker a timing oracle to enumerate valid usernames. Running
 	// argon2 unconditionally also pads the response on a missing-user case.
-	unameOK := subtle.ConstantTimeCompare([]byte(req.Username), []byte(h.cfg.User)) == 1
-	pwOK := h.verifyAdminPassword(c, req.Password)
+	unameOK := subtle.ConstantTimeCompare([]byte(req.Username), []byte(adminUser)) == 1
+	pwOK := h.verifyAdminPassword(c, req.Password, adminHash)
 
 	// Account-lockout (Q20) is checked AFTER argon2 to keep the response
-	// timing flat across locked/unlocked states. The configured username
-	// from cfg.User is the canonical key — using the submitted username
-	// would let an attacker probe arbitrary usernames into the lockout
-	// table. In the Single-Operator model, only h.cfg.User can ever lock.
-	locked, until := h.service.IsAccountLocked(h.cfg.User)
+	// timing flat across locked/unlocked states. The resolved username is
+	// the canonical key — using the submitted username would let an attacker
+	// probe arbitrary usernames into the lockout table. In the
+	// Single-Operator model, only the configured account can ever lock.
+	locked, until := h.service.IsAccountLocked(adminUser)
 	if locked {
 		h.logReq(c, "WARN", fmt.Sprintf("login blocked: account locked until %s", until.Format(time.RFC3339)))
 		c.Header("Retry-After", fmt.Sprintf("%d", int(time.Until(until).Seconds())))
@@ -61,7 +70,7 @@ func (h *Handler) Login(c *gin.Context) {
 	}
 
 	if !unameOK || !pwOK {
-		if err := h.service.RecordLoginFailure(h.cfg.User); err != nil {
+		if err := h.service.RecordLoginFailure(adminUser); err != nil {
 			h.logReq(c, "ERROR", fmt.Sprintf("record login failure: %v", err))
 		}
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
@@ -69,11 +78,11 @@ func (h *Handler) Login(c *gin.Context) {
 	}
 	// Password gate cleared. If the operator has an active TOTP row, run
 	// the second-factor check before we record a "successful" login. The
-	// status lookup is keyed on cfg.User (NOT req.Username) for the same
-	// reason the lockout counter is — a future multi-user model will key
-	// on the verified principal, but in v0.3.0 the only enrollable
+	// status lookup is keyed on the resolved username (NOT req.Username) for
+	// the same reason the lockout counter is — a future multi-user model
+	// will key on the verified principal, but today the only enrollable
 	// account is the configured admin.
-	if status, statErr := h.service.TOTPStatusFor(h.cfg.User); statErr != nil {
+	if status, statErr := h.service.TOTPStatusFor(adminUser); statErr != nil {
 		h.logReq(c, "ERROR", fmt.Sprintf("totp status lookup failed: %v", statErr))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "totp lookup failed"})
 		return
@@ -86,10 +95,10 @@ func (h *Handler) Login(c *gin.Context) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "totp_required"})
 			return
 		}
-		usedBackup, vErr := h.service.VerifyTOTPForLogin(h.cfg.User, req.TOTPCode)
+		usedBackup, vErr := h.service.VerifyTOTPForLogin(adminUser, req.TOTPCode)
 		if vErr != nil {
 			if errors.Is(vErr, services.ErrTOTPInvalidCode) {
-				if rErr := h.service.RecordLoginFailure(h.cfg.User); rErr != nil {
+				if rErr := h.service.RecordLoginFailure(adminUser); rErr != nil {
 					h.logReq(c, "ERROR", fmt.Sprintf("record totp failure: %v", rErr))
 				}
 				h.logReq(c, "WARN", "login: invalid totp code")
@@ -106,7 +115,7 @@ func (h *Handler) Login(c *gin.Context) {
 			h.logReq(c, "WARN", "login: backup code used")
 		}
 	}
-	if err := h.service.RecordLoginSuccess(h.cfg.User); err != nil {
+	if err := h.service.RecordLoginSuccess(adminUser); err != nil {
 		h.logReq(c, "WARN", fmt.Sprintf("record login success: %v", err))
 	}
 	session := sessions.Default(c)
@@ -177,14 +186,13 @@ func (h *Handler) CSRFToken(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"csrf_token": nonce})
 }
 
-// verifyAdminPassword checks the supplied plaintext against the
-// configured argon2id PHC hash from cfg.PassHash. Always runs the
-// argon2 derivation — no short-circuit on empty plain — so the
-// response time is independent of input. The Login handler's empty-
-// username/password rejection happens AFTER this call, not in place of
-// it (see Q11 in the consolidated plan).
-func (h *Handler) verifyAdminPassword(c *gin.Context, plain string) bool {
-	ok, err := services.VerifyPassword(plain, h.cfg.PassHash)
+// verifyAdminPassword checks the supplied plaintext against the resolved
+// argon2id PHC hash. Always runs the argon2 derivation — no short-circuit on
+// empty plain — so the response time is independent of input. The Login
+// handler's empty-username/password rejection happens AFTER this call, not in
+// place of it (see Q11 in the consolidated plan).
+func (h *Handler) verifyAdminPassword(c *gin.Context, plain, passHash string) bool {
+	ok, err := services.VerifyPassword(plain, passHash)
 	if err != nil {
 		h.logReq(c, "ERROR", fmt.Sprintf("password hash verify failed: %v", err))
 		return false

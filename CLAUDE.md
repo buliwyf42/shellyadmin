@@ -306,7 +306,21 @@ The pattern for adding a new knob:
 
 ## Plaintext Password Removed
 
-`SHELLYADMIN_PASS` (plaintext) was removed in **v0.2.0**. v0.0.15 added `_HASH` and started warning on plaintext use; v0.2.0 closed the deprecation window. The only supported entry point is `SHELLYADMIN_PASS_HASH` (or `_FILE` indirection) carrying an argon2id PHC string from `shellyctl hash-password`. Missing it panics at startup. `internal/services/password.go` and the `shellyctl hash-password` subcommand are unchanged — they were the migration target, not part of the removal.
+`SHELLYADMIN_PASS` (plaintext) was removed in **v0.2.0**. v0.0.15 added `_HASH` and started warning on plaintext use; v0.2.0 closed the deprecation window. The argon2id hash/verify in `internal/services/password.go` and the `shellyctl hash-password` subcommand remain — but as of first-run setup (below) `SHELLYADMIN_PASS_HASH` is no longer the *source of truth* for the login, only a one-time import seed.
+
+---
+
+## First-Run Setup — operator login in the DB (ADR-0017)
+
+The operator login (username + argon2id hash) lives in the database, not the environment. See [docs/adr/0017-first-run-setup.md](./docs/adr/0017-first-run-setup.md).
+
+- **Storage**: single-row `admin_credentials` table (migration 031), accessed via `db.{Get,Save,Clear}AdminCredential` and the service helpers in [internal/services/app_auth.go](internal/services/app_auth.go). NOT in `AppSettings` (which is mirrored to the SPA via `GET /api/settings` — a hash must never go there). The PHC hash is one-way, so it is stored verbatim, NOT secretbox-sealed.
+- **Resolution**: the login handler resolves the credential at request time via `h.adminCredential()` ([internal/api/handler.go](internal/api/handler.go)) — DB first, then a `cfg.User`/`cfg.PassHash` fallback kept so handler tests that seed `Config` (not the DB) still pass. The lockout/TOTP keys use the *resolved* username.
+- **Boot ([cmd/shellyctl/main.go](cmd/shellyctl/main.go))**: the old "panic when `SHELLYADMIN_PASS_HASH` is empty" is GONE. `ImportEnvCredentialOnce(user, passHash)` imports a still-present env hash into the DB exactly once (only when no DB credential exists) — seamless upgrade for existing deployments. With no credential at all the server logs a setup-mode warning and boots anyway.
+- **Setup mode**: no credential ⇒ the SPA renders the public setup screen (`/setup`) gated by `GET /api/setup/status` → `{configured: bool}`. `POST /api/setup` is the **only unauthenticated mutation** — public, rate-limited, one-shot (409 once configured), race-guarded by a service mutex + the single-instance lock.
+- **Change later**: `POST /api/account/credentials` (authenticated, **cookie-only** — a PAT cannot rotate the login that gates it). Verifies the current password, updates, then revokes all sessions (SPA redirects to `/login`). UI: `web/src/pages/settings/AccountCard.svelte`.
+- **Recovery**: `shellyctl reset-auth --force` clears the row → next boot is setup mode again (mirrors `shellyctl unlock --force`). This is the forgotten-password path now that env is no longer authoritative.
+- The encryption-key requirement (next section) is unaffected and still enforced — setup mode still needs `SHELLYADMIN_ENCRYPTION_KEY`.
 
 ---
 

@@ -12,7 +12,7 @@ func TestHandles(t *testing.T) {
 			t.Errorf("Handles(%q) = false, want true", cmd)
 		}
 	}
-	for _, cmd := range []string{"", "server", "hash-password", "mcp", "unlock"} {
+	for _, cmd := range []string{"", "server", "hash-password", "mcp", "unlock", "reset-auth"} {
 		if Handles(cmd) {
 			t.Errorf("Handles(%q) = true, want false", cmd)
 		}

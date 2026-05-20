@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"shellyadmin/internal/db"
+	"shellyadmin/internal/middleware"
 	"shellyadmin/internal/services"
 )
 
@@ -22,6 +23,7 @@ func tokensTestRouter(t *testing.T) (*gin.Engine, *http.Cookie, string) {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	ensureSecretboxKey(t)
+	middleware.ResetRateLimitsForTest()
 
 	dataDir := t.TempDir()
 	database, err := db.Open(dataDir)

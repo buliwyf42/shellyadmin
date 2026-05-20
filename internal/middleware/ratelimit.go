@@ -30,6 +30,20 @@ const (
 	rateLimiterGCEveryN = 128
 )
 
+// ResetRateLimitsForTest clears the in-memory rate-limit counters. Tests that
+// build several full routers in one process share the per-IP login/API budget
+// (all httptest requests originate from the same client IP); without a reset
+// the cumulative login count trips the 429 ceiling and later tests fail
+// spuriously. Not used in production.
+func ResetRateLimitsForTest() {
+	for _, store := range []*attemptStore{attempts, apiAttempts, mcpAttempts} {
+		store.mu.Lock()
+		store.data = map[string][]time.Time{}
+		store.hits = 0
+		store.mu.Unlock()
+	}
+}
+
 func LoginRateLimit() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if !allowRequest(attempts, c.ClientIP(), loginWindow, loginMaxAttempts) {
