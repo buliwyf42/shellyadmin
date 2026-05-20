@@ -120,6 +120,40 @@ jobs:
         with:
           version: v2.6
 
+  # Smoke-build the production image on every PR + push. None of the
+  # other jobs touch docker/Dockerfile, so a breaking base-image bump
+  # (e.g. the node 20→26-alpine / golang 1.25→1.26-alpine bump in v0.3.4)
+  # would otherwise sail through all required checks and only surface
+  # 17-22 min into publish-image.yml at release time. Single-platform
+  # (linux/amd64, native runner — no QEMU) is enough to catch a broken
+  # Dockerfile; no push. A dedicated gha cache scope keeps this off the
+  # multi-arch cache that publish-image.yml builds against.
+  image-build:
+    name: Docker image build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
+
+      - name: Read VERSION
+        id: ver
+        run: echo "version=$(tr -d '\n\r ' < VERSION)" >> "$GITHUB_OUTPUT"
+
+      - name: Build image (amd64, no push)
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: linux/amd64
+          push: false
+          cache-from: type=gha,scope=ci-image-smoke
+          cache-to: type=gha,mode=max,scope=ci-image-smoke
+          build-args: |
+            VERSION=${{ steps.ver.outputs.version }}
+            VCS_REF=${{ github.sha }}
+
   frontend:
     name: Frontend build
     runs-on: ubuntu-latest
