@@ -18,15 +18,16 @@ services:
       # Stored in the secrets/shellyadmin_pass.txt file mounted via the shellyadmin_pass secret below.
       SHELLYADMIN_PASS_HASH_FILE: /run/secrets/shellyadmin_pass
       SHELLYADMIN_SECRET_FILE: /run/secrets/shellyadmin_secret
-      # Optional: externalise the at-rest encryption key. If omitted, a key is
-      # generated on first boot at /data/shellyadmin.key (0600). Back it up
-      # alongside the database — losing the key orphans stored credentials.
-      # SHELLYADMIN_ENCRYPTION_KEY_FILE: /run/secrets/shellyadmin_encryption_key
+      # REQUIRED since v0.3.0 (ADR-0013): base64 of a 32-byte key for at-rest
+      # credential encryption. The binary refuses to start without it. Keep it
+      # stable across recreates — losing or rotating it orphans stored
+      # credentials. Generate: `openssl rand -base64 32 > secrets/shellyadmin_encryption_key.txt`
+      SHELLYADMIN_ENCRYPTION_KEY_FILE: /run/secrets/shellyadmin_encryption_key
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
     secrets:
       - shellyadmin_pass
       - shellyadmin_secret
-      # - shellyadmin_encryption_key
+      - shellyadmin_encryption_key
     read_only: true
     tmpfs:
       - /tmp
@@ -60,5 +61,5 @@ secrets:
     file: ../secrets/shellyadmin_pass.txt
   shellyadmin_secret:
     file: ../secrets/shellyadmin_secret.txt
-  # shellyadmin_encryption_key:
-  #   file: ../secrets/shellyadmin_encryption_key.txt
+  shellyadmin_encryption_key:
+    file: ../secrets/shellyadmin_encryption_key.txt

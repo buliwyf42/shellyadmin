@@ -46,9 +46,14 @@ docker run -d \
   -v shellyadmin-data:/data \
   -e SHELLYADMIN_PASS_HASH='$argon2id$v=19$m=65536,t=2,p=1$…' \
   -e SHELLYADMIN_SECRET='change-this-cookie-secret' \
+  -e SHELLYADMIN_ENCRYPTION_KEY="$(openssl rand -base64 32)" \
   -e COOKIE_SECURE=false \
   ghcr.io/buliwyf42/shellyadmin:latest
 ```
+
+`SHELLYADMIN_ENCRYPTION_KEY` is **required** since v0.3.0 — the container won't
+start without it. Generate it once and **reuse the same value** on every
+recreate; a new key orphans all stored credentials.
 
 Then open `http://localhost:8080`.
 

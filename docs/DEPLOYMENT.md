@@ -26,7 +26,7 @@ Supported runtime variables:
 | `SHELLYADMIN_USER`                     | Admin username                                                                 | Default `admin`                                                                                                                                                        |
 | `SHELLYADMIN_PASS_HASH` / `_FILE`      | **Required** — argon2id PHC string from `shellyctl hash-password <plaintext>`  | The hash sits in env/memory at runtime; never the cleartext. Missing this panics at startup.                                                                           |
 | `SHELLYADMIN_SECRET` / `_FILE`         | Cookie/session signing secret                                                  | Auto-generated if unset, but persists only for the process lifetime                                                                                                    |
-| `SHELLYADMIN_ENCRYPTION_KEY` / `_FILE` | base64-encoded 32-byte key for credential at-rest encryption                   | Optional — generated on first boot at `${DATA_DIR}/shellyadmin.key` (mode 0600) if unset. Back it up alongside the database; losing it orphans every stored credential |
+| `SHELLYADMIN_ENCRYPTION_KEY` / `_FILE` | base64-encoded 32-byte key for credential at-rest encryption                   | **Required** since v0.3.0 (ADR-0013) — the binary refuses to start without it. Manage it externally (Docker secret, sops, NixOS secret); prefer the `_FILE` form. Keep it stable across recreates — losing or rotating it orphans every stored credential. |
 | `DATA_DIR`                             | SQLite + key + log directory                                                   | Default `./data`                                                                                                                                                       |
 | `PORT`                                 | HTTP listen port                                                               | Default `8080`                                                                                                                                                         |
 | `COOKIE_SECURE`                        | `true` to send the `Secure` flag on session cookies                            | Set when behind TLS                                                                                                                                                    |
@@ -53,16 +53,20 @@ The repo includes:
 
 Current expected flows:
 
-Published image — generate the hash with `shellyctl hash-password`, then run:
+Published image — generate the hash and a stable encryption key, then run:
 
 ```bash
 HASH=$(docker run --rm ghcr.io/buliwyf42/shellyadmin:latest hash-password 'change-this-admin-password')
+# Required since v0.3.0. SAVE THIS — reuse the same key on every recreate,
+# or you orphan all stored credentials.
+KEY=$(openssl rand -base64 32)
 docker run -d \
   --name shellyadmin \
   -p 8080:8080 \
   -v shellyadmin-data:/data \
   -e SHELLYADMIN_PASS_HASH="$HASH" \
   -e SHELLYADMIN_SECRET='change-this-cookie-secret' \
+  -e SHELLYADMIN_ENCRYPTION_KEY="$KEY" \
   -e COOKIE_SECURE=false \
   ghcr.io/buliwyf42/shellyadmin:latest
 ```
@@ -84,12 +88,14 @@ git clone https://github.com/buliwyf42/shellyadmin.git
 cd shellyadmin
 git checkout v0.1.18
 mkdir -p secrets
-# Preferred: write a hash to secrets/shellyadmin_pass.txt and switch the
-# compose file to SHELLYADMIN_PASS_HASH_FILE (commented out by default).
-# docker run --rm ghcr.io/buliwyf42/shellyadmin:latest hash-password 'change-this-admin-password' > secrets/shellyadmin_pass.txt
-# Backward-compat: a plaintext value here still works (deprecation warning).
-openssl rand -base64 24 > secrets/shellyadmin_pass.txt
+# Admin password: write the argon2id HASH (not a plaintext or random value —
+# the app validates it as an argon2id PHC string). SHELLYADMIN_PASS_HASH_FILE
+# is the compose default.
+docker run --rm ghcr.io/buliwyf42/shellyadmin:latest hash-password 'change-this-admin-password' > secrets/shellyadmin_pass.txt
+# Cookie/session signing secret.
 openssl rand -base64 32 > secrets/shellyadmin_secret.txt
+# Encryption key — REQUIRED since v0.3.0 (base64 of 32 bytes). Keep it stable.
+openssl rand -base64 32 > secrets/shellyadmin_encryption_key.txt
 docker compose -f docker/docker-compose.yml up -d --build
 ```
 
