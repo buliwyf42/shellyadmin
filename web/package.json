@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test",
     "check:bundle-size": "node scripts/check-bundle-size.mjs",
     "lint": "eslint .",
     "format:check": "prettier --check .",
@@ -20,6 +21,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.60.0",
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
     "@types/qrcode": "^1.5.6",
     "@typescript-eslint/eslint-plugin": "^8.59.4",
