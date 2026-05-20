@@ -807,18 +807,83 @@ textarea::placeholder {
   outline: none;
 }
 
-@media (max-width: 980px) {
+.topnav-collapse {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.nav-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  min-height: var(--control-height-sm);
+  min-width: var(--control-height-sm);
+  padding: 0 var(--space-2);
+  border: 1px solid rgba(136, 155, 171, 0.16);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: #c9d3da;
+  cursor: pointer;
+}
+
+.nav-toggle:hover {
+  background: rgba(255, 255, 255, 0.025);
+  color: #eff4f8;
+}
+
+.nav-toggle:focus-visible,
+.topnav-link:focus-visible {
+  outline: 2px solid var(--info);
+  outline-offset: 2px;
+}
+
+/* Below 1024px the 10-link bar no longer fits one row; collapse it into a
+   hamburger-toggled vertical drawer instead of letting it wrap 3-4 deep. */
+@media (max-width: 1023px) {
   .topbar .container-fluid {
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .nav-toggle {
+    display: inline-flex;
+  }
+
+  .topnav-collapse {
+    display: none;
+    flex-basis: 100%;
+    width: 100%;
     flex-direction: column;
-    align-items: flex-start;
-    gap: 0.5rem;
+    align-items: stretch;
+    gap: var(--space-1);
+  }
+
+  .topnav-collapse.open {
+    display: flex;
   }
 
   .topnav-main,
   .topnav-side {
-    flex-wrap: wrap;
-    margin-left: 0;
+    flex-direction: column;
+    align-items: stretch;
     width: 100%;
+    flex-wrap: nowrap;
+    overflow: visible;
+    gap: var(--space-1);
+    margin-left: 0;
+  }
+
+  .topnav-link {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .topnav-scale {
+    justify-content: space-between;
   }
 }
 
@@ -1360,4 +1425,25 @@ textarea::placeholder {
 .badge-restart-required {
   background: #c89a2a;
   color: #fff;
+}
+
+/* WCAG 2.4.7 — a baseline keyboard focus indicator on the dark theme for
+   interactive elements that don't already define one. :where() keeps the
+   specificity at 0 so component-specific :focus-visible rules still win, and
+   :focus-visible keeps the ring keyboard-only (pointer clicks stay ringless). */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--info);
+  outline-offset: 2px;
+}
+
+/* WCAG 2.3.3 — honor the OS "reduce motion" preference. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
