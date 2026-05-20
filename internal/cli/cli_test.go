@@ -7,7 +7,7 @@ import (
 )
 
 func TestHandles(t *testing.T) {
-	for _, cmd := range []string{"devices", "device", "logs"} {
+	for _, cmd := range []string{"devices", "device", "logs", "firmware", "templates"} {
 		if !Handles(cmd) {
 			t.Errorf("Handles(%q) = false, want true", cmd)
 		}
@@ -47,6 +47,42 @@ func TestDashAndYesNo(t *testing.T) {
 	}
 	if yesno(true) != "yes" || yesno(false) != "no" {
 		t.Error("yesno mapping wrong")
+	}
+}
+
+func TestUpdateFlag(t *testing.T) {
+	cases := []struct {
+		stable, beta bool
+		want         string
+	}{
+		{true, true, "stable+beta"},
+		{true, false, "stable"},
+		{false, true, "beta"},
+		{false, false, "—"},
+	}
+	for _, tc := range cases {
+		if got := updateFlag(tc.stable, tc.beta); got != tc.want {
+			t.Errorf("updateFlag(%t,%t) = %q, want %q", tc.stable, tc.beta, got, tc.want)
+		}
+	}
+}
+
+func TestFirmwareDecodesStatus(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"running":false,"done":2,"total":2,"results":[{"mac":"AABB","current_ver":"1.0","stable_ver":"1.1","stable_update":true,"status":"ok"}]}`))
+	}))
+	defer srv.Close()
+
+	c := newClient()
+	c.url = srv.URL
+	c.token = "pat_test"
+	var st fwStatus
+	if msg := c.get("/api/firmware/status", &st); msg != "" {
+		t.Fatalf("get returned error: %s", msg)
+	}
+	if st.Done != 2 || len(st.Results) != 1 || !st.Results[0].StableUpdate {
+		t.Fatalf("decoded unexpected firmware status: %+v", st)
 	}
 }
 
