@@ -12,6 +12,10 @@ updates:
     commit-message:
       prefix: deps
       include: scope
+    groups:
+      go-dependencies:
+        patterns:
+          - "*"
 
   - package-ecosystem: npm
     directory: /web
@@ -25,6 +29,11 @@ updates:
     commit-message:
       prefix: deps
       include: scope
+    groups:
+      npm-dev-dependencies:
+        dependency-type: development
+      npm-prod-dependencies:
+        dependency-type: production
 
   - package-ecosystem: docker
     directory: /docker
@@ -37,6 +46,10 @@ updates:
     commit-message:
       prefix: deps
       include: scope
+    groups:
+      docker-dependencies:
+        patterns:
+          - "*"
 
   - package-ecosystem: github-actions
     directory: /
@@ -50,3 +63,7 @@ updates:
     commit-message:
       prefix: ci
       include: scope
+    groups:
+      github-actions:
+        patterns:
+          - "*"
