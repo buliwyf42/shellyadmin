@@ -4,6 +4,40 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-05-20 — first-run setup: operator login in the database
+
+The operator login moves out of environment variables and into the database.
+A fresh instance now boots into a **first-run setup** screen where you create
+the admin account in the web UI — no more `shellyctl hash-password` +
+hand-edited `.env` before the server will start. Existing deployments upgrade
+seamlessly: a still-present `SHELLYADMIN_PASS_HASH` is imported into the
+database once at boot, then ignored. See [ADR-0017](docs/adr/0017-first-run-setup.md).
+
+### Added
+
+- **First-run setup (ADR-0017).** New `admin_credentials` table (migration
+  031) holds the operator username + argon2id hash. Public, rate-limited,
+  one-shot `GET /api/setup/status` + `POST /api/setup` drive the setup screen
+  (`/setup`); the SPA routes there automatically until an account exists.
+- **Change credentials in Settings.** `POST /api/account/credentials`
+  (authenticated, cookie-only) verifies the current password, updates the
+  username/password, and revokes all sessions. New "Operator Account" card on
+  the Settings page.
+- **`shellyctl reset-auth --force`** clears the stored login, returning the
+  instance to setup mode on the next boot — the forgotten-password recovery
+  path, mirroring `shellyctl unlock`.
+
+### Changed
+
+- **`SHELLYADMIN_PASS_HASH` / `SHELLYADMIN_USER` are no longer required.** The
+  startup panic on a missing hash is gone; with no credential the server boots
+  into setup mode. The env hash is demoted to an optional one-time import seed.
+  README, `docs/DEPLOYMENT.md`, and both compose files updated accordingly; the
+  root `docker-compose.yml` no longer hard-fails when the hash is unset.
+- The login handler resolves the credential from the database at request time
+  (with an env fallback retained for tests); lockout and TOTP keys follow the
+  resolved username.
+
 ## [0.3.6] - 2026-05-20 — shellyctl CLI, E2E + unit tests, deploy/test tooling
 
 Tooling and test-coverage release. The one operator-facing addition is the
