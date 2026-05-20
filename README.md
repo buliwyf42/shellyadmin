@@ -24,7 +24,7 @@ Public support posture:
 - not intended for direct internet exposure
 - not yet positioned as a multi-user or HA-ready platform
 
-The target architecture is documented in [docs/ARCHITECTURE.md](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/docs/ARCHITECTURE.md).
+The target architecture is documented in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Goals
 
@@ -52,7 +52,7 @@ docker run -d \
 
 Then open `http://localhost:8080`.
 
-For a Compose-based deployment, create the secret files expected by [`docker/docker-compose.yml`](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/docker/docker-compose.yml) and run:
+For a Compose-based deployment, create the secret files expected by [`docker/docker-compose.yml`](docker/docker-compose.yml) and run:
 
 ```bash
 docker compose -f docker/docker-compose.yml up -d
@@ -109,7 +109,7 @@ Use strong secrets for real installs. The `COOKIE_SECURE=false` example above is
 
 ## Planned / In Progress
 
-See [docs/roadmap.md](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/docs/roadmap.md) for the current roadmap. Headline items:
+See [docs/roadmap.md](docs/roadmap.md) for the current roadmap. Headline items:
 
 - Broader action discovery for device components where protocol support is reliable
 - CLI after the external API contract settles
@@ -192,7 +192,7 @@ The app is intended to run as a single container.
 For GitHub-based distribution, the repository should be treated as the source of truth for:
 
 - tagged source releases such as `v0.0.6`
-- the Docker build context under [`docker/`](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/docker)
+- the Docker build context under [`docker/`](docker)
 - the GitHub Actions flow that publishes a versioned image to GHCR per release tag
 
 The included Compose file is aligned with the published GHCR image name:
@@ -205,7 +205,7 @@ Compatibility note:
 - internal binary and SQLite filenames still use `shellyctl` for now
 - the external product, Docker, and GitHub-facing name remains `ShellyAdmin`
 
-See [docs/DEPLOYMENT.md](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/docs/DEPLOYMENT.md) for deployment guidance.
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for deployment guidance.
 
 ## Optional: MCP Server (Read-Only)
 
@@ -273,17 +273,17 @@ When MCP is enabled, every tool call writes to the same audit log the SPA shows 
 
 This project is intended for trusted LAN use, not direct internet exposure.
 
-See [SECURITY.md](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/SECURITY.md) and [docs/SECURITY.md](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/docs/SECURITY.md) for the current security model and deployment expectations.
+See [SECURITY.md](SECURITY.md) and [docs/SECURITY.md](docs/SECURITY.md) for the current security model and deployment expectations.
 
 ## Architecture
 
 The current agreed architecture is documented in:
 
-- [docs/ARCHITECTURE.md](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/docs/ARCHITECTURE.md)
-- [docs/adr/README.md](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/docs/adr/README.md)
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- [docs/adr/README.md](docs/adr/README.md)
 
 ## Contributing
 
 The project is still being shaped, so architecture changes should align with the documented design goals before implementation.
 
-See [CONTRIBUTING.md](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/CONTRIBUTING.md) for the development and PR workflow.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the development and PR workflow.

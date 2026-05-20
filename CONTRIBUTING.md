@@ -77,7 +77,7 @@ Keep them passing locally before opening a PR.
 
 ## Docker
 
-The public container flow is documented in [docs/DEPLOYMENT.md](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/docs/DEPLOYMENT.md).
+The public container flow is documented in [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
 Please keep both paths working when you change packaging:
 
@@ -95,7 +95,7 @@ Please keep pull requests focused and include:
 
 ## Release Notes
 
-Public releases are tracked in [CHANGELOG.md](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/CHANGELOG.md).
+Public releases are tracked in [CHANGELOG.md](CHANGELOG.md).
 
 When a change should appear in release notes, mention it in the pull request description.
 

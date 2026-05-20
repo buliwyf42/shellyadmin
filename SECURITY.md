@@ -2,7 +2,7 @@
 
 ShellyAdmin is intended for trusted local network use by a single trusted operator. It is not designed for direct internet exposure, multi-tenant hosting, or public API use.
 
-The detailed security model lives in [docs/SECURITY.md](/Users/buliwyf/Documents/Codex%20+%20Code%20Projects/shellyadmin/docs/SECURITY.md).
+The detailed security model lives in [docs/SECURITY.md](docs/SECURITY.md).
 
 ## Supported Versions
 
