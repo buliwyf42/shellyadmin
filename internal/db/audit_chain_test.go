@@ -107,4 +107,37 @@ func TestPruneAuditLogOlderThanRespectsBypass(t *testing.T) {
 	}
 }
 
+// TestClearLogsRespectsBypass proves the UI "Clear Logs" path can empty
+// the table despite the append-only trigger, and that the bypass flag is
+// cleared afterward so ad-hoc deletes stay blocked.
+func TestClearLogsRespectsBypass(t *testing.T) {
+	db := openTestDB(t)
+	for _, msg := range []string{"a", "b", "c"} {
+		if err := db.AddLogWithAttrs("INFO", msg, "", ""); err != nil {
+			t.Fatalf("AddLogWithAttrs error = %v", err)
+		}
+	}
+	n, err := db.ClearLogs()
+	if err != nil {
+		t.Fatalf("ClearLogs error = %v", err)
+	}
+	if n != 3 {
+		t.Fatalf("cleared count = %d, want 3", n)
+	}
+	logs, err := db.GetLogs("", "")
+	if err != nil {
+		t.Fatalf("GetLogs error = %v", err)
+	}
+	if len(logs) != 0 {
+		t.Fatalf("expected empty audit_log, got %d rows", len(logs))
+	}
+	// Bypass must have been cleared — a fresh row + ad-hoc delete is still blocked.
+	if err := db.AddLogWithAttrs("INFO", "after", "", ""); err != nil {
+		t.Fatalf("AddLogWithAttrs error = %v", err)
+	}
+	if _, err := db.sql.Exec(`DELETE FROM audit_log`); err == nil {
+		t.Fatalf("trigger still allowing deletes after ClearLogs — bypass flag leaked")
+	}
+}
+
 // openTestDB is defined in db_test.go — these tests reuse it.
