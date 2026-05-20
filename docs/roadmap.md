@@ -7,21 +7,26 @@ not commitments — scope and timing will shift as the project matures.
 For accepted architectural decisions see [adr/README.md](./adr/README.md). For the
 threat model and deployment expectations see [SECURITY.md](./SECURITY.md).
 
-## Now (v0.3.x)
+## Now (v0.4.x)
 
 - Field-testing on a real fleet between increments; concrete bug reports
   still beat speculative additions. Production (docker.home.lan) tracks
-  the latest release — currently v0.3.4.
+  the latest release — currently v0.4.0.
 
 ## Next (pre-v1)
 
-- `shellyctl` CLI once the external API contract has settled enough to build against
-  without churn. Will need its own ADR to scope the command surface.
-- Periodic dependency pin review on a regular cadence (next pass: ~3 months
-  out, or sooner if a CVE lands).
-- Responsive + accessibility (WCAG 2.1 AA) SPA design pass — the Svelte
-  pages were built desktop-first; mobile/tablet layouts and the a11y
-  posture haven't had a dedicated audit.
+- Largely **field-driven from here** — the core feature set is complete for a
+  single-operator trusted-LAN deployment. The post-v0.4.0 backlog was triaged
+  (2026-05-20, see [plans/v0.3.0-release-cut.md](./plans/v0.3.0-release-cut.md)):
+  - **`shellyctl` CLI write commands** (optional) — read-only shipped in
+    v0.3.6; write ops (refresh/scan/firmware-install) would slot behind the
+    existing `*:write` PAT scopes if fleet-op scripting is ever wanted.
+  - **`/api/v1/*` prefix (T7)** — v1.0-gated; pure plumbing with no payoff
+    until a breaking `/api/v2` exists.
+  - **Dropped:** WebAuthn/passkeys (T2 — needs HTTPS, LAN-HTTP setup) and the
+    HSM/PKCS11 key provider (T4 — no value without HSM hardware).
+- Periodic dependency pin review on a regular cadence (next pass: ~2026-08,
+  or sooner if a CVE lands). Dependabot keeps most current automatically.
 
 ## Recently shipped
 
@@ -31,6 +36,20 @@ threat model and deployment expectations see [SECURITY.md](./SECURITY.md).
 
 ### 2026-05-20
 
+- **v0.4.0** — First-run setup (ADR-0017): the operator login moves from
+  environment variables into the database (`admin_credentials` table). A
+  fresh instance boots into a `/setup` screen instead of panicking on a
+  missing hash; `SHELLYADMIN_PASS_HASH` is demoted to an optional one-time
+  import seed. Adds in-UI credential change (Settings → "Operator Account")
+  and `shellyctl reset-auth --force` recovery.
+- **v0.3.6** — Read-only `shellyctl` CLI (ADR-0016, HTTP + PAT):
+  `devices`/`device`/`logs`/`firmware`/`templates`. Playwright E2E harness;
+  pre-deploy DB-snapshot script; deploy docs/compose fixed for the
+  v0.3.0-required encryption key.
+- **v0.3.5** — Responsive + a11y (WCAG 2.1 AA) SPA pass: collapsible
+  <1024px hamburger nav, `:focus-visible`, `prefers-reduced-motion`, aria
+  labels, `.table-responsive` on Logs/Firmware. 6th required CI check
+  (Docker image build); CI toolchains → Go 1.26 / Node 26.
 - **v0.3.4** — Clear-Logs append-only-trigger fix; Dependabot grouping +
   patch/minor auto-merge; base images bumped to `node:26-alpine` /
   `golang:1.26-alpine` (CI toolchains aligned to Go 1.26 / Node 26).
@@ -102,8 +121,9 @@ threat model and deployment expectations see [SECURITY.md](./SECURITY.md).
   leading `shellyctl` from all docker-run recipes.
 
 - **v0.2.0** — Removes deprecated `SHELLYADMIN_PASS` plaintext env var
-  (the v0.0.15 deprecation); `SHELLYADMIN_PASS_HASH` is now the only
-  supported entry point. Pulls the deferred-from-v0.1.14 major frontend
+  (the v0.0.15 deprecation); `SHELLYADMIN_PASS_HASH` became the sole
+  supported login entry point (later moved into the DB in v0.4.0, ADR-0017).
+  Pulls the deferred-from-v0.1.14 major frontend
   dep updates: TypeScript 5.9 → 6.0, Vite 6 → 8 (rolldown bundler),
   ESLint 9 → 10, plus the matching plugin/parser bumps. Bundle-size
   budget raised from 280 → 300 KB raw / 80 → 86 KB gzip to absorb the

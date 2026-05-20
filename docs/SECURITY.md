@@ -21,14 +21,22 @@ It is not designed for:
 - login rate limiting
 - POST logout
 
-### Admin password storage
+### Admin credential storage
 
-- Required: set `SHELLYADMIN_PASS_HASH` (or `_FILE`) to an argon2id PHC string.
-  Generate with `shellyctl hash-password <plaintext>`. Only the hash sits in
-  env/memory at runtime — constant-time compared on login. Missing
-  `SHELLYADMIN_PASS_HASH` panics at startup with a pointer to the helper.
+- Since **v0.4.0 (ADR-0017)** the operator login lives in the database
+  (single-row `admin_credentials` table), not the environment. A fresh
+  instance boots into **first-run setup** (`/setup`) where the admin account
+  is created in the web UI; the stored value is an argon2id PHC hash,
+  constant-time compared on login. No startup panic when unset — the server
+  serves only the setup screen until configured.
+- `SHELLYADMIN_PASS_HASH` (or `_FILE`) is now **optional**: if set on a fresh
+  instance it is imported into the database once at boot (seamless upgrade),
+  then ignored. Generate with `shellyctl hash-password <plaintext>`.
+- Change the login later in Settings → "Operator Account". Recover a forgotten
+  password with `shellyctl reset-auth --force` (clears the row → next boot is
+  setup mode again).
 - Removed in v0.2.0: the deprecated plaintext `SHELLYADMIN_PASS` env var.
-  v0.0.15 added `_HASH` and started warning on plaintext use; v0.2.0 closes
+  v0.0.15 added `_HASH` and started warning on plaintext use; v0.2.0 closed
   the deprecation window.
 
 ## Session Security

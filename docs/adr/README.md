@@ -27,3 +27,4 @@ Status key:
 - [ADR-0014 MCP-Agent Threat Model + Prompt-Injection Defense](./0014-mcp-agent-threat-model.md) (`Accepted`)
 - [ADR-0015 Single-Instance-Only Operational Constraint](./0015-single-instance-constraint.md) (`Accepted`)
 - [ADR-0016 `shellyctl` Operator CLI (HTTP + PAT, Read-Only First)](./0016-shellyctl-cli.md) (`Accepted`)
+- [ADR-0017 First-Run Setup (operator login in the database)](./0017-first-run-setup.md) (`Accepted`)

@@ -10,7 +10,8 @@ Security fixes are best-effort while the project is in active early development.
 
 | Version                                    | Supported   | Notes                                                                                                                                 |
 | ------------------------------------------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `v0.3.4`                                   | Yes         | Current baseline. Clear-Logs trigger fix + Dependabot grouping/auto-merge; base images bumped to `node:26-alpine` / `golang:1.26-alpine`. |
+| `v0.4.0`                                   | Yes         | Current baseline. First-run setup — operator login moves into the DB (ADR-0017); `SHELLYADMIN_PASS_HASH` demoted to an optional one-time import seed; no startup panic when unset. |
+| `v0.3.4` – `v0.3.6`                         | Best effort | Read-only `shellyctl` CLI (ADR-0016); responsive/a11y SPA pass; 6th required CI check; Clear-Logs trigger fix; base images `node:26-alpine` / `golang:1.26-alpine`. |
 | `v0.3.1` – `v0.3.3`                         | Best effort | `runtime_locks` hardening (same-hostname fast path, 60 s window) + TOTP QR enrollment + CI hygiene.                                   |
 | `v0.3.0`                                   | Best effort | **Breaking**: external encryption key now required (ADR-0013); single-instance lock enforced (ADR-0015). Adds TOTP 2FA + PATs.        |
 | `v0.2.9`                                   | Best effort | Deploy-workflow doc refresh + WebhooksForm a11y warning fix (UI-only; no behavior change).                                            |
@@ -47,13 +48,21 @@ When reporting, include:
 ## Deployment Expectations
 
 - Keep ShellyAdmin on a trusted LAN or behind a private reverse proxy.
-- **Use `SHELLYADMIN_PASS_HASH`** (argon2id PHC from `shellyctl hash-password`) for the admin password. The deprecated plaintext `SHELLYADMIN_PASS` was removed in v0.2.0.
+- **Create the admin login via first-run setup** (the `/setup` screen on a fresh instance; ADR-0017). `SHELLYADMIN_PASS_HASH` (argon2id PHC from `shellyctl hash-password`) is now optional — set it on a fresh instance to pre-seed the login (imported once, then ignored), otherwise leave it unset. The deprecated plaintext `SHELLYADMIN_PASS` was removed in v0.2.0.
 - Set a strong `SHELLYADMIN_SECRET` for real deployments.
-- Prefer `SHELLYADMIN_PASS_HASH_FILE`, `SHELLYADMIN_SECRET_FILE`, and `SHELLYADMIN_ENCRYPTION_KEY_FILE` for containers — keep cleartext out of environment files and container manifests.
+- Prefer `SHELLYADMIN_SECRET_FILE` and `SHELLYADMIN_ENCRYPTION_KEY_FILE` (and `SHELLYADMIN_PASS_HASH_FILE` if you pre-seed the login) for containers — keep cleartext out of environment files and container manifests.
 - Treat the product as a LAN admin tool, not an internet-facing identity system.
 
 ## Hardening notes
 
+- **v0.4.0** — Operator login moved from environment variables into the
+  database (ADR-0017). A fresh instance boots into first-run setup instead of
+  panicking on a missing hash; `SHELLYADMIN_PASS_HASH`/`SHELLYADMIN_USER` are
+  demoted to an optional one-time import seed. The login can be changed in
+  Settings → "Operator Account" and recovered with `shellyctl reset-auth
+  --force`. The credential hash lives in the `admin_credentials` table (NOT in
+  `AppSettings`, which is mirrored to the SPA), stored as a one-way argon2id
+  PHC — never secretbox-exposed.
 - **v0.2.8** — Periodic dep pin review pulled forward from 2026-08-11.
   Bumps `golang.org/x/net` v0.51.0 → v0.54.0 (closes GO-2026-4918,
   HTTP/2 transport infinite loop on bad `SETTINGS_MAX_FRAME_SIZE`;
@@ -66,9 +75,9 @@ When reporting, include:
 - **v0.2.0** — `SHELLYADMIN_PASS` (plaintext admin password) was removed.
   v0.0.15 added `SHELLYADMIN_PASS_HASH` (argon2id PHC from
   `shellyctl hash-password`) and started warning on plaintext use; v0.2.0
-  closes the deprecation window. Missing `SHELLYADMIN_PASS_HASH` now panics
-  at startup with a pointer to the helper. The operator-facing migration is:
-  run `shellyctl hash-password <plaintext>` once and replace the env var.
+  closed the deprecation window. Missing `SHELLYADMIN_PASS_HASH` panicked at
+  startup with a pointer to the helper (this hard requirement was lifted in
+  v0.4.0 — see above; the hash is now an optional first-run import seed).
 - **v0.1.0** — Adapts to Shelly firmware **2.0.0-beta1**. Adds an RFC 7616
   Digest auth client (replacing bare unauthenticated probes), per-device HTTPS
   scheme detection with strict TLS-cert-date validation by default (per-device
