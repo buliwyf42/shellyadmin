@@ -26,3 +26,4 @@ Status key:
 - [ADR-0013 Encryption Key Externalization Requirement](./0013-encryption-key-externalization.md) (`Accepted`)
 - [ADR-0014 MCP-Agent Threat Model + Prompt-Injection Defense](./0014-mcp-agent-threat-model.md) (`Accepted`)
 - [ADR-0015 Single-Instance-Only Operational Constraint](./0015-single-instance-constraint.md) (`Accepted`)
+- [ADR-0016 `shellyctl` Operator CLI (HTTP + PAT, Read-Only First)](./0016-shellyctl-cli.md) (`Accepted`)
