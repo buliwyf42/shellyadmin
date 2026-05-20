@@ -15,7 +15,7 @@ It is designed as a single-container deployment with:
 ## Status
 
 This repository is under active development.
-Current UI/API baseline is `v0.2.9`.
+Current UI/API baseline is `v0.3.4`.
 
 Public support posture:
 
@@ -135,7 +135,7 @@ docs                 Product and deployment documentation
 
 Requirements:
 
-- Go 1.25+
+- Go 1.25+ (the `go.mod` floor; CI and the Docker build use the Go 1.26 toolchain)
 
 Run:
 
@@ -147,7 +147,7 @@ make dev-backend
 
 Requirements:
 
-- Node 20+
+- Node 22+ (CI and the Docker build use Node 26)
 
 Run:
 
