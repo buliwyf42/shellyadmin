@@ -4,15 +4,17 @@
 
 Backend:
 
-- Go 1.25+ (the floor moved from 1.24 → 1.25 in v0.1.16; gin v1.12.0
-  pulls `quic-go/quic-go` for HTTP/3, which requires Go 1.25.0).
-- `golangci-lint` v2.6+ (the v1 → v2 migration landed in v0.1.6; older
-  binaries fail to load `.golangci.yml` because the schema changed).
-  Install: `go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.6.0`.
+- Go 1.25+ (the `go.mod` floor; moved from 1.24 → 1.25 in v0.1.16
+  because gin v1.12.0 pulls `quic-go/quic-go` for HTTP/3). CI and the
+  Docker build use the **Go 1.26 toolchain** as of v0.3.4.
+- `golangci-lint` v2.12+ (the v1 → v2 migration landed in v0.1.6; older
+  binaries fail to load `.golangci.yml` because the schema changed, and
+  v2.6 panics on the Go 1.26 stdlib — `file requires newer Go version
+  go1.26`). Install: `go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2`.
 
 Frontend:
 
-- Node 20+
+- Node 22+ (CI and the Docker build use Node 26)
 
 ## Local Workflow
 

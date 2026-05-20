@@ -343,3 +343,13 @@ Two new operator-facing auth surfaces, both built on the existing server-side se
 ## Release Cadence Convention
 
 VERSION + `web/package.json` + lockfile bump together on every release. Tag is lightweight (`git tag vX.Y.Z`, no `-a`); push needs `git push origin main vX.Y.Z` because `--follow-tags` only auto-pushes annotated tags. CHANGELOG header convention is `## [X.Y.Z] - YYYY-MM-DD — em-dash subtitle`; the publish-image workflow extracts the subtitle for the auto-created GitHub Release title.
+
+## CI Gates & Branch Protection (v0.3.4)
+
+The repo is **private on a GitHub Pro personal account** — Pro is what makes branch protection + native auto-merge enforceable on a private repo (on Free they can be created but are not enforced). The `main` branch is protected:
+
+- **6 required status checks** (the `name:` fields of the jobs in `.github/workflows/test.yml`): `Release-file version sync`, `Go tests`, `Go vulnerability check`, `Go lint`, `Frontend build`, `Docker image build`. The last one (`image-build` job) smoke-builds `docker/Dockerfile` single-platform amd64 on every PR + push — it closes the gap where a breaking base-image bump previously only surfaced 17-22 min into `publish-image.yml` at release time.
+- **Require a PR before merging**, 0 required approvals (0 so solo Dependabot auto-merge isn't blocked on a human review). `enforce_admins=false` — the operator can still push the release commit directly to `main`; the rule binds PRs, not admin. Direct pushes print a warning but go through.
+- **Dependabot** (`.github/dependabot.yml`) is grouped (npm dev/prod, gomod, docker, github-actions) and `.github/workflows/dependabot-auto-merge.yml` enables GitHub auto-merge on patch/minor Dependabot PRs — the merge only fires after the required checks pass, so CI is never bypassed. Major bumps stay manual. To regroup pre-existing ungrouped PRs after a config change, comment `@dependabot recreate`.
+
+**Toolchain alignment (v0.3.4):** CI's `setup-go` is `1.26` and `setup-node` is `26`, matching the Dockerfile. `golangci-lint` must be built with a Go ≥ the toolchain it analyzes — v2.6 (built with 1.25) panics on the 1.26 stdlib (`file requires newer Go version go1.26`), so the lint job pins **v2.12**. The `go.mod` directive stays `go 1.25.0`.

@@ -7,11 +7,11 @@ not commitments — scope and timing will shift as the project matures.
 For accepted architectural decisions see [adr/README.md](./adr/README.md). For the
 threat model and deployment expectations see [SECURITY.md](./SECURITY.md).
 
-## Now (v0.1.x)
+## Now (v0.3.x)
 
-- Continue field-testing on a real fleet between increments; the v0.1.7–
-  v0.1.12 sweep changed almost every operator-facing area, so concrete
-  bug reports still beat speculative additions.
+- Field-testing on a real fleet between increments; concrete bug reports
+  still beat speculative additions. Production (docker.home.lan) tracks
+  the latest release — currently v0.3.4.
 
 ## Next (pre-v1)
 
@@ -19,8 +19,32 @@ threat model and deployment expectations see [SECURITY.md](./SECURITY.md).
   without churn. Will need its own ADR to scope the command surface.
 - Periodic dependency pin review on a regular cadence (next pass: ~3 months
   out, or sooner if a CVE lands).
+- Responsive + accessibility (WCAG 2.1 AA) SPA design pass — the Svelte
+  pages were built desktop-first; mobile/tablet layouts and the a11y
+  posture haven't had a dedicated audit.
 
 ## Recently shipped
+
+> Per-release detail for **v0.2.8 → v0.3.4** lives in
+> [CHANGELOG.md](../CHANGELOG.md). Highlights below; older entries kept
+> for narrative continuity.
+
+### 2026-05-20
+
+- **v0.3.4** — Clear-Logs append-only-trigger fix; Dependabot grouping +
+  patch/minor auto-merge; base images bumped to `node:26-alpine` /
+  `golang:1.26-alpine` (CI toolchains aligned to Go 1.26 / Node 26).
+- **CI hardening** — `main` branch protection now requires 6 checks,
+  including a new `Docker image build` smoke job that builds the
+  Dockerfile on every PR (closes the gap where a breaking base-image
+  bump only surfaced at release time).
+
+### 2026-05-12
+
+- **v0.3.0 → v0.3.3** — Auth strategics (TOTP 2FA + Personal Access
+  Tokens), **breaking** external-encryption-key requirement (ADR-0013),
+  single-instance `runtime_locks` lock (ADR-0015) + same-hostname
+  crash-restart fast path, TOTP QR enrollment.
 
 ### 2026-05-11
 
