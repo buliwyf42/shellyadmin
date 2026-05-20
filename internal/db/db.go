@@ -1232,15 +1232,35 @@ func (db *DB) ForceClearRuntimeLock(key string) error {
 	return err
 }
 
+// ClearLogs removes every audit_log row. Like PruneAuditLogOlderThan it
+// must flip the __retention_bypass flag inside the transaction, otherwise
+// the audit_log_no_delete trigger rejects the DELETE as append-only.
 func (db *DB) ClearLogs() (int64, error) {
-	res, err := db.sql.Exec(`DELETE FROM audit_log`)
+	tx, err := db.sql.Begin()
 	if err != nil {
 		return 0, err
 	}
-	count, err := res.RowsAffected()
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.Exec(
+		`INSERT INTO settings(key, value) VALUES ('__retention_bypass', '1')
+		 ON CONFLICT(key) DO UPDATE SET value='1'`,
+	); err != nil {
+		return 0, err
+	}
+	res, err := tx.Exec(`DELETE FROM audit_log`)
 	if err != nil {
 		return 0, err
 	}
+	if _, err := tx.Exec(
+		`INSERT INTO settings(key, value) VALUES ('__retention_bypass', '0')
+		 ON CONFLICT(key) DO UPDATE SET value='0'`,
+	); err != nil {
+		return 0, err
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	count, _ := res.RowsAffected()
 	return count, nil
 }
 
