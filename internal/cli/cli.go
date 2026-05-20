@@ -19,9 +19,11 @@ import (
 // commands maps the first CLI verb to its handler. cmd/shellyctl/main.go
 // routes a matching os.Args[1] here; everything else starts the server.
 var commands = map[string]func(*client, []string) int{
-	"devices": cmdDevices,
-	"device":  cmdDevice,
-	"logs":    cmdLogs,
+	"devices":   cmdDevices,
+	"device":    cmdDevice,
+	"logs":      cmdLogs,
+	"firmware":  cmdFirmware,
+	"templates": cmdTemplates,
 }
 
 // Handles reports whether name is a CLI verb (so main.go knows to dispatch
@@ -53,6 +55,8 @@ Commands:
   devices              list the device inventory
   device <mac|ip|name> show one device's detail
   logs                 show the audit log
+  firmware             show the latest firmware-check status
+  templates            list provisioning template names
 
 Global flags (or env):
   --url    base URL    (default http://localhost:8080, env SHELLYADMIN_URL)
@@ -203,6 +207,62 @@ func cmdLogs(c *client, args []string) int {
 	return 0
 }
 
+func cmdFirmware(c *client, args []string) int {
+	fs := flag.NewFlagSet("shellyctl firmware", flag.ContinueOnError)
+	c.bindFlags(fs)
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	var status fwStatus
+	if msg := c.get("/api/firmware/status", &status); msg != "" {
+		return fail(msg)
+	}
+	if c.jsonOut {
+		return 0
+	}
+	state := "idle"
+	if status.Running {
+		state = "running"
+	}
+	fmt.Printf("firmware check: %s (%d/%d)\n", state, status.Done, status.Total)
+	if len(status.Results) == 0 {
+		fmt.Println("no check results yet — run a firmware check first")
+		return 0
+	}
+	w := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
+	fmt.Fprintln(w, "MAC\tCURRENT\tSTABLE\tBETA\tUPDATE\tSTATUS\tNOTE")
+	for _, r := range status.Results {
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
+			dash(r.MAC), dash(r.CurrentVer), dash(r.StableVer), dash(r.BetaVer),
+			updateFlag(r.StableUpdate, r.BetaUpdate), dash(r.Status), r.Note)
+	}
+	_ = w.Flush()
+	return 0
+}
+
+func cmdTemplates(c *client, args []string) int {
+	fs := flag.NewFlagSet("shellyctl templates", flag.ContinueOnError)
+	c.bindFlags(fs)
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	var names []string
+	if msg := c.get("/api/templates", &names); msg != "" {
+		return fail(msg)
+	}
+	if c.jsonOut {
+		return 0
+	}
+	if len(names) == 0 {
+		fmt.Println("no templates")
+		return 0
+	}
+	for _, n := range names {
+		fmt.Println(n)
+	}
+	return 0
+}
+
 // --- response shapes (only the fields the CLI renders) ---
 
 type deviceRow struct {
@@ -222,6 +282,24 @@ type logRow struct {
 	RiskLevel string `json:"risk_level"`
 	RequestID string `json:"request_id"`
 	Message   string `json:"message"`
+}
+
+type fwStatus struct {
+	Running bool          `json:"running"`
+	Done    int           `json:"done"`
+	Total   int           `json:"total"`
+	Results []fwResultRow `json:"results"`
+}
+
+type fwResultRow struct {
+	MAC          string `json:"mac"`
+	CurrentVer   string `json:"current_ver"`
+	StableVer    string `json:"stable_ver"`
+	BetaVer      string `json:"beta_ver"`
+	StableUpdate bool   `json:"stable_update"`
+	BetaUpdate   bool   `json:"beta_update"`
+	Status       string `json:"status"`
+	Note         string `json:"note"`
 }
 
 // --- helpers ---
@@ -274,6 +352,20 @@ func yesno(b bool) string {
 		return "yes"
 	}
 	return "no"
+}
+
+// updateFlag summarizes which channels have an update available.
+func updateFlag(stable, beta bool) string {
+	switch {
+	case stable && beta:
+		return "stable+beta"
+	case stable:
+		return "stable"
+	case beta:
+		return "beta"
+	default:
+		return "—"
+	}
 }
 
 func urlValue(s string) string {
