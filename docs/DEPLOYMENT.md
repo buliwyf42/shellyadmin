@@ -189,6 +189,30 @@ Compatibility note:
 - internal runtime filenames still use `shellyctl.db` and `shellyctl.log`
 - those names are kept for now to avoid unnecessary migration churn
 
+### Pre-deploy snapshot
+
+Before recreating the stack on a release, snapshot the SQLite file as a
+rollback point. The database lives on the host bind mount, and the
+container runs with a read-only root filesystem, so the copy must run on
+the **host** (not via a container exec). Use the helper:
+
+```bash
+scripts/snapshot-prod-db.sh docker.home.lan v0.3.6
+# -> /docker/shellyadmin/shellyctl.db.pre-v0.3.6-<epoch>
+```
+
+or run the equivalent directly on the host:
+
+```bash
+cp /docker/shellyadmin/shellyctl.db \
+   /docker/shellyadmin/shellyctl.db.pre-v0.3.6-$(date +%s)
+```
+
+These accumulate by design as rollback points. The snapshot mainly guards
+releases that carry a DB migration; a pure frontend/CI release does not
+touch the schema, so rollback there is just redeploying the previous image
+against the same database.
+
 ## Restore
 
 Restore by replacing the contents of the data volume while the container is stopped.
