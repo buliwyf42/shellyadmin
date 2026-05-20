@@ -13,7 +13,10 @@ services:
       - shellyadmin-data:/data
     environment:
       DATA_DIR: /data
-      # argon2id PHC string generated with
+      # Optional (ADR-0017): pre-seeds the operator login on a FRESH instance —
+      # imported into the DB once at boot, then ignored. Omit this (and the
+      # secret below) to create the admin account via the first-run setup
+      # screen instead. argon2id PHC string generated with
       #   docker run --rm ghcr.io/buliwyf42/shellyadmin:latest hash-password <plaintext>
       # Stored in the secrets/shellyadmin_pass.txt file mounted via the shellyadmin_pass secret below.
       SHELLYADMIN_PASS_HASH_FILE: /run/secrets/shellyadmin_pass

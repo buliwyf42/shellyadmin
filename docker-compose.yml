@@ -12,9 +12,11 @@ services:
     environment:
       DATA_DIR: /data
       SHELLYADMIN_USER: ${SHELLYADMIN_USER:-admin}
-      # Generate the hash with:
+      # Optional (ADR-0017). Leave unset to create the admin account via the
+      # first-run setup screen in the web UI. If set on a fresh instance the
+      # hash is imported into the DB once at boot, then ignored. Generate with:
       #   docker run --rm ghcr.io/buliwyf42/shellyadmin:latest hash-password <plaintext>
-      SHELLYADMIN_PASS_HASH: ${SHELLYADMIN_PASS_HASH:?SHELLYADMIN_PASS_HASH is required}
+      SHELLYADMIN_PASS_HASH: ${SHELLYADMIN_PASS_HASH:-}
       SHELLYADMIN_SECRET: ${SHELLYADMIN_SECRET:-change-this-cookie-secret}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       # Set to enable the read-only MCP listener. Clients send

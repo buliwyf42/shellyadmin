@@ -35,27 +35,32 @@ The target architecture is documented in [docs/ARCHITECTURE.md](docs/ARCHITECTUR
 
 ## Quick Start
 
-Fastest Docker run for a trusted LAN test setup. Generate the argon2id hash with
-`docker run --rm ghcr.io/buliwyf42/shellyadmin:latest hash-password <plaintext>`,
-then:
+Fastest Docker run for a trusted LAN test setup:
 
 ```bash
 docker run -d \
   --name shellyadmin \
   -p 8080:8080 \
   -v shellyadmin-data:/data \
-  -e SHELLYADMIN_PASS_HASH='$argon2id$v=19$m=65536,t=2,p=1$…' \
   -e SHELLYADMIN_SECRET='change-this-cookie-secret' \
   -e SHELLYADMIN_ENCRYPTION_KEY="$(openssl rand -base64 32)" \
   -e COOKIE_SECURE=false \
   ghcr.io/buliwyf42/shellyadmin:latest
 ```
 
+Then open `http://localhost:8080` and create the admin account on the
+**first-run setup** screen. (Forgot the password later? `docker exec shellyadmin
+shellyctl reset-auth --force` returns the instance to setup mode.)
+
 `SHELLYADMIN_ENCRYPTION_KEY` is **required** since v0.3.0 — the container won't
 start without it. Generate it once and **reuse the same value** on every
 recreate; a new key orphans all stored credentials.
 
-Then open `http://localhost:8080`.
+> Prefer to pre-seed the login instead of using the setup screen? Set
+> `SHELLYADMIN_PASS_HASH` (from
+> `docker run --rm ghcr.io/buliwyf42/shellyadmin:latest hash-password <plaintext>`)
+> on a fresh instance — it is imported into the database once at boot, then
+> ignored.
 
 For a Compose-based deployment, create the secret files expected by [`docker/docker-compose.yml`](docker/docker-compose.yml) and run:
 
