@@ -4,6 +4,46 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-05-20 — Clear-Logs trigger fix + Dependabot grouping/auto-merge
+
+Maintenance release. Fixes the audit-log "Clear Logs" button (broken
+since the S2 append-only trigger landed) and bundles the CI automation
+and dependency bumps that accumulated since v0.3.3.
+
+### Fixed
+
+- **"Clear Logs" button no longer 500s.** `db.ClearLogs()` ran a naked
+  `DELETE FROM audit_log`, which the S2 `audit_log_no_delete` trigger
+  rejects as append-only — the SPA's `DELETE /api/logs` surfaced a 500
+  and the table was never cleared. It now wraps the delete in the same
+  `__retention_bypass` transaction pattern as `PruneAuditLogOlderThan`,
+  flipping the flag inside the transaction so a crash mid-delete leaves
+  the protection intact. Regression test `TestClearLogsRespectsBypass`.
+
+### Changed
+
+- **Dependabot updates are now grouped** (npm dev/prod, gomod, docker,
+  github-actions) so the weekly run opens a handful of PRs instead of
+  one per dependency. This also fixes the `@typescript-eslint`
+  peer-dependency lockstep that broke isolated bumps (e.g.
+  `eslint-plugin` 8.59.4 vs `parser` 8.59.3 `ERESOLVE`).
+- **Dependabot auto-merge for patch + minor bumps.** A new
+  `dependabot-auto-merge.yml` workflow enables GitHub auto-merge on
+  patch/minor Dependabot PRs; the merge only fires after the required
+  Test checks pass, so CI is never bypassed. Major bumps stay manual.
+  Requires the `main` branch protection rule (5 required checks) added
+  alongside this release.
+- **Docker base images bumped**: `node` 20-alpine → 26-alpine
+  (frontend build stage) and `golang` 1.25-alpine → 1.26-alpine
+  (backend build stage). The `go.mod` directive stays `go 1.25.0`;
+  the 1.26 toolchain builds it backward-compatibly. Validated with a
+  local multi-stage image build.
+- Dependency bumps: `svelte` 5.55.8, the npm dev-dependency group
+  (`eslint`, `typescript-eslint` family, `vite`), and
+  `sigstore/cosign-installer` 3.9.1 → 4.1.2. The cosign-installer v4
+  major still installs the pinned cosign v2.4.1, so image signing is
+  unchanged.
+
 ## [0.3.3] - 2026-05-12 — runtime_locks: same-hostname fast path + 60 s window
 
 Hotfix patch. Softens ADR-0015 (`runtime_locks`) to recover gracefully
