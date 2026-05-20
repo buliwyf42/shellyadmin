@@ -196,3 +196,49 @@ jobs:
       - name: Bundle size budget
         run: npm run check:bundle-size
         working-directory: web
+
+  # Playwright E2E (roadmap T8). Builds the SPA, embeds it into the Go
+  # binary, boots it, and drives a real browser through the login + nav
+  # flows. Deliberately NOT a required status check on main: keeping it off
+  # the required list means an occasional E2E flake never blocks a merge,
+  # while still surfacing real regressions in the PR's check list.
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: '26'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: web
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+        working-directory: web
+
+      - name: Build SPA + embed into the binary
+        run: |
+          npm --prefix web run build
+          make frontend-sync
+
+      - name: Run E2E against the built binary
+        run: |
+          set -euo pipefail
+          make dev-backend > /tmp/e2e-server.log 2>&1 &
+          for i in $(seq 1 60); do
+            curl -fsS --max-time 2 http://127.0.0.1:8080/health >/dev/null 2>&1 && break
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:8080/health
+          cd web && PLAYWRIGHT_BASE_URL=http://localhost:8080 npx playwright test
