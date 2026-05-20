@@ -19,6 +19,7 @@
   ] as const;
 
   let runtimeVersion: VersionInfo = { backend_version: '', commit: '' };
+  let navOpen = false;
 
   onMount(async () => {
     try {
@@ -28,9 +29,17 @@
     }
   });
 
-  $: navVersion = runtimeVersion.backend_version || APP_VERSION;
+  // The badge prefixes "v", so strip a leading "v" the backend may already
+  // carry (release images embed the git tag "v0.3.4") to avoid "vv0.3.4".
+  $: navVersion = (runtimeVersion.backend_version || APP_VERSION).replace(/^v/, '');
 
-  function iconPath(name: (typeof links)[number]['icon'] | 'logout' | 'resize'): string {
+  function closeNav() {
+    navOpen = false;
+  }
+
+  function iconPath(
+    name: (typeof links)[number]['icon'] | 'logout' | 'resize' | 'menu' | 'close',
+  ): string {
     switch (name) {
       case 'grid':
         return 'M3 3h4v4H3V3zm7 0h4v4h-4V3zm7 0h4v4h-4V3zM3 10h4v4H3v-4zm7 0h4v4h-4v-4zm7 0h4v4h-4v-4zM3 17h4v4H3v-4zm7 0h4v4h-4v-4zm7 0h4v4h-4v-4z';
@@ -56,6 +65,10 @@
         return 'M10 4h-5v16h5v2H3V2h7v2zm4.6 3.4L13.2 8.8 15.4 11H8v2h7.4l-2.2 2.2 1.4 1.4L19.2 12l-4.6-4.6z';
       case 'resize':
         return 'M4 4h6v2H6v4H4V4zm10 0h6v6h-2V6h-4V4zM4 14h2v4h4v2H4v-6zm14 0h2v6h-6v-2h4v-4z';
+      case 'menu':
+        return 'M3 6h18v2H3V6zm0 5h18v2H3v-2zm0 5h18v2H3v-2z';
+      case 'close':
+        return 'M6.4 5l5.6 5.6L17.6 5 19 6.4 13.4 12 19 17.6 17.6 19 12 13.4 6.4 19 5 17.6 10.6 12 5 6.4 6.4 5z';
     }
   }
 
@@ -74,42 +87,63 @@
 
 <nav class="navbar topbar border-bottom border-secondary-subtle bg-black">
   <div class="container-fluid">
-    <a href="/" class="brand text-decoration-none text-light fw-bold">
+    <a href="/" class="brand text-decoration-none text-light fw-bold" on:click={closeNav}>
       <img src="/logo-mark.svg" alt="ShellyAdmin logo" class="brand-logo" />
       <span class="brand-name">ShellyAdmin</span>
       <span class="brand-version">v{navVersion}</span>
     </a>
-    <div class="topnav-main">
-      {#each links as link (link.path)}
-        <a href={link.path} class={`topnav-link ${isActive(link.path) ? 'is-active' : ''}`}>
+    <button
+      type="button"
+      class="nav-toggle"
+      aria-label={navOpen ? 'Close navigation menu' : 'Open navigation menu'}
+      aria-expanded={navOpen}
+      aria-controls="topnav-collapse"
+      on:click={() => (navOpen = !navOpen)}
+    >
+      <span class="topnav-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" role="img">
+          <path d={iconPath(navOpen ? 'close' : 'menu')} />
+        </svg>
+      </span>
+    </button>
+    <div id="topnav-collapse" class="topnav-collapse" class:open={navOpen}>
+      <div class="topnav-main">
+        {#each links as link (link.path)}
+          <a
+            href={link.path}
+            class={`topnav-link ${isActive(link.path) ? 'is-active' : ''}`}
+            aria-current={isActive(link.path) ? 'page' : undefined}
+            on:click={closeNav}
+          >
+            <span class="topnav-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" role="img">
+                <path d={iconPath(link.icon)} />
+              </svg>
+            </span>
+            <span>{link.label}</span>
+          </a>
+        {/each}
+      </div>
+      <div class="topnav-side">
+        <label class="topnav-scale" for="nav-ui-scale" title="UI size">
+          <span class="topnav-scale-label">Size</span>
+          <select id="nav-ui-scale" class="topnav-scale-select" bind:value={$uiScale}>
+            <option value="compact">S</option>
+            <option value="default">M</option>
+            <option value="large">L</option>
+            <option value="xlarge">XL</option>
+            <option value="xxlarge">XXL</option>
+          </select>
+        </label>
+        <button type="button" class="topnav-link logout" on:click={logout}>
           <span class="topnav-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" role="img">
-              <path d={iconPath(link.icon)} />
+              <path d={iconPath('logout')} />
             </svg>
           </span>
-          <span>{link.label}</span>
-        </a>
-      {/each}
-    </div>
-    <div class="topnav-side">
-      <label class="topnav-scale" for="nav-ui-scale" title="UI size">
-        <span class="topnav-scale-label">Size</span>
-        <select id="nav-ui-scale" class="topnav-scale-select" bind:value={$uiScale}>
-          <option value="compact">S</option>
-          <option value="default">M</option>
-          <option value="large">L</option>
-          <option value="xlarge">XL</option>
-          <option value="xxlarge">XXL</option>
-        </select>
-      </label>
-      <button type="button" class="topnav-link logout" on:click={logout}>
-        <span class="topnav-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" role="img">
-            <path d={iconPath('logout')} />
-          </svg>
-        </span>
-        <span>Logout</span>
-      </button>
+          <span>Logout</span>
+        </button>
+      </div>
     </div>
   </div>
 </nav>
