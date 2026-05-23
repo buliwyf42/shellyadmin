@@ -2,6 +2,9 @@
 
 This file is a persistent memory aid for AI-assisted development. Keep it up to date when making architectural decisions.
 
+For deployment workflow, release cadence, and CI/branch-protection
+details, see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+
 ---
 
 ## Architecture
@@ -162,85 +165,6 @@ Template variable substitution: `{device_name}` is replaced with the device's co
 
 ---
 
-## Deployment Workflow
-
-All edits are made **locally on macOS**. Production runs the image as a
-**compose stack** named `shellyadmin`, managed through a container-management
-UI on the Docker host. The stack files live on the host under
-`<stacks-dir>/shellyadmin/{compose.yaml,.env}`.
-
-### Release path
-
-1. Bump `VERSION` + `web/package.json` + lockfile, update
-   `CHANGELOG.md`, commit, lightweight-tag `vX.Y.Z`, push
-   `git push origin main vX.Y.Z`.
-2. `publish-image.yml` builds and pushes `ghcr.io/buliwyf42/shellyadmin:vX.Y.Z`
-   and `:latest` (~17–22 min) and auto-creates the GitHub Release.
-3. In the container manager: pull the new image, then "deploy" / "recreate"
-   the `shellyadmin` stack. The stack pins `:latest`, so a pull + recreate
-   is the full upgrade. Via the MCP server this is
-   `pull_image(image="ghcr.io/buliwyf42/shellyadmin:latest")` followed
-   by `start_stack(name="shellyadmin")` (or restart_stack if already
-   up). SQLite persists across recreates because of the
-   host-data-dir → `/data` bind mount.
-
-### Stack shape
-
-- Image: `ghcr.io/buliwyf42/shellyadmin:latest` (pinned by tag mover,
-  not by digest — operator pulls explicitly before recreate).
-- Ports: `8100:8080` (SPA + HTTP API), `8101:8081` (MCP listener;
-  only binds when enabled in Settings UI or env-overridden).
-- Volumes: host data dir → `/data` bind mount.
-- Networks: an external Docker network (`<external-network>`).
-- Hardening: `read_only: true` + `tmpfs: /tmp`, `cap_drop: [ALL]`
-  with `cap_add: [CHOWN, DAC_OVERRIDE, SETGID, SETUID, KILL]`,
-  `no-new-privileges:true`, `pids_limit: 256`, `init: true`.
-  **`KILL` is mandatory when `init: true`** — tini (PID 1, running as
-  root) needs `CAP_KILL` to forward SIGTERM across the UID gap to
-  `shellyctl` (running as the `shelly` user after `su-exec` in the
-  entrypoint). Without it, `[FATAL tini (1)] Unexpected error when
-  forwarding signal: 'Operation not permitted'` fires on every
-  graceful stop, the deferred `runtime_locks.Release` never runs,
-  and the next boot panic-loops on a stranded lock row until the
-  staleness window (60 s on v0.3.3+, 5 min on v0.3.0–0.3.2)
-  expires. Discovered the hard way on the v0.3.3 production deploy
-  (2026-05-12).
-- Env in `.env` (managed via the container manager's UI, never committed):
-  `SHELLYADMIN_PASS_HASH` (argon2id PHC from `shellyctl hash-password`),
-  `SHELLYADMIN_SECRET` (cookie secret), `COOKIE_SECURE=false`
-  (trusted-LAN posture). `SHELLYADMIN_USER` is **not** set in
-  the stack `.env` — it defaults to `admin` from
-  [main.go](cmd/shellyctl/main.go) (`getenv("SHELLYADMIN_USER",
-  "admin")`). v0.2.0 removed the **plaintext-password** env var
-  (`SHELLYADMIN_PASS`), not the username concept. The login
-  handler still compares against `cfg.User` —
-  override `SHELLYADMIN_USER` if `admin` is too predictable.
-
-### Pre-deploy snapshot (rollback point)
-
-Before recreating the stack on a release, copy the SQLite file:
-`cp <data-dir>/shellyctl.db <data-dir>/shellyctl.db.pre-vX.Y.Z-$(date +%s)`.
-These pile up by design as rollback points.
-
-### Historical (pre-v0.2.8)
-
-Before 2026-05-11 production ran the image as a standalone container
-via `docker run` driven by `rsync + ssh docker build` from the mac.
-That recipe still works for a one-off dev rebuild, but production has
-moved to the compose stack. Don't reintroduce the standalone path
-as the default deploy in this doc — it would conflict on ports
-`8100/8101` with the stack-managed container.
-
-### Versioning at build time
-
-The Dockerfile reads the `VERSION` file at the repo root as the
-default version when no `--build-arg VERSION=` is passed. Local
-builds show the real version in the navbar and About page. GHCR
-builds receive `--build-arg VERSION=` from the git tag.
-**On each release, update both `VERSION` and `web/package.json`.**
-
----
-
 ## Job Locking
 
 Long-running jobs (refresh, scan, firmware_check) use a SQLite-backed status:
@@ -350,19 +274,3 @@ Two new operator-facing auth surfaces, both built on the existing server-side se
 **TOTP 2FA (T1)** — operator enrolls a TOTP secret via the Settings UI; subsequent logins require a 6-digit code in addition to the password. RFC 6238 stdlib impl in [internal/services/totp/totp.go](internal/services/totp/totp.go); 10 single-use backup codes issued at enrollment (sha256-hashed + secretbox-sealed in the DB row); wrong code bumps the same per-account lockout counter as wrong-password. [internal/api/handler_totp.go](internal/api/handler_totp.go) drives the `/api/totp/{status,enroll,verify-enroll,disable}` surface.
 
 **Personal Access Tokens (T3)** — bearer-token credentials for headless callers (Home Assistant, cron, scripts) so `/api/*` mutations don't have to fake the cookie + CSRF dance. Token format `pat_<8hex id>_<64hex random>`. Scope catalog (`admin`, `devices:read/write`, `firmware:read/write`, `provision`, `settings:read/write`) gated per-route via `middleware.RequireScope`. Bearer-authed requests skip CSRF (the token IS the proof-of-intent). [internal/services/tokens/tokens.go](internal/services/tokens/tokens.go) is the orchestration; [internal/middleware/auth.go](internal/middleware/auth.go) extends RequireAuth to honor the `Authorization: Bearer pat_…` header. PAT-authed callers cannot mint, list, or revoke other PATs (privilege-escalation guard at the handler).
-
----
-
-## Release Cadence Convention
-
-VERSION + `web/package.json` + lockfile bump together on every release. Tag is lightweight (`git tag vX.Y.Z`, no `-a`); push needs `git push origin main vX.Y.Z` because `--follow-tags` only auto-pushes annotated tags. CHANGELOG header convention is `## [X.Y.Z] - YYYY-MM-DD — em-dash subtitle`; the publish-image workflow extracts the subtitle for the auto-created GitHub Release title.
-
-## CI Gates & Branch Protection (v0.3.4)
-
-The repo is **private on a GitHub Pro personal account** — Pro is what makes branch protection + native auto-merge enforceable on a private repo (on Free they can be created but are not enforced). The `main` branch is protected:
-
-- **6 required status checks** (the `name:` fields of the jobs in `.github/workflows/test.yml`): `Release-file version sync`, `Go tests`, `Go vulnerability check`, `Go lint`, `Frontend build`, `Docker image build`. The last one (`image-build` job) smoke-builds `docker/Dockerfile` single-platform amd64 on every PR + push — it closes the gap where a breaking base-image bump previously only surfaced 17-22 min into `publish-image.yml` at release time.
-- **Require a PR before merging**, 0 required approvals (0 so solo Dependabot auto-merge isn't blocked on a human review). `enforce_admins=false` — the operator can still push the release commit directly to `main`; the rule binds PRs, not admin. Direct pushes print a warning but go through.
-- **Dependabot** (`.github/dependabot.yml`) is grouped (npm dev/prod, gomod, docker, github-actions) and `.github/workflows/dependabot-auto-merge.yml` enables GitHub auto-merge on patch/minor Dependabot PRs — the merge only fires after the required checks pass, so CI is never bypassed. Major bumps stay manual. To regroup pre-existing ungrouped PRs after a config change, comment `@dependabot recreate`.
-
-**Toolchain alignment (v0.3.4):** CI's `setup-go` is `1.26` and `setup-node` is `26`, matching the Dockerfile. `golangci-lint` must be built with a Go ≥ the toolchain it analyzes — v2.6 (built with 1.25) panics on the 1.26 stdlib (`file requires newer Go version go1.26`), so the lint job pins **v2.12**. The `go.mod` directive stays `go 1.25.0`.
