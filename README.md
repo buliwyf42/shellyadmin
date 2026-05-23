@@ -1,6 +1,16 @@
 # ShellyAdmin
 
-ShellyAdmin is a self-hosted web app for discovering, inventorying, checking, and managing Shelly devices on a trusted local network.
+[![CI](https://github.com/buliwyf42/shellyadmin/actions/workflows/test.yml/badge.svg)](https://github.com/buliwyf42/shellyadmin/actions/workflows/test.yml)
+[![License: MIT](https://img.shields.io/github/license/buliwyf42/shellyadmin)](LICENSE)
+[![Latest release](https://img.shields.io/github/v/release/buliwyf42/shellyadmin?sort=semver)](https://github.com/buliwyf42/shellyadmin/releases)
+[![GHCR](https://img.shields.io/badge/ghcr.io-buliwyf42%2Fshellyadmin-blue?logo=docker)](https://github.com/buliwyf42/shellyadmin/pkgs/container/shellyadmin)
+[![Go Report Card](https://goreportcard.com/badge/github.com/buliwyf42/shellyadmin)](https://goreportcard.com/report/github.com/buliwyf42/shellyadmin)
+
+ShellyAdmin is a self-hosted web app for discovering, inventorying, checking, and managing Shelly Gen2+ devices on a trusted local network.
+
+## Why ShellyAdmin?
+
+The Shelly cloud requires opting each device into a third-party service. Home Assistant's Shelly integration covers control, automation, and a per-entity view but not fleet-wide firmware management, compliance auditing, bulk provisioning, or an audit log of operator actions. ShellyAdmin sits next to those tools as the **fleet ops console**: scan a subnet, enroll devices into an inventory, push templated config to many at once, check/install firmware in bulk, and verify each device matches a compliance rule set — with every action audited.
 
 It is designed as a single-container deployment with:
 
@@ -12,12 +22,18 @@ It is designed as a single-container deployment with:
 - advanced provisioning mode for expert use
 - audit logging in-app
 
+<!--
+Screenshot placeholder. Add a real screenshot of the Devices view, Firmware page, or first-run setup to docs/screenshots/<name>.png and replace this block with:
+
+  ![ShellyAdmin Devices view](docs/screenshots/devices.png)
+
+-->
+
 ## Status
 
-This repository is under active development.
-Current UI/API baseline is `v0.4.0`.
+Under active development. Current UI/API baseline is `v0.4.0`. The project follows pre-1.0 semver: minor versions may carry breaking changes. Semver guarantees apply from `v1.0.0`.
 
-Public support posture:
+Intended posture:
 
 - experimental but usable for trusted-LAN administration
 - optimized for a single trusted operator
@@ -30,7 +46,7 @@ The target architecture is documented in [docs/ARCHITECTURE.md](docs/ARCHITECTUR
 
 - Easy to run in Docker
 - Optimized for a single trusted operator on a LAN
-- Supports Gen2+ Shelly devices
+- Supports Gen2+ Shelly devices (Gen1 is intentionally unsupported)
 - Keeps risky actions manual and previewed
 
 ## Quick Start
@@ -42,33 +58,47 @@ docker run -d \
   --name shellyadmin \
   -p 8080:8080 \
   -v shellyadmin-data:/data \
-  -e SHELLYADMIN_SECRET='change-this-cookie-secret' \
+  -e SHELLYADMIN_SECRET="$(openssl rand -hex 32)" \
   -e SHELLYADMIN_ENCRYPTION_KEY="$(openssl rand -base64 32)" \
   -e COOKIE_SECURE=false \
   ghcr.io/buliwyf42/shellyadmin:latest
 ```
 
-Then open `http://localhost:8080` and create the admin account on the
-**first-run setup** screen. (Forgot the password later? `docker exec shellyadmin
-shellyctl reset-auth --force` returns the instance to setup mode.)
+Then open `http://localhost:8080` and create the admin account on the **first-run setup** screen. Forgot the password later? `docker exec shellyadmin shellyctl reset-auth --force` returns the instance to setup mode.
 
-`SHELLYADMIN_ENCRYPTION_KEY` is **required** since v0.3.0 — the container won't
-start without it. Generate it once and **reuse the same value** on every
-recreate; a new key orphans all stored credentials.
+`SHELLYADMIN_ENCRYPTION_KEY` is **required** since v0.3.0 — the container won't start without it. Generate it once and **reuse the same value** on every recreate; a new key orphans all stored credentials.
 
-> Prefer to pre-seed the login instead of using the setup screen? Set
-> `SHELLYADMIN_PASS_HASH` (from
-> `docker run --rm ghcr.io/buliwyf42/shellyadmin:latest hash-password <plaintext>`)
-> on a fresh instance — it is imported into the database once at boot, then
-> ignored.
+`COOKIE_SECURE=false` is only safe on plain HTTP over a trusted LAN. Set `COOKIE_SECURE=true` (and front the container with TLS) for any other deployment.
 
-For a Compose-based deployment, create the secret files expected by [`docker/docker-compose.yml`](docker/docker-compose.yml) and run:
+### Pre-seeding the login (optional)
+
+To skip the setup screen on a fresh instance, generate a hash and pass it as `SHELLYADMIN_PASS_HASH`:
+
+```bash
+HASH="$(docker run --rm ghcr.io/buliwyf42/shellyadmin:latest hash-password 'change-this-admin-password')"
+
+docker run -d \
+  --name shellyadmin \
+  -p 8080:8080 \
+  -v shellyadmin-data:/data \
+  -e SHELLYADMIN_SECRET="$(openssl rand -hex 32)" \
+  -e SHELLYADMIN_ENCRYPTION_KEY="$(openssl rand -base64 32)" \
+  -e SHELLYADMIN_PASS_HASH="$HASH" \
+  -e COOKIE_SECURE=false \
+  ghcr.io/buliwyf42/shellyadmin:latest
+```
+
+The hash is imported into the database once at boot, then ignored. To rotate the password after that, use Settings → Operator Account in the UI.
+
+### Docker Compose
+
+For a Compose-based deployment, see [`docker/docker-compose.yml`](docker/docker-compose.yml):
 
 ```bash
 docker compose -f docker/docker-compose.yml up -d
 ```
 
-Use strong secrets for real installs. The `COOKIE_SECURE=false` example above is only for plain HTTP on a trusted LAN.
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the full deployment guide, including hardening flags, MCP exposure, and pre-deploy DB snapshots.
 
 ## Current Feature Set
 
@@ -116,106 +146,76 @@ Use strong secrets for real installs. The `COOKIE_SECURE=false` example above is
   - device-group assignments
 - Audit logs view (debug log mode removed)
 - Documented API surface and OpenAPI JSON for the supported v1 routes
+- Optional read-only [MCP server](#optional-mcp-server-read-only) for LLM-driven introspection
 
-## Planned / In Progress
+## Roadmap
 
 See [docs/roadmap.md](docs/roadmap.md) for the current roadmap. Headline items:
 
 - Broader action discovery for device components where protocol support is reliable
-- CLI after the external API contract settles
-- API stability guarantee (v0.x may have breaking changes; semver will apply from v1.0.0)
+- `shellyctl` write commands (read-only CLI shipped in v0.3.6)
+- API stability guarantee from `v1.0.0`
 
 ## Project Structure
 
 ```text
-cmd/shellyctl        Application entrypoint
+cmd/shellyctl        Application entrypoint (server + CLI subcommands)
 internal/api         HTTP routing and handlers
 internal/services    Workflow orchestration
-internal/core        Shelly protocol logic
+internal/core        Shelly protocol logic (scanner, firmware, provisioner)
+internal/mcp         Read-only MCP server (HTTP + stdio transports)
 internal/db          SQLite persistence and migrations
 internal/models      Shared data models
 web                  Svelte frontend
 docker               Container files
-docs                 Product and deployment documentation
+docs                 Architecture, deployment, and ADR documentation
 ```
 
 ## Running Locally
 
-### Backend
-
 Requirements:
 
 - Go 1.25+ (the `go.mod` floor; CI and the Docker build use the Go 1.26 toolchain)
-
-Run:
-
-```bash
-make dev-backend
-```
-
-### Frontend
-
-Requirements:
-
 - Node 22+ (CI and the Docker build use Node 26)
 
-Run:
+In two terminals:
 
 ```bash
-cd web
-npm install
-npm run dev
-```
-
-The Vite dev server proxies `/api` and `/health` to the backend on `127.0.0.1:8080`.
-
-Recommended native workflow:
-
-1. Run the backend:
-
-```bash
+# Terminal 1 — backend on :8080
 make dev-backend
-```
 
-2. In a second terminal, run the frontend:
-
-```bash
+# Terminal 2 — frontend dev server on :5173 (proxies /api and /health)
 cd web
 npm install
 npm run dev
 ```
 
-3. Open the app through the Vite dev server on `http://<host>:5173`
+Open `http://localhost:5173` and log in with `admin` / `dev-secret`.
 
-If you want to run the Go app with embedded static assets instead, build and sync the frontend first:
+To run the Go binary with embedded frontend assets instead of the Vite dev server:
 
 ```bash
-make frontend
+make frontend   # build + sync the SPA into cmd/shellyctl/dist
 make backend
 ./bin/shellyctl
 ```
 
+For the full development reference (tests, lint, bundle-size budget, deployment workflow, release process), see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+
 ## Docker
 
-The app is intended to run as a single container.
+ShellyAdmin runs as a single container. Tagged releases publish a multi-arch image to GHCR via `.github/workflows/publish-image.yml`:
 
-For GitHub-based distribution, the repository should be treated as the source of truth for:
+- `ghcr.io/buliwyf42/shellyadmin:vX.Y.Z` (immutable)
+- `ghcr.io/buliwyf42/shellyadmin:latest` (mover)
 
-- tagged source releases such as `v0.0.6`
-- the Docker build context under [`docker/`](docker)
-- the GitHub Actions flow that publishes a versioned image to GHCR per release tag
+The reference Compose file at [`docker/docker-compose.yml`](docker/docker-compose.yml) pulls `:latest` by default. To build locally instead of pulling:
 
-The included Compose file is aligned with the published GHCR image name:
+```bash
+docker compose -f docker/docker-compose.yml up -d --build
+```
 
-- default image: `ghcr.io/buliwyf42/shellyadmin:latest`
-- optional local rebuild path: `docker compose -f docker/docker-compose.yml up -d --build`
-
-Compatibility note:
-
-- internal binary and SQLite filenames still use `shellyctl` for now
-- the external product, Docker, and GitHub-facing name remains `ShellyAdmin`
-
-See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for deployment guidance.
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for the full deployment guide.
 
 ## Optional: MCP Server (Read-Only)
 
@@ -223,11 +223,11 @@ ShellyAdmin can expose a read-only [Model Context Protocol](https://modelcontext
 
 The listener is **off by default** and can be enabled either by setting `SHELLYADMIN_MCP_TOKEN` (env var; takes precedence — useful for headless / CI / Compose-managed deploys) or by toggling **MCP Server → Enable** on the Settings page and entering a token there (since v0.1.20; encrypted at rest). When both are set, the env var wins and the Settings UI shows a "managed by environment variable" notice. Clients can authenticate either via the standard `Authorization: Bearer <token>` header **or** by putting the token as the first URL path segment (e.g. `http://host:8081/<token>/`) — convenient for clients like `mcp-remote` where a header arg is awkward.
 
-| Env var | Default | Purpose |
-|---------|---------|---------|
-| `SHELLYADMIN_MCP_TOKEN` | unset | Required to enable MCP. Supports `_FILE` indirection like other secrets. |
-| `SHELLYADMIN_MCP_PORT` | `8081` | Port for the MCP listener. |
-| `SHELLYADMIN_MCP_BIND` | `0.0.0.0` | Bind address. Set to `127.0.0.1` for loopback-only. |
+| Env var                 | Default   | Purpose                                                                  |
+| ----------------------- | --------- | ------------------------------------------------------------------------ |
+| `SHELLYADMIN_MCP_TOKEN` | unset     | Required to enable MCP. Supports `_FILE` indirection like other secrets. |
+| `SHELLYADMIN_MCP_PORT`  | `8081`    | Port for the MCP listener.                                               |
+| `SHELLYADMIN_MCP_BIND`  | `0.0.0.0` | Bind address. Set to `127.0.0.1` for loopback-only.                      |
 
 Example Claude Desktop config (`mcp.json`) — header form:
 
@@ -262,38 +262,23 @@ Same client routed through `mcp-remote` (which doesn't natively expose a header 
 
 When MCP is enabled, every tool call writes to the same audit log the SPA shows on the Logs page (prefixed with `mcp `, filterable by request id).
 
-## What Works Today
-
-- device discovery with explicit inventory enrollment
-- periodic and manual device refresh
-- compliance rule management and device compliance visibility
-- firmware inspection and update flow
-- guided provisioning plus advanced JSON mode
-- auth groups, backup export/import, and audit logs
-
-## Not Production-Grade Yet
-
-- direct internet exposure
-- multi-user RBAC
-- high availability deployments
-- public API lifecycle guarantees
-- broad automated recovery and self-healing flows
-
 ## Security
 
-This project is intended for trusted LAN use, not direct internet exposure.
+This project is intended for trusted LAN use, not direct internet exposure. See [SECURITY.md](SECURITY.md) for the reporting flow and supported-versions policy; [docs/SECURITY.md](docs/SECURITY.md) carries the deeper threat model and deployment expectations.
 
-See [SECURITY.md](SECURITY.md) and [docs/SECURITY.md](docs/SECURITY.md) for the current security model and deployment expectations.
+Found a vulnerability? Open a [private security advisory](https://github.com/buliwyf42/shellyadmin/security/advisories/new).
 
 ## Architecture
 
-The current agreed architecture is documented in:
+Documented in:
 
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
-- [docs/adr/README.md](docs/adr/README.md)
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — overall design
+- [docs/adr/README.md](docs/adr/README.md) — architecture decision records
 
 ## Contributing
 
-The project is still being shaped, so architecture changes should align with the documented design goals before implementation.
+The project is still being shaped, so architecture changes should align with the documented design goals before implementation. See [CONTRIBUTING.md](CONTRIBUTING.md) for the development and PR workflow, and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community expectations.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the development and PR workflow.
+## License
+
+[MIT](LICENSE) © 2026 buliwyf42
