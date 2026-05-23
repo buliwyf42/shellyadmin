@@ -120,7 +120,7 @@ func (h *Handler) Login(c *gin.Context) {
 	}
 	session := sessions.Default(c)
 	session.Clear()
-	session.Set("user", req.Username)
+	session.Set("user", adminUser)
 	nonce := RandomSecret()
 	session.Set("nonce", nonce)
 	// S5 — every successful login issues a fresh server-side session row.
@@ -131,7 +131,7 @@ func (h *Handler) Login(c *gin.Context) {
 	// remained valid for its full 7-day MaxAge.
 	sessionID := RandomSecret()
 	session.Set("session_id", sessionID)
-	if _, err := h.service.IssueSession(sessionID, req.Username); err != nil {
+	if _, err := h.service.IssueSession(sessionID, adminUser); err != nil {
 		h.logReq(c, "ERROR", fmt.Sprintf("login: issue session row failed: %v", err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "session persistence failed"})
 		return
