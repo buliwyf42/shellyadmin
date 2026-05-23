@@ -58,7 +58,7 @@ No change to the running server's behavior.
   non-required `E2E (Playwright)` CI job that builds the SPA into the binary,
   boots it, and drives a real browser against it.
 - **Pre-deploy DB snapshot tooling.** `scripts/snapshot-prod-db.sh`
-  (host-side SSH copy, since Dockhand's container exec can't write the
+  (host-side SSH copy, since a read-only container exec can't write the
   snapshot) + a documented pre-deploy step in `docs/DEPLOYMENT.md`.
 
 ### Changed
@@ -191,7 +191,7 @@ on v0.3.0–0.3.2.
 Until v0.3.3 image is pulled, use the one-shot escape:
 
 ```
-docker run --rm -v /docker/shellyadmin:/data -e DATA_DIR=/data \
+docker run --rm -v <data-dir>:/data -e DATA_DIR=/data \
   ghcr.io/buliwyf42/shellyadmin:v0.3.3 \
   unlock --force
 ```
@@ -381,9 +381,9 @@ below for the recipe.
 ### Migration checklist
 
 1. Pre-pull a v0.2.x SQLite snapshot for rollback safety:
-   `cp /docker/shellyadmin/shellyctl.db /docker/shellyadmin/shellyctl.db.pre-v0.3.0-$(date +%s)`.
+   `cp <data-dir>/shellyctl.db <data-dir>/shellyctl.db.pre-v0.3.0-$(date +%s)`.
 2. Apply the S6 migration recipe above. Don't delete
-   `/docker/shellyadmin/shellyadmin.key` yet — it's a rollback aid.
+   `<data-dir>/shellyadmin.key` yet — it's a rollback aid.
 3. `docker compose down shellyadmin` (clean shutdown so the
    runtime_locks row is released before the upgrade).
 4. Pull `ghcr.io/buliwyf42/shellyadmin:v0.3.0` (or `:latest`).
@@ -900,7 +900,7 @@ changes; one operational note for MCP-exposing operators.
   failing immediately.
 - **`SHELLYADMIN_MCP_BIND` defaults to `127.0.0.1`** (was
   `0.0.0.0`). MCP-token-only auth warrants the tighter default.
-  **Operator note:** Dockhand / compose stacks that map
+  **Operator note:** compose stacks that map
   `:8101→:8081` from the host must now set
   `SHELLYADMIN_MCP_BIND=0.0.0.0` in the stack `.env`; otherwise
   the listener is unreachable.
@@ -958,8 +958,8 @@ encryption-key requirement) is queued behind this release.
 ## [0.2.9] - 2026-05-11 — Deploy docs + WebhooksForm a11y fix
 
 Housekeeping pair: the v0.2.8 deploy this morning moved production
-from a standalone `docker run` to a Dockhand-managed compose stack,
-which made the `CLAUDE.md` "Deployment Workflow" section stale.
+from a standalone `docker run` to a container-manager-managed compose
+stack, which made the `CLAUDE.md` "Deployment Workflow" section stale.
 Plus the lone a11y warning that's been surfacing on every `vite build`
 since v0.2.4. Both addressed here. No backend changes.
 
@@ -975,14 +975,14 @@ since v0.2.4. Both addressed here. No backend changes.
   heading. Identical rendering, warning gone. Sole instance in the
   codebase (`grep`-verified).
 - **`CLAUDE.md`** — "Deployment Workflow" section rewritten to
-  document the Dockhand-stack-managed reality:
-  - Stack name `shellyadmin` on Dockhand environment id 1, files at
-    `/app/data/stacks/docker.home.lan/shellyadmin/{compose.yaml,.env}`.
+  document the compose-stack-managed reality:
+  - Stack name `shellyadmin` on the container manager, files under
+    `<stacks-dir>/shellyadmin/{compose.yaml,.env}`.
   - Stack shape documented (ports `8100:8080` + `8101:8081`, bind
-    mount, hardening flags, env vars in Dockhand UI not committed,
-    no `SHELLYADMIN_USER`).
+    mount, hardening flags, env vars managed in the container
+    manager UI not committed, no `SHELLYADMIN_USER`).
   - Release path: tag push → GHCR build → `pull_image` +
-    `start_stack` via Dockhand (or its MCP server).
+    `start_stack` via the container manager (or its MCP server).
   - Pre-deploy SQLite snapshot recipe preserved.
   - Previous `rsync + ssh docker build + docker run` recipe kept
     as a "Historical (pre-v0.2.8)" subsection with an explicit

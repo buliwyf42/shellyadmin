@@ -19,7 +19,7 @@ func TestEvaluate_DeviceNameTokenSubstitutionForMQTT(t *testing.T) {
 		Gen:             3,
 		Name:            "shelly-plugOD-01",
 		MQTTEnabled:     boolPtr(true),
-		MQTTServer:      "mqtt.home.lan:1883",
+		MQTTServer:      "mqtt.example.test:1883",
 		MQTTClientID:    "shelly-plugOD-01",
 		MQTTTopicPrefix: "shelly/shelly-plugOD-01",
 		CloudConnected:  true,
@@ -32,7 +32,7 @@ func TestEvaluate_DeviceNameTokenSubstitutionForMQTT(t *testing.T) {
 	rules := models.ComplianceRules{
 		WiFiSSID:        "iot_wifi",
 		MQTTEnabled:     boolPtr(true),
-		MQTTServer:      "mqtt.home.lan:1883",
+		MQTTServer:      "mqtt.example.test:1883",
 		MQTTClientID:    "{device_name}",
 		MQTTTopicPrefix: "shelly/{device_name}",
 		CloudConnected:  boolPtr(true),
@@ -56,7 +56,7 @@ func TestEvaluate_DeviceNameTemplateFallbackMatchForMQTT(t *testing.T) {
 		Gen:             3,
 		Name:            "different-display-name",
 		MQTTEnabled:     boolPtr(true),
-		MQTTServer:      "mqtt.home.lan:1883",
+		MQTTServer:      "mqtt.example.test:1883",
 		MQTTClientID:    "shelly-plugOD-01",
 		MQTTTopicPrefix: "shelly/shelly-plugOD-01",
 		RawConfig:       string(rawConfig),
@@ -64,7 +64,7 @@ func TestEvaluate_DeviceNameTemplateFallbackMatchForMQTT(t *testing.T) {
 
 	rules := models.ComplianceRules{
 		MQTTEnabled:     boolPtr(true),
-		MQTTServer:      "mqtt.home.lan:1883",
+		MQTTServer:      "mqtt.example.test:1883",
 		MQTTClientID:    "{device_name}",
 		MQTTTopicPrefix: "shelly/{device_name}",
 	}

@@ -78,7 +78,7 @@ func TestProvisionDevice_MultiSectionSmoke(t *testing.T) {
 		},
 		"mqtt": map[string]interface{}{
 			"enable": true,
-			"server": "mqtt.home.lan:1883",
+			"server": "mqtt.example.test:1883",
 		},
 		"wifi": map[string]interface{}{
 			"sta": map[string]any{

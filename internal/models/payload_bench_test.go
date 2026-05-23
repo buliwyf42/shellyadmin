@@ -35,7 +35,7 @@ func TestPayloadSizeReductionListView(t *testing.T) {
 			Batch: "2430-Broadwell", Gen: 3, Online: true, Serial: "1234567890",
 			SupportedMethods: supported,
 			ComplianceIssues: []string{},
-			MQTTServer:       "mqtt.home.lan", MQTTClientID: "shelly_xx", MQTTTopicPrefix: "shellies/",
+			MQTTServer:       "mqtt.example.test", MQTTClientID: "shelly_xx", MQTTTopicPrefix: "shellies/",
 			TZ: "Europe/Berlin", SNTPServer: "time.cloudflare.com",
 			WiFiSSID: "homeNet5", WiFiHostname: "shelly-xx", WiFiChannel: 36,
 			Scheme:            "https",
