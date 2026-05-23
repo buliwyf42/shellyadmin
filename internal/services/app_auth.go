@@ -1,6 +1,7 @@
 package services
 
 import (
+	"database/sql"
 	"errors"
 	"strings"
 )
@@ -60,6 +61,11 @@ func (s *AppService) SetupAdminCredential(username, plain string) error {
 // ChangeAdminCredential updates the stored operator login. Used by the
 // authenticated Settings flow after the caller has verified the current
 // password. username defaults to "admin" when blank.
+//
+// When the username changes, the TOTP row (keyed by the old username) is
+// migrated to the new username so that active 2FA enrollment is not silently
+// dropped. If the TOTP migration write fails the whole credential change is
+// aborted and the old credential remains in place.
 func (s *AppService) ChangeAdminCredential(username, plain string) error {
 	username = normalizeUsername(username)
 	hash, err := HashPassword(plain)
@@ -68,9 +74,39 @@ func (s *AppService) ChangeAdminCredential(username, plain string) error {
 	}
 	s.authMu.Lock()
 	defer s.authMu.Unlock()
+
+	// Read the current username before overwriting so we can migrate TOTP.
+	// oldOK==false means no DB row yet (env-only deployment migrating for the
+	// first time) — nothing to rename.
+	oldUser, _, oldOK, err := s.db.GetAdminCredential()
+	if err != nil {
+		return err
+	}
+
 	if err := s.db.SaveAdminCredential(username, hash); err != nil {
 		return err
 	}
+
+	// Migrate the totp_state row so 2FA is not silently disabled on rename.
+	if oldOK && oldUser != username {
+		if state, totpErr := s.db.GetTOTP(oldUser); totpErr == nil {
+			// TOTP is enrolled — move the row to the new username key.
+			state.Username = username
+			if setErr := s.db.SetTOTP(state); setErr != nil {
+				s.Log("ERROR", "migrate totp row on rename: "+setErr.Error())
+				return setErr
+			}
+			_ = s.db.DeleteTOTP(oldUser)
+			s.Log("INFO", "migrated totp row: "+oldUser+" → "+username)
+		} else if !errors.Is(totpErr, sql.ErrNoRows) {
+			// Unexpected DB error — abort so we don't leave credential +
+			// TOTP state inconsistent.
+			s.Log("ERROR", "read totp row for rename: "+totpErr.Error())
+			return totpErr
+		}
+		// sql.ErrNoRows: TOTP not enrolled, nothing to migrate.
+	}
+
 	s.Log("WARN", "admin credential changed (user="+username+")")
 	return nil
 }

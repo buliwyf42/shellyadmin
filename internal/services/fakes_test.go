@@ -21,10 +21,17 @@ type fakeStore struct {
 	adminUser string
 	adminHash string
 	adminOK   bool
+
+	// totpRows holds in-memory TOTP state keyed by username.
+	// Tests that exercise TOTP migration can pre-populate this map.
+	totpRows map[string]db.TOTPState
 }
 
 func newFakeStore() *fakeStore {
-	return &fakeStore{devices: map[string]models.Device{}}
+	return &fakeStore{
+		devices:  map[string]models.Device{},
+		totpRows: map[string]db.TOTPState{},
+	}
 }
 
 var errUnimplemented = errors.New("fakeStore: method not implemented for this test")
@@ -130,11 +137,20 @@ func (f *fakeStore) ClearAdminCredential() error {
 	return nil
 }
 
-func (f *fakeStore) GetTOTP(string) (db.TOTPState, error) {
+func (f *fakeStore) GetTOTP(username string) (db.TOTPState, error) {
+	if state, ok := f.totpRows[username]; ok {
+		return state, nil
+	}
 	return db.TOTPState{}, sql.ErrNoRows
 }
-func (f *fakeStore) SetTOTP(db.TOTPState) error { return nil }
-func (f *fakeStore) DeleteTOTP(string) error    { return nil }
+func (f *fakeStore) SetTOTP(state db.TOTPState) error {
+	f.totpRows[state.Username] = state
+	return nil
+}
+func (f *fakeStore) DeleteTOTP(username string) error {
+	delete(f.totpRows, username)
+	return nil
+}
 
 func (f *fakeStore) CreatePAT(db.PAT) error            { return nil }
 func (f *fakeStore) GetPAT(string) (db.PAT, error)     { return db.PAT{}, sql.ErrNoRows }

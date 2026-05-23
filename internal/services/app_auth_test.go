@@ -3,6 +3,8 @@ package services
 import (
 	"context"
 	"testing"
+
+	"shellyadmin/internal/db"
 )
 
 func newAuthTestService(t *testing.T) (*AppService, *fakeStore) {
@@ -82,6 +84,59 @@ func TestSetupUsernameDefaultsToAdmin(t *testing.T) {
 	}
 	if user, _, _ := svc.AdminCredential(); user != "admin" {
 		t.Fatalf("username = %q, want admin", user)
+	}
+}
+
+// TestChangeAdminCredential_MigratesTOTPOnRename verifies that an active TOTP
+// enrollment is moved to the new username key so 2FA is not silently disabled.
+func TestChangeAdminCredential_MigratesTOTPOnRename(t *testing.T) {
+	svc, fake := newAuthTestService(t)
+	if err := svc.SetupAdminCredential("admin", "hunter2hunter2"); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	// Pre-populate a TOTP row under the current username.
+	fake.totpRows["admin"] = db.TOTPState{
+		Username:          "admin",
+		SecretCipher:      "cipher-payload",
+		EnrolledAt:        "2026-01-01T00:00:00Z",
+		BackupCodesCipher: "backup-cipher",
+	}
+
+	if err := svc.ChangeAdminCredential("alice", "newpassword1"); err != nil {
+		t.Fatalf("change: %v", err)
+	}
+
+	// Old row must be gone; new row must exist under the new username.
+	if _, exists := fake.totpRows["admin"]; exists {
+		t.Error("old totp row still present under 'admin' after rename")
+	}
+	migrated, exists := fake.totpRows["alice"]
+	if !exists {
+		t.Fatal("totp row not migrated to 'alice'")
+	}
+	if migrated.Username != "alice" {
+		t.Errorf("migrated totp row Username = %q, want 'alice'", migrated.Username)
+	}
+	if migrated.SecretCipher != "cipher-payload" {
+		t.Errorf("migrated totp row SecretCipher = %q, want 'cipher-payload'", migrated.SecretCipher)
+	}
+}
+
+// TestChangeAdminCredential_NoTOTPMigrationIfNotEnrolled confirms that a rename
+// with no active TOTP enrollment succeeds without writing any TOTP row.
+func TestChangeAdminCredential_NoTOTPMigrationIfNotEnrolled(t *testing.T) {
+	svc, fake := newAuthTestService(t)
+	if err := svc.SetupAdminCredential("admin", "hunter2hunter2"); err != nil {
+		t.Fatalf("setup: %v", err)
+	}
+	// No TOTP row pre-populated.
+
+	if err := svc.ChangeAdminCredential("alice", "newpassword1"); err != nil {
+		t.Fatalf("change: %v", err)
+	}
+
+	if len(fake.totpRows) != 0 {
+		t.Errorf("expected no totp rows after rename without enrollment, got %v", fake.totpRows)
 	}
 }
 
