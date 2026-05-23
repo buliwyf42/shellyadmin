@@ -1,5 +1,7 @@
 # ShellyAdmin
 
+**English** | [Deutsch](README.de.md)
+
 [![CI](https://github.com/buliwyf42/shellyadmin/actions/workflows/test.yml/badge.svg)](https://github.com/buliwyf42/shellyadmin/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/github/license/buliwyf42/shellyadmin)](LICENSE)
 [![Latest release](https://img.shields.io/github/v/release/buliwyf42/shellyadmin?sort=semver)](https://github.com/buliwyf42/shellyadmin/releases)
