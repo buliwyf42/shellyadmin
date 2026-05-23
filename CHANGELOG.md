@@ -4,6 +4,85 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-05-23 — first public release
+
+Repo flipped from private to public on 2026-05-23. This release captures
+the going-public hygiene pass; there are **no behavior changes** — every
+diff is docs, build, or test fixtures. Existing v0.4.0 deployments
+should upgrade for the polish but will be functionally identical.
+
+### Added
+
+- **`CODE_OF_CONDUCT.md`** — Contributor Covenant v2.1 pointer with
+  GitHub Security Advisories as the reporting channel. Closes the last
+  gap in GitHub's community profile checklist.
+- **`.dockerignore`** — scopes local `docker build` runs away from
+  maintainer-side working-tree state (`data/`, `.devlogs/`, `.claude/`,
+  `bin/`, `secrets/`, env files, rebuilt SPA artifacts). Published GHCR
+  images were never affected (CI builds via `actions/checkout`); this
+  hardens local rebuilds.
+- **`.gitattributes`** — marks `cmd/shellyctl/dist/**` as
+  `linguist-generated` and `-diff` so the embedded SPA bundle doesn't
+  pollute GitHub's language stats or diff view. Also pins LF line
+  endings for `*.sh` and `Dockerfile`.
+- **README badges** — CI status, MIT license, latest release, GHCR
+  package, Go Report Card (currently **A+**).
+- **README screenshots** — Devices view as hero, plus a collapsed
+  Scan / Firmware / Provision / Compliance gallery in
+  `docs/screenshots/`.
+- **README "Why ShellyAdmin?" paragraph** — positions the tool
+  relative to the Shelly cloud and Home Assistant.
+- **Private Vulnerability Reporting**, **secret scanning**, and
+  **push protection** enabled at the GitHub level once the repo was
+  public.
+
+### Changed
+
+- **Scrubbed personal hostnames and tool names** from every tracked
+  file. Replacements: `docker.home.lan` → `<docker-host>`,
+  `/docker/shellyadmin` → `<data-dir>`, `mqtt.home.lan` →
+  `mqtt.example.test` (RFC 6761 reserved test TLD), `buliwyf_iot` →
+  `iot_wifi`, "Dockhand" → "container manager". Covers CHANGELOG
+  history, deploy docs, ADRs, plan docs, scripts, and test fixtures.
+- **`CLAUDE.md` slimmed by ~25 %** (369 → 276 lines). The Deployment
+  Workflow, Release Cadence Convention, and CI Gates & Branch
+  Protection sections moved to [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md);
+  the file kept its 14 code-adjacent sections (architecture,
+  Shelly quirks, key files, provisioner template surface, job
+  locking, compliance, testability seams, app settings, first-run
+  setup, encryption-key requirement, runtime locks, TOTP / PAT).
+- **README rewritten** for the public landing page: deduplicated
+  "What Works Today" + "Not Production-Grade Yet" (covered by Status
+  + Feature Set above), consolidated "Running Locally" into a
+  single two-terminal flow, tightened the "Docker" section, bumped
+  the stale `v0.0.6` example tag, removed the internal
+  `shellyctl` vs `ShellyAdmin` naming note.
+- **`docs/plans/README.md`** reframed as archival: Phase 4b,
+  Phase 4c, and v0.3.0 plans moved from "Active" to "Shipped";
+  pointer to the maintainer's private originating plan removed.
+
+### Removed
+
+- **Stale root `docker-compose.yml`** (pinned to `v0.1.19`). The
+  canonical example is [`docker/docker-compose.yml`](docker/docker-compose.yml),
+  which uses `:latest`.
+
+### Verification
+
+- Full local CI green: `go test ./...`, `golangci-lint run ./...` (0
+  issues), `go run ./cmd/modelschema --check`, `npm test` (81 / 81),
+  `npm run lint`, `npx prettier --check src`,
+  `npm run check:bundle-size` (js 358.23 / 365 kB, css 29.26 / 30 kB
+  — under budget).
+- All 6 required CI checks green on each of the seven going-public
+  commits before this release commit.
+- Git history scanned end-to-end for any leaked `.env`, key, db, or
+  credential artefact — none found, history is clean.
+- Anonymous `docker pull ghcr.io/buliwyf42/shellyadmin:v0.4.0`
+  verified to succeed against the now-public GHCR package
+  (1609-byte OCI image index returned with the proper `Accept`
+  header).
+
 ## [0.4.0] - 2026-05-20 — first-run setup: operator login in the database
 
 The operator login moves out of environment variables and into the database.
