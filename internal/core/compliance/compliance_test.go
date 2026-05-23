@@ -25,12 +25,12 @@ func TestEvaluate_DeviceNameTokenSubstitutionForMQTT(t *testing.T) {
 		CloudConnected:  true,
 		WSConnected:     true,
 		TZ:              "Europe/Berlin",
-		WiFiSSID:        "buliwyf_iot",
+		WiFiSSID:        "iot_wifi",
 		RawConfig:       string(rawConfig),
 	}
 
 	rules := models.ComplianceRules{
-		WiFiSSID:        "buliwyf_iot",
+		WiFiSSID:        "iot_wifi",
 		MQTTEnabled:     boolPtr(true),
 		MQTTServer:      "mqtt.home.lan:1883",
 		MQTTClientID:    "{device_name}",

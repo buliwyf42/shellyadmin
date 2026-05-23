@@ -3,9 +3,9 @@
 # Pre-deploy snapshot of the production ShellyAdmin SQLite database.
 #
 # Why a host-side script: the database lives on the Docker host bind mount
-# (/docker/shellyadmin/shellyctl.db). The Dockhand MCP `exec_container` tool
-# cannot create the snapshot file inside the read-only-rootfs container, so
-# the copy runs on the host over SSH instead.
+# (<data-dir>/shellyctl.db). A container-exec tool cannot create the snapshot
+# file inside the read-only-rootfs container, so the copy runs on the host
+# over SSH instead.
 #
 # This is belt-and-suspenders for releases that carry a DB migration. For a
 # pure frontend/CI release (no schema change) it is non-critical: rollback is
@@ -14,17 +14,17 @@
 # Usage:
 #   scripts/snapshot-prod-db.sh [user@host] [tag]
 #
-#   user@host  SSH target (default: docker.home.lan)
+#   user@host  SSH target (default: $SHELLYADMIN_SSH_HOST or your-docker-host)
 #   tag        label embedded in the filename (default: manual);
 #              pass the target version, e.g. v0.3.6
 #
 # Override the data directory with SHELLYADMIN_DATA_DIR (default
-# /docker/shellyadmin). Result filename: shellyctl.db.pre-<tag>-<epoch>.
+# /srv/shellyadmin). Result filename: shellyctl.db.pre-<tag>-<epoch>.
 set -euo pipefail
 
-HOST="${1:-docker.home.lan}"
+HOST="${1:-${SHELLYADMIN_SSH_HOST:-your-docker-host}}"
 TAG="${2:-manual}"
-DATA_DIR="${SHELLYADMIN_DATA_DIR:-/docker/shellyadmin}"
+DATA_DIR="${SHELLYADMIN_DATA_DIR:-/srv/shellyadmin}"
 
 # shellcheck disable=SC2029  # we intentionally expand $DATA_DIR/$TAG locally
 # and let $(date) run on the remote host.

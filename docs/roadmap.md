@@ -10,8 +10,8 @@ threat model and deployment expectations see [SECURITY.md](./SECURITY.md).
 ## Now (v0.4.x)
 
 - Field-testing on a real fleet between increments; concrete bug reports
-  still beat speculative additions. Production (docker.home.lan) tracks
-  the latest release — currently v0.4.0.
+  still beat speculative additions. Production tracks the latest release —
+  currently v0.4.0.
 
 ## Next (pre-v1)
 

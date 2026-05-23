@@ -203,15 +203,15 @@ container runs with a read-only root filesystem, so the copy must run on
 the **host** (not via a container exec). Use the helper:
 
 ```bash
-scripts/snapshot-prod-db.sh docker.home.lan v0.3.6
-# -> /docker/shellyadmin/shellyctl.db.pre-v0.3.6-<epoch>
+scripts/snapshot-prod-db.sh user@your-docker-host v0.3.6
+# -> <data-dir>/shellyctl.db.pre-v0.3.6-<epoch>
 ```
 
 or run the equivalent directly on the host:
 
 ```bash
-cp /docker/shellyadmin/shellyctl.db \
-   /docker/shellyadmin/shellyctl.db.pre-v0.3.6-$(date +%s)
+cp <data-dir>/shellyctl.db \
+   <data-dir>/shellyctl.db.pre-v0.3.6-$(date +%s)
 ```
 
 These accumulate by design as rollback points. The snapshot mainly guards

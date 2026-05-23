@@ -16,7 +16,9 @@ export default defineConfig({
     host: true,
     port: 5173,
     strictPort: true,
-    allowedHosts: ['devhost.home.lan'],
+    // Set VITE_ALLOWED_HOSTS (comma-separated) to reach the dev server via a
+    // non-localhost hostname, e.g. VITE_ALLOWED_HOSTS=devhost.lan
+    allowedHosts: process.env.VITE_ALLOWED_HOSTS?.split(',') ?? ['localhost'],
     proxy: {
       '/api': 'http://127.0.0.1:8080',
       '/health': 'http://127.0.0.1:8080',

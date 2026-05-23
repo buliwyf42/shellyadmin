@@ -164,11 +164,10 @@ Template variable substitution: `{device_name}` is replaced with the device's co
 
 ## Deployment Workflow
 
-All edits are made **locally on macOS**. Production homelab
-(`docker.home.lan`) runs the image as a **Dockhand-managed compose
-stack** named `shellyadmin` (environment id 1 in Dockhand's
-`list_environments`). The stack files live on the Dockhand host at
-`/app/data/stacks/docker.home.lan/shellyadmin/{compose.yaml,.env}`.
+All edits are made **locally on macOS**. Production runs the image as a
+**compose stack** named `shellyadmin`, managed through a container-management
+UI on the Docker host. The stack files live on the host under
+`<stacks-dir>/shellyadmin/{compose.yaml,.env}`.
 
 ### Release path
 
@@ -177,13 +176,13 @@ stack** named `shellyadmin` (environment id 1 in Dockhand's
    `git push origin main vX.Y.Z`.
 2. `publish-image.yml` builds and pushes `ghcr.io/buliwyf42/shellyadmin:vX.Y.Z`
    and `:latest` (~17–22 min) and auto-creates the GitHub Release.
-3. In Dockhand: pull the new image, then "deploy" / "recreate" the
-   `shellyadmin` stack. The stack pins `:latest`, so a pull + recreate
+3. In the container manager: pull the new image, then "deploy" / "recreate"
+   the `shellyadmin` stack. The stack pins `:latest`, so a pull + recreate
    is the full upgrade. Via the MCP server this is
    `pull_image(image="ghcr.io/buliwyf42/shellyadmin:latest")` followed
    by `start_stack(name="shellyadmin")` (or restart_stack if already
    up). SQLite persists across recreates because of the
-   `/docker/shellyadmin → /data` bind mount.
+   host-data-dir → `/data` bind mount.
 
 ### Stack shape
 
@@ -191,8 +190,8 @@ stack** named `shellyadmin` (environment id 1 in Dockhand's
   not by digest — operator pulls explicitly before recreate).
 - Ports: `8100:8080` (SPA + HTTP API), `8101:8081` (MCP listener;
   only binds when enabled in Settings UI or env-overridden).
-- Volumes: `/docker/shellyadmin → /data` bind mount.
-- Networks: `homestack_docker` external network.
+- Volumes: host data dir → `/data` bind mount.
+- Networks: an external Docker network (`<external-network>`).
 - Hardening: `read_only: true` + `tmpfs: /tmp`, `cap_drop: [ALL]`
   with `cap_add: [CHOWN, DAC_OVERRIDE, SETGID, SETUID, KILL]`,
   `no-new-privileges:true`, `pids_limit: 256`, `init: true`.
@@ -206,7 +205,7 @@ stack** named `shellyadmin` (environment id 1 in Dockhand's
   staleness window (60 s on v0.3.3+, 5 min on v0.3.0–0.3.2)
   expires. Discovered the hard way on the v0.3.3 production deploy
   (2026-05-12).
-- Env in `.env` (managed via Dockhand UI, never committed):
+- Env in `.env` (managed via the container manager's UI, never committed):
   `SHELLYADMIN_PASS_HASH` (argon2id PHC from `shellyctl hash-password`),
   `SHELLYADMIN_SECRET` (cookie secret), `COOKIE_SECURE=false`
   (trusted-LAN posture). `SHELLYADMIN_USER` is **not** set in
@@ -220,15 +219,15 @@ stack** named `shellyadmin` (environment id 1 in Dockhand's
 ### Pre-deploy snapshot (rollback point)
 
 Before recreating the stack on a release, copy the SQLite file:
-`cp /docker/shellyadmin/shellyctl.db /docker/shellyadmin/shellyctl.db.pre-vX.Y.Z-$(date +%s)`.
+`cp <data-dir>/shellyctl.db <data-dir>/shellyctl.db.pre-vX.Y.Z-$(date +%s)`.
 These pile up by design as rollback points.
 
 ### Historical (pre-v0.2.8)
 
-Before 2026-05-11 the homelab ran the image as a standalone container
+Before 2026-05-11 production ran the image as a standalone container
 via `docker run` driven by `rsync + ssh docker build` from the mac.
 That recipe still works for a one-off dev rebuild, but production has
-moved to the Dockhand stack. Don't reintroduce the standalone path
+moved to the compose stack. Don't reintroduce the standalone path
 as the default deploy in this doc — it would conflict on ports
 `8100/8101` with the stack-managed container.
 

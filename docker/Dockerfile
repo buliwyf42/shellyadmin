@@ -25,8 +25,8 @@ RUN apk add --no-cache ca-certificates tzdata su-exec
 RUN addgroup -S shelly && adduser -S -G shelly -h /app shelly
 # S14 — initialise /data and /tmp as shelly-owned at build time so a named
 # volume inherits the right ownership on first attach. Operators bind-
-# mounting a host directory (e.g. Dockhand's /docker/shellyadmin) must
-# still chown the host path to the shelly UID — the entrypoint will fall
+# mounting a host directory must still chown the host path to the shelly
+# UID — the entrypoint will fall
 # back to su-exec if it cannot write as the non-root user.
 RUN mkdir -p /data /tmp /app && chown -R shelly:shelly /data /tmp /app
 LABEL org.opencontainers.image.title="ShellyAdmin"

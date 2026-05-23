@@ -111,7 +111,7 @@ request id, prefixed with `mcp `.
 
 - **Stdio sub-command (`shellyctl mcp`).** Cleaner for Claude Desktop on
   the same host, but awkward for the project's actual deployment shape
-  (Docker container on `docker.home.lan`, accessed remotely from a Mac).
+  (Docker container on a LAN host, accessed remotely from a Mac).
   Listed for v0.2.x.
 - **Full surface, including state-changing tools.** Maximum capability but
   conflicts with ADR-0001's "explicit and reviewable" requirement. Deferred
