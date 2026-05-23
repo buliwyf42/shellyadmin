@@ -1,0 +1,12 @@
+# The embedded SPA bundle under cmd/shellyctl/dist/ is a build artifact
+# produced by `npm --prefix web run build`. It is checked in so that
+# `go build ./cmd/shellyctl` works standalone (via //go:embed all:dist)
+# without first building the frontend. These files churn on every
+# frontend change and are not human-authored.
+cmd/shellyctl/dist/**       linguist-generated=true
+cmd/shellyctl/dist/**       -diff
+
+# Ensure shell scripts and Dockerfiles keep LF line endings on Windows
+# checkouts.
+*.sh                        text eol=lf
+Dockerfile                  text eol=lf
