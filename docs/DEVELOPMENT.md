@@ -271,3 +271,17 @@ The repo is on a GitHub Pro personal account — Pro is what makes branch protec
 - **Dependabot** (`.github/dependabot.yml`) is grouped (npm dev/prod, gomod, docker, github-actions) and `.github/workflows/dependabot-auto-merge.yml` enables GitHub auto-merge on patch/minor Dependabot PRs — the merge only fires after the required checks pass, so CI is never bypassed. Major bumps stay manual. To regroup pre-existing ungrouped PRs after a config change, comment `@dependabot recreate`.
 
 **Toolchain alignment (v0.3.4):** CI's `setup-go` is `1.26` and `setup-node` is `26`, matching the Dockerfile. `golangci-lint` must be built with a Go ≥ the toolchain it analyzes — v2.6 (built with 1.25) panics on the 1.26 stdlib (`file requires newer Go version go1.26`), so the lint job pins **v2.12**. The `go.mod` directive stays `go 1.25.0`.
+
+### Workflow token permissions (post-public-flip gotcha)
+
+When a repository is flipped from private to public, GitHub silently resets `default_workflow_permissions` to `read`. The publish-image workflow declares job-level `permissions: contents: write`, which should override the default — but in practice the `gh release create` step at the end of the workflow comes back with `401 Bad credentials` instead of the expected 403, suggesting GitHub's token-minting path does not respect job-level upgrades from a read-only default for this CLI handshake. The v0.5.0 release tripped this; the image built, signed, and pushed correctly, but the auto-Release step failed.
+
+Fix is one API call after flipping public:
+
+```bash
+gh api -X PUT repos/<owner>/<repo>/actions/permissions/workflow \
+  -f default_workflow_permissions=write \
+  -F can_approve_pull_request_reviews=false
+```
+
+Verify with `gh api repos/<owner>/<repo>/actions/permissions/workflow`. After this, future tag pushes auto-publish Releases again. If a release tag has already failed mid-flow, create the Release manually with `gh release create vX.Y.Z --title "vX.Y.Z — subtitle" --notes-file …` — the image and signatures are already in GHCR, only the Release entry is missing.
