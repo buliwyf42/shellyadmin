@@ -22,12 +22,28 @@ It is designed as a single-container deployment with:
 - advanced provisioning mode for expert use
 - audit logging in-app
 
-<!--
-Screenshot placeholder. Add a real screenshot of the Devices view, Firmware page, or first-run setup to docs/screenshots/<name>.png and replace this block with:
+![ShellyAdmin Devices view — fleet inventory with online state, WiFi/MQTT/cloud status, firmware version, compliance, and per-row actions](docs/screenshots/devices.png)
 
-  ![ShellyAdmin Devices view](docs/screenshots/devices.png)
+<details>
+<summary>More screenshots: Scan, Firmware, Provision, Compliance</summary>
 
--->
+### Scan — discovery workflow
+
+![Discovery workflow: subnet scan progress and known-vs-new device split](docs/screenshots/scan.png)
+
+### Firmware — fleet-wide check and install
+
+![Firmware page: per-device current version, available stable/beta channels, auto-update mode, and bulk actions](docs/screenshots/firmware.png)
+
+### Provision — templated config push
+
+![Provision page: section-by-section template editor on the left, device multi-select on the right](docs/screenshots/provision.png)
+
+### Compliance — rule editor and per-device status
+
+![Compliance page: rule editor on the left, per-device compliant/non-compliant summary on the right](docs/screenshots/compliance.png)
+
+</details>
 
 ## Status
 
