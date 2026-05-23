@@ -1,0 +1,52 @@
+# Keep the Docker build context small and reproducible. The Dockerfile
+# does `COPY . .` in the backend stage, so anything not excluded here
+# gets shipped to the daemon and is visible to that COPY layer. CI
+# builds via actions/checkout (tracked files only) are unaffected; this
+# matters mostly for local `docker build` runs where the working tree
+# has live state under data/, .devlogs/, etc.
+
+# Version control + GitHub metadata — not needed in the image
+.git/
+.gitignore
+.gitattributes
+.github/
+
+# Local-only runtime + dev artifacts that must NEVER end up in a build
+# layer (live SQLite, encryption key file, secrets, dev logs)
+data/
+secrets/
+.devlogs/
+.claude/
+bin/
+
+# IDE / OS noise
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Local env files (never committed, never shipped)
+.env
+.env.*
+
+# Frontend build output and dependencies — Dockerfile builds these
+# fresh from web/ in the frontend stage, then copies dist/ in via
+# --from=frontend, so the checked-in cmd/shellyctl/dist bundle and
+# any local web/node_modules / web/dist are noise.
+web/node_modules/
+web/dist/
+web/.playwright/
+web/test-results/
+web/playwright-report/
+web/blob-report/
+cmd/shellyctl/dist/
+
+# Top-level docs — not embedded, not needed at runtime
+*.md
+docs/
+CHANGELOG.md
+LICENSE
+
+# Test / coverage artifacts
+coverage.out
+*.test
