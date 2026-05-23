@@ -4,22 +4,102 @@ title: "[Feature]: "
 labels:
   - enhancement
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the suggestion. ShellyAdmin is intentionally narrow in scope
+        (single trusted operator on a trusted LAN, Gen2+ devices, manual and
+        previewed risky actions). Features that conflict with that posture —
+        multi-user, internet-exposed, fully-automated mass mutation, Gen1
+        support — are out of scope by design and will be closed with that
+        note. The [roadmap](https://github.com/buliwyf42/shellyadmin/blob/main/docs/roadmap.md)
+        and [docs/ARCHITECTURE.md](https://github.com/buliwyf42/shellyadmin/blob/main/docs/ARCHITECTURE.md)
+        are good places to check first.
+
+  - type: checkboxes
+    id: prerequisites
+    attributes:
+      label: Pre-flight checks
+      options:
+        - label: I searched existing [open and closed issues](https://github.com/buliwyf42/shellyadmin/issues?q=is%3Aissue) and didn't find this one
+          required: true
+        - label: I read the project's [Status](https://github.com/buliwyf42/shellyadmin#status) and [Goals](https://github.com/buliwyf42/shellyadmin#goals) sections
+          required: true
+
   - type: textarea
     id: problem
     attributes:
       label: Problem to solve
-      description: What operational pain point or workflow gap are you trying to address?
+      description: |
+        Concrete operational pain point or workflow gap. What can't you do
+        today, or what is annoying or risky about how it works now?
+      placeholder: |
+        When updating firmware on more than ~10 devices at once I lose track of
+        which ones rebooted successfully because the status column doesn't
+        survive a page refresh.
     validations:
       required: true
+
   - type: textarea
     id: proposal
     attributes:
       label: Proposed solution
-      description: Describe the change you would like to see
+      description: |
+        The shape of the change you'd like to see. Be specific about UI
+        placement, behaviour, defaults, and what should NOT change.
     validations:
       required: true
-  - type: textarea
-    id: scope
+
+  - type: dropdown
+    id: area
     attributes:
-      label: Scope and constraints
-      description: Mention deployment assumptions, safety concerns, or compatibility expectations
+      label: Affected area
+      multiple: true
+      options:
+        - Scan / discovery
+        - Devices view / inventory
+        - Firmware check / install
+        - Provisioning (form or JSON)
+        - Compliance rules
+        - Auth groups / credentials
+        - Backup / export / import
+        - Settings
+        - Logs / audit
+        - MCP server
+        - shellyctl CLI
+        - First-run setup / login
+        - Docs
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: |
+        Workarounds you tried, other tools that do this, or simpler variants
+        of the same idea you've thought about.
+
+  - type: checkboxes
+    id: scope-fit
+    attributes:
+      label: Scope fit
+      description: Confirm this stays inside ShellyAdmin's intended posture.
+      options:
+        - label: This works for a single trusted operator (no multi-user RBAC required)
+          required: true
+        - label: This is safe to run on a trusted LAN without TLS / public exposure
+          required: true
+        - label: This targets Gen2+ devices (Gen1 is intentionally unsupported)
+          required: true
+        - label: Risky operations remain manual and previewed (no silent fleet-wide mutation)
+          required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context (optional)
+      description: |
+        Mock-ups, related Shelly RPC method names, links to upstream issues,
+        anything else useful.

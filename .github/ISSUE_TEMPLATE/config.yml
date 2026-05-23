@@ -1,0 +1,20 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability (private)
+    url: https://github.com/buliwyf42/shellyadmin/security/advisories/new
+    about: |
+      Do NOT open a public issue for security problems. Use GitHub's
+      private vulnerability reporting flow — only the maintainer sees
+      these reports. See SECURITY.md for the full reporting policy and
+      supported-versions matrix.
+  - name: Read the docs first
+    url: https://github.com/buliwyf42/shellyadmin#readme
+    about: |
+      Many "is this a bug?" questions are answered in the README,
+      docs/DEPLOYMENT.md, docs/ARCHITECTURE.md, or the ADRs under
+      docs/adr/. Worth a quick skim before filing.
+  - name: Check the changelog for recent behaviour changes
+    url: https://github.com/buliwyf42/shellyadmin/blob/main/CHANGELOG.md
+    about: |
+      If something stopped working after an upgrade, the CHANGELOG
+      often calls out the breaking change and the migration step.

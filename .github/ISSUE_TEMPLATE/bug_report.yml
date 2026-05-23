@@ -7,37 +7,136 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for the report. Please keep security-sensitive details out of public issues and use the repository security policy instead.
+        Thanks for the report. **Do not include security-sensitive details** in
+        public issues — use the [private security advisory flow](https://github.com/buliwyf42/shellyadmin/security/advisories/new)
+        for anything that could be exploited.
+
+        Please redact device names, MAC addresses, internal IPs, tokens, and
+        credentials from logs and screenshots before pasting them here.
+
+  - type: checkboxes
+    id: prerequisites
+    attributes:
+      label: Pre-flight checks
+      options:
+        - label: I searched existing [open and closed issues](https://github.com/buliwyf42/shellyadmin/issues?q=is%3Aissue) and didn't find this one
+          required: true
+        - label: This is not a security vulnerability (those go through [private advisories](https://github.com/buliwyf42/shellyadmin/security/advisories/new))
+          required: true
+        - label: I checked the [CHANGELOG](https://github.com/buliwyf42/shellyadmin/blob/main/CHANGELOG.md) in case the behaviour changed in a recent release
+          required: true
+
   - type: input
     id: version
     attributes:
-      label: Version
-      description: App version, container tag, or commit if known
-      placeholder: v0.0.4
+      label: ShellyAdmin version
+      description: Container tag or commit. Visible in the navbar and on the About page.
+      placeholder: v0.5.0
     validations:
       required: true
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: Deployment mode
+      options:
+        - Docker (single `docker run`)
+        - Docker Compose
+        - Built from source (`make build`)
+        - Other (describe in environment)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      multiple: true
+      options:
+        - Scan / discovery
+        - Devices view / inventory
+        - Firmware check / install
+        - Provisioning (form or JSON)
+        - Compliance rules
+        - Auth groups / credentials
+        - Backup / export / import
+        - Settings
+        - Logs / audit
+        - MCP server
+        - First-run setup / login
+        - Other / unsure
+    validations:
+      required: true
+
   - type: textarea
     id: environment
     attributes:
       label: Environment
-      description: Describe LAN setup, Docker mode, reverse proxy, and anything else relevant
+      description: |
+        Host OS, Docker version, reverse proxy (if any), other relevant context.
+        Mention if you front the app with TLS / a hostname / non-default ports.
+      placeholder: |
+        - Host: Debian 12 on x86_64
+        - Docker: 27.3.1
+        - Reverse proxy: nginx (HTTPS)
+        - Ports: 8080→443 via proxy, MCP off
     validations:
       required: true
+
+  - type: textarea
+    id: device-context
+    attributes:
+      label: Affected Shelly device(s) (if applicable)
+      description: |
+        Generation, model, firmware version. Helpful when the bug is device-specific
+        (Gen3 mini vs Gen2 Plus vs Gen4 PowerStrip behave differently for some RPCs).
+      placeholder: |
+        - shelly-plug3-08 (Gen3 PlugSG3, FW 2.0.0-beta1)
+        - shelly-pro-3em-workshop (Gen2 Pro3EM, FW 2.0.0-beta2)
+
   - type: textarea
     id: steps
     attributes:
       label: Steps to reproduce
+      description: Numbered list. Include exact button clicks, API calls, or `shellyctl` commands.
+      placeholder: |
+        1. Go to Firmware page
+        2. Set channel to "Beta"
+        3. Click "Check Firmware"
+        4. ...
     validations:
       required: true
+
   - type: textarea
     id: expected
     attributes:
-      label: Expected behavior
+      label: Expected behaviour
     validations:
       required: true
+
   - type: textarea
     id: actual
     attributes:
-      label: Actual behavior
+      label: Actual behaviour
     validations:
       required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: |
+        ShellyAdmin logs from the SPA Logs page or `docker logs shellyadmin`.
+        Redact device names, IPs, MACs, and any token/credential values.
+      render: text
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots (optional)
+      description: Drag-and-drop images. Blur identifying info if visible.
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context (optional)
