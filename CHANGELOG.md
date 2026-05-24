@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-05-24
+
+### Fixed
+
+- **Scan blocked when MCP is enabled** — starting a scan would fail with
+  "mcp token must match [A-Za-z0-9_-]{16,128}" if an MCP token was
+  configured. `StartScan` reads the raw DB settings row, whose `MCPToken`
+  field is secretbox-encrypted ciphertext (not plaintext). The format
+  validator was being called against the ciphertext, which always fails
+  the URL-safe alphabet check. The token is now cleared from the local
+  copy before validation; the scan-parameter checks (subnets, timeouts,
+  concurrency) are unaffected. The token itself was already validated at
+  save time.
+
 ## [0.5.0] - 2026-05-23 — first public release
 
 Repo flipped from private to public on 2026-05-23. This release captures

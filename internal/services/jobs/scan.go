@@ -28,7 +28,14 @@ func (s *Service) StartScan() error {
 	if err != nil {
 		return err
 	}
-	if err := s.host.ValidateSettings(settings); err != nil {
+	// The raw DB row carries a secretbox-encrypted MCPToken, not plaintext.
+	// ValidateSettings checks the URL-safe alphabet, so pass a copy with the
+	// MCP fields cleared — the token was already validated at save time and
+	// is irrelevant to scan-parameter validation.
+	sv := settings
+	sv.MCPToken = ""
+	sv.MCPEnabled = false
+	if err := s.host.ValidateSettings(sv); err != nil {
 		return err
 	}
 	if latest, err := s.store.GetLatestJob("scan"); err == nil && latest.Status == "running" {
