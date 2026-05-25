@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "qrcode": "^1.5.4",
-    "svelte": "^5.55.8"
+    "svelte": "^5.55.9"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
