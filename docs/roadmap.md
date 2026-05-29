@@ -7,11 +7,11 @@ not commitments — scope and timing will shift as the project matures.
 For accepted architectural decisions see [adr/README.md](./adr/README.md). For the
 threat model and deployment expectations see [SECURITY.md](./SECURITY.md).
 
-## Now (v0.4.x)
+## Now (v0.5.x)
 
 - Field-testing on a real fleet between increments; concrete bug reports
   still beat speculative additions. Production tracks the latest release —
-  currently v0.4.0.
+  currently v0.5.2.
 
 ## Next (pre-v1)
 
@@ -33,6 +33,20 @@ threat model and deployment expectations see [SECURITY.md](./SECURITY.md).
 > Per-release detail for **v0.2.8 → v0.3.4** lives in
 > [CHANGELOG.md](../CHANGELOG.md). Highlights below; older entries kept
 > for narrative continuity.
+
+### 2026-05-29
+
+- **v0.5.2** — Internal hardening, no behavior change: extracted
+  `validation.ScanParams` (validates only scan parameters and returns the target
+  count, ignoring the secretbox-encrypted MCP token), removing `StartScan`'s
+  MCP-field-clearing special case and a duplicate CIDR expansion. Adds regression
+  tests for the v0.5.1 fix.
+- **v0.5.1** — Fix: a scan failed with "mcp token must match …" whenever an MCP
+  token was configured, because `StartScan` validated the raw row's
+  secretbox-ciphertext token against the URL-safe alphabet.
+- **v0.5.0** — First **public** release: docs/build/test polish only (no behavior
+  change) — CODE_OF_CONDUCT, `.dockerignore`/`.gitattributes`, README rewrite +
+  screenshots, personal-hostname scrub.
 
 ### 2026-05-20
 
