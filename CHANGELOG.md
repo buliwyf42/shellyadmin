@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-05-29
+
+### Changed
+
+- **Scan validation refactor + regression tests** — extracted a focused
+  `validation.ScanParams` that validates only the scan-relevant fields
+  (subnets, timeouts, concurrency) and returns the target count. `StartScan`
+  now calls it instead of clearing the MCP fields on a copy before validation,
+  removing that one-off special case and the duplicate CIDR-expansion /
+  target-count it recomputed. `validation.Settings` delegates its scan portion
+  to the same helper, so save-time validation (including the MCP token format
+  check) is unchanged. Adds regression coverage for the v0.5.1 fix — a sealed
+  (ciphertext) MCP token in the raw DB row no longer blocks a scan. No
+  behavior change.
+
 ## [0.5.1] - 2026-05-24
 
 ### Fixed

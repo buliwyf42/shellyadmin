@@ -49,28 +49,32 @@ const (
 // reserved-char token would break.
 var MCPTokenPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{16,128}$`)
 
-// Settings runs the canonical normalize-then-validate pipeline over an
-// AppSettings row. SaveSettings + the backup-import path both gate on
-// this so a bad row never lands in the persistent store.
-func Settings(settings models.AppSettings) error {
+// ScanParams validates the scan-relevant subset of a settings row and returns
+// the total subnet+mDNS target count. It deliberately IGNORES MCPToken,
+// MCPEnabled, AuditWebhookURL, and compliance rules: the jobs layer hands this
+// a raw DB row whose MCPToken is secretbox ciphertext (not the URL-safe
+// plaintext), and those fields are validated at save time via Settings, not at
+// scan time. StartScan and Settings both call this so the CIDR-expansion +
+// target-count logic lives in exactly one place.
+func ScanParams(settings models.AppSettings) (int, error) {
 	settings.Normalize()
 	if len(settings.Subnets) > MaxSubnets {
-		return fmt.Errorf("too many subnets configured")
+		return 0, fmt.Errorf("too many subnets configured")
 	}
 	if settings.ScanConcurrency < 1 || settings.ScanConcurrency > 256 {
-		return fmt.Errorf("scan concurrency must be between 1 and 256")
+		return 0, fmt.Errorf("scan concurrency must be between 1 and 256")
 	}
 	if settings.ScanTimeout < 0.2 || settings.ScanTimeout > 30 {
-		return fmt.Errorf("scan timeout must be between 0.2 and 30 seconds")
+		return 0, fmt.Errorf("scan timeout must be between 0.2 and 30 seconds")
 	}
 	if settings.RefreshTimeout < 0.2 || settings.RefreshTimeout > 30 {
-		return fmt.Errorf("refresh timeout must be between 0.2 and 30 seconds")
+		return 0, fmt.Errorf("refresh timeout must be between 0.2 and 30 seconds")
 	}
 	total := 0
 	for _, subnet := range settings.Subnets {
 		ips, err := scanner.ExpandCIDR(subnet)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		total += len(ips)
 	}
@@ -78,11 +82,24 @@ func Settings(settings models.AppSettings) error {
 		total++
 	}
 	if total == 0 {
-		return errors.New("no scan targets configured; add at least one subnet in Settings or enable mDNS discovery")
+		return 0, errors.New("no scan targets configured; add at least one subnet in Settings or enable mDNS discovery")
 	}
 	if total > MaxScanTargets {
-		return fmt.Errorf("scan target count %d exceeds limit %d", total, MaxScanTargets)
+		return 0, fmt.Errorf("scan target count %d exceeds limit %d", total, MaxScanTargets)
 	}
+	return total, nil
+}
+
+// Settings runs the canonical normalize-then-validate pipeline over an
+// AppSettings row. SaveSettings + the backup-import path both gate on
+// this so a bad row never lands in the persistent store. The scan-parameter
+// portion is delegated to ScanParams; this layers the operator-config checks
+// (compliance, MCP token, webhook URL, custom-rule regex) on top.
+func Settings(settings models.AppSettings) error {
+	if _, err := ScanParams(settings); err != nil {
+		return err
+	}
+	settings.Normalize()
 	if mode := settings.Compliance.WSTLSMode; mode != "" && mode != "no_validation" && mode != "default" && mode != "user" {
 		return fmt.Errorf("websocket tls mode must be no_validation, default, or user")
 	}

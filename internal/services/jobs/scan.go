@@ -16,26 +16,18 @@ import (
 	"shellyadmin/internal/models"
 )
 
-// MaxScanTargets caps the total subnet+mDNS work an operator can configure
-// in one scan so a /16 typo doesn't try to probe 65k IPs.
-const MaxScanTargets = 65534
-
 // StartScan reserves a scan job and spawns the worker goroutine.
-// ValidateSettings gates malformed configs (subnet count, timeouts) so a
-// busted settings row doesn't burn a job row before failing.
+// ValidateScanParams gates malformed configs (subnet count, timeouts) and
+// returns the target count so a busted settings row doesn't burn a job row
+// before failing. It validates the raw DB row's scan parameters only — never
+// the secretbox-encrypted MCP token, which is validated at save time.
 func (s *Service) StartScan() error {
 	settings, err := s.store.GetSettings()
 	if err != nil {
 		return err
 	}
-	// The raw DB row carries a secretbox-encrypted MCPToken, not plaintext.
-	// ValidateSettings checks the URL-safe alphabet, so pass a copy with the
-	// MCP fields cleared — the token was already validated at save time and
-	// is irrelevant to scan-parameter validation.
-	sv := settings
-	sv.MCPToken = ""
-	sv.MCPEnabled = false
-	if err := s.host.ValidateSettings(sv); err != nil {
+	total, err := s.host.ValidateScanParams(settings)
+	if err != nil {
 		return err
 	}
 	if latest, err := s.store.GetLatestJob("scan"); err == nil && latest.Status == "running" {
@@ -53,22 +45,8 @@ func (s *Service) StartScan() error {
 		return err
 	}
 	existingMACs := make([]string, 0, len(devices))
-	total := 0
 	for _, device := range devices {
 		existingMACs = append(existingMACs, device.MAC)
-	}
-	for _, subnet := range settings.Subnets {
-		ips, err := scanner.ExpandCIDR(subnet)
-		if err != nil {
-			return err
-		}
-		total += len(ips)
-	}
-	if settings.EnableMDNS {
-		total++
-	}
-	if total > MaxScanTargets {
-		return fmt.Errorf("scan target count %d exceeds limit %d", total, MaxScanTargets)
 	}
 	payload, _ := json.Marshal(ScanJobPayload{ExistingMACs: existingMACs})
 	jobID, err := s.store.CreateJob("scan", "auto", string(payload), total)

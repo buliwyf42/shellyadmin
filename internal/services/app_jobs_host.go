@@ -60,11 +60,13 @@ func (s *AppService) RefreshDeviceCapabilities(ctx context.Context, d *models.De
 	s.refreshDeviceCapabilities(ctx, d)
 }
 
-// ValidateSettings forwards to the services-level ValidateSettings
-// function so jobs.Host can gate StartScan on a normalize-then-validate
-// pass without importing services (cycle).
-func (s *AppService) ValidateSettings(settings models.AppSettings) error {
-	return ValidateSettings(settings)
+// ValidateScanParams forwards to the services-level ValidateScanParams
+// function so jobs.Host can gate StartScan on a normalize-then-validate pass
+// (and obtain the target count) without importing services (cycle). It
+// validates scan parameters only and ignores the row's secretbox-encrypted
+// MCP token.
+func (s *AppService) ValidateScanParams(settings models.AppSettings) (int, error) {
+	return ValidateScanParams(settings)
 }
 
 // ReserveFirmwareTargets / ReleaseFirmwareTargets forward to the

@@ -10,7 +10,8 @@ Security fixes are best-effort while the project is in active early development.
 
 | Version                                    | Supported   | Notes                                                                                                                                 |
 | ------------------------------------------ | ----------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `v0.5.1`                                   | Yes         | Current baseline. Fixes scan blocked when MCP token is configured (secretbox ciphertext wrongly checked against URL-safe alphabet before job starts). |
+| `v0.5.2`                                   | Yes         | Current baseline. Internal: scan-param validation refactor + regression tests for the v0.5.1 MCP-token scan fix; no behavior change. |
+| `v0.5.1`                                   | Best effort | Fixes scan blocked when MCP token is configured (secretbox ciphertext wrongly checked against URL-safe alphabet before job starts). |
 | `v0.5.0`                                   | Best effort | First public release — docs/build/test polish; no behavior changes from v0.4.0. |
 | `v0.4.0`                                   | Best effort | First-run setup — operator login moves into the DB (ADR-0017); `SHELLYADMIN_PASS_HASH` demoted to an optional one-time import seed; no startup panic when unset. |
 | `v0.3.4` – `v0.3.6`                         | Best effort | Read-only `shellyctl` CLI (ADR-0016); responsive/a11y SPA pass; 6th required CI check; Clear-Logs trigger fix; base images `node:26-alpine` / `golang:1.26-alpine`. |

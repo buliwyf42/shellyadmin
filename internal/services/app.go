@@ -445,6 +445,14 @@ func ValidateSettings(settings models.AppSettings) error {
 	return validation.Settings(settings)
 }
 
+// ValidateScanParams delegates to internal/services/validation.ScanParams. It
+// validates only the scan-relevant fields (subnets, timeouts, concurrency) and
+// returns the target count, ignoring the MCP token — the jobs layer uses this
+// against a raw DB row whose MCPToken is secretbox ciphertext.
+func ValidateScanParams(settings models.AppSettings) (int, error) {
+	return validation.ScanParams(settings)
+}
+
 // ValidateTemplate delegates to internal/services/validation.Template.
 func ValidateTemplate(template map[string]interface{}) error {
 	return validation.Template(template)
