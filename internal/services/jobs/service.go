@@ -89,11 +89,13 @@ type Host interface {
 	// once the worker goroutine completes.
 	GetDevices() ([]models.Device, error)
 
-	// ValidateSettings runs the services-level normalize-then-validate
-	// pipeline on a settings row. StartScan gates on this so a misconfigured
-	// settings row (out-of-range timeouts / subnet count) doesn't spawn a
-	// job at all.
-	ValidateSettings(s models.AppSettings) error
+	// ValidateScanParams runs the services-level normalize-then-validate
+	// pipeline on the scan-relevant fields of a settings row and returns the
+	// total subnet+mDNS target count. StartScan gates on this so a
+	// misconfigured row (out-of-range timeouts / subnet count) doesn't spawn a
+	// job at all. It ignores the row's MCP token — which jobs receives as
+	// secretbox ciphertext — so the URL-safe-alphabet check never trips here.
+	ValidateScanParams(s models.AppSettings) (int, error)
 
 	// ReserveFirmwareTargets / ReleaseFirmwareTargets mutex per-device
 	// firmware operations against in-flight provisions. Keys are
