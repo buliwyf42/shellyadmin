@@ -1,4 +1,4 @@
-FROM node:26-alpine@sha256:e71ac5e964b9201072425d59d2e876359efa25dc96bb1768cb73295728d6e4ea AS frontend
+FROM node:26-alpine@sha256:144769ec3f32e8ee36b3cfde91e82bee25d9367b20f31a151f3f7eea3a2a8541 AS frontend
 WORKDIR /app/web
 COPY web/package*.json ./
 # --ignore-scripts blocks malicious postinstall hooks in compromised npm deps;
@@ -8,7 +8,7 @@ RUN npm ci --ignore-scripts
 COPY web/ .
 RUN npm run build
 
-FROM golang:1.26-alpine@sha256:91eda9776261207ea25fd06b5b7fed8d397dd2c0a283e77f2ab6e91bfa71079d AS backend
+FROM golang:1.26-alpine@sha256:f23e8b227fb4493eabe03bede4d5a32d04092da71962f1fb79b5f7d1e6c2a17f AS backend
 WORKDIR /app
 ARG VERSION
 ARG VCS_REF=unknown
