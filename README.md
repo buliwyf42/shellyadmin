@@ -49,7 +49,7 @@ It is designed as a single-container deployment with:
 
 ## Status
 
-Under active development. Current release is `v0.5.2`; the UI/API baseline is unchanged since `v0.4.0` (the `v0.5.x` releases are public-launch, bug-fix, and internal-refactor work with no behavior change). The project follows pre-1.0 semver: minor versions may carry breaking changes. Semver guarantees apply from `v1.0.0`.
+Under active development. Current release is `v0.5.3` (hardening: `shellyctl rotate-key`, device-response limits + JSON-RPC envelope validation, template-section validation, CI race detector + frontend coverage gate); the UI/API baseline is unchanged since `v0.4.0`. The project follows pre-1.0 semver: minor versions may carry breaking changes. Semver guarantees apply from `v1.0.0`.
 
 Intended posture:
 

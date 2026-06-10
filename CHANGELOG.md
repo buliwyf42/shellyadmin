@@ -4,6 +4,59 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.5.3] - 2026-06-10
+
+Hardening release — items 1–8 from the June 2026 architecture/security
+review (PRs #63, #64 + the rotate-key work).
+
+### Added
+
+- **`shellyctl rotate-key`** — encryption-key rotation as a one-shot
+  subcommand. Re-seals every secretbox-encrypted value (device credentials,
+  credential groups, TOTP secret + backup codes, the persisted MCP token)
+  from the current key to a new one in a single transaction. Keys come from
+  the environment (`SHELLYADMIN_ENCRYPTION_KEY[_FILE]` for the current key,
+  `SHELLYADMIN_NEW_ENCRYPTION_KEY[_FILE]` for the new one), never argv.
+  Without `--force` it is a dry run that verifies the old key opens every
+  blob; with `--force` a timestamped DB backup is written first. Refuses to
+  run while a server instance holds a fresh runtime-lock heartbeat. This
+  replaces the manual clear-everything rotation playbook.
+- **Template section validation at save time** — unknown top-level template
+  keys (e.g. the typo `"syss"`) are rejected when the template is saved,
+  with an error naming the valid sections and the `gen2_rpc` escape hatch.
+  Previously they fell through to the `<Capitalized>.SetConfig` catch-all
+  and only surfaced as a silent "skipped" section on every device during a
+  provision run. Stored templates provision unchanged.
+- **Frontend unit-test coverage gate** — vitest runs with
+  `@vitest/coverage-v8` and a 30% statements/lines floor (measured
+  ~36%/38% at introduction), counting every `src/**/*.ts` file whether a
+  test imports it or not. CI's Frontend-build check enforces it.
+
+### Changed
+
+- **shellyclient hardening** — device response bodies are capped at 4 MiB
+  (a misbehaving or hostile LAN endpoint can no longer OOM the
+  scan/refresh workers with an unbounded response), and JSON-RPC response
+  envelopes are validated: garbage or empty bodies on a success status now
+  return an explicit error instead of a silent empty result, and an
+  envelope carrying both `result` and `error` is rejected as malformed.
+- **CI runs the Go test suite with `-race`** — lock-discipline regressions
+  in the mutex-guarded service layer now fail the build.
+- **`internal/db` split by domain** — db.go shrank from 1282 to 131 lines
+  (connection lifecycle, migrations, helpers); queries moved verbatim into
+  one file per table family. No behavior change.
+
+### Documentation
+
+- **SECURITY.md** — new "MCP Listener Token Hygiene" section (the
+  path-segment auth form writes the token into anything that logs request
+  paths; prefer the Authorization header, rotate on suspected exposure).
+  "Encryption at Rest" rewritten: documents the mandatory external key
+  (the section still described the pre-v0.3.0 auto-generated fallback),
+  names every sealed surface, adds key-backup guidance and the
+  `shellyctl rotate-key` procedure. Stale claims fixed (PATs/TOTP exist
+  since v0.3.0).
+
 ## [0.5.2] - 2026-05-29
 
 ### Changed
