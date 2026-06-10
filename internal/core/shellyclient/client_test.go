@@ -291,6 +291,103 @@ func TestRPCRejectsOversizedBody(t *testing.T) {
 	}
 }
 
+// TestRPCRejectsInvalidJSON: a 200 with a garbage body used to return
+// (nil, nil) — success with an empty result — because the unmarshal error
+// was discarded. It must surface as an explicit parse error.
+func TestRPCRejectsInvalidJSON(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		fmt.Fprint(w, "<html>captive portal</html>")
+	}))
+	defer srv.Close()
+	c := New(Options{Timeout: 2 * time.Second})
+	host := extractHostFromTestURL(t, srv.URL)
+	_, err := c.RPC(context.Background(), host, "Shelly.GetConfig", nil)
+	if err == nil {
+		t.Fatal("expected error on non-JSON 200 body")
+	}
+	if !strings.Contains(err.Error(), "invalid JSON-RPC response") {
+		t.Errorf("expected parse error, got %v", err)
+	}
+}
+
+// TestRPCRejectsEmptyBody: an empty 200 on /rpc is not a Shelly response.
+func TestRPCRejectsEmptyBody(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+	c := New(Options{Timeout: 2 * time.Second})
+	host := extractHostFromTestURL(t, srv.URL)
+	_, err := c.RPC(context.Background(), host, "Shelly.GetConfig", nil)
+	if err == nil {
+		t.Fatal("expected error on empty 200 body")
+	}
+	if !strings.Contains(err.Error(), "empty response body") {
+		t.Errorf("expected empty-body error, got %v", err)
+	}
+}
+
+// TestRPCRejectsErrorPlusResult: JSON-RPC 2.0 forbids both members in one
+// envelope; a response carrying both didn't come from a conforming device.
+func TestRPCRejectsErrorPlusResult(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"id":1,"result":{"ok":true},"error":{"code":500,"message":"boom"}}`)
+	}))
+	defer srv.Close()
+	c := New(Options{Timeout: 2 * time.Second})
+	host := extractHostFromTestURL(t, srv.URL)
+	_, err := c.RPC(context.Background(), host, "Shelly.GetConfig", nil)
+	if err == nil {
+		t.Fatal("expected error on result+error envelope")
+	}
+	if !strings.Contains(err.Error(), "malformed JSON-RPC envelope") {
+		t.Errorf("expected malformed-envelope error, got %v", err)
+	}
+}
+
+// TestRPCNullResultOK guards the legitimate null-result case (Shelly.Reboot
+// and friends return {"id":1,"result":null}) against the stricter parsing.
+func TestRPCNullResultOK(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"id":1,"result":null}`)
+	}))
+	defer srv.Close()
+	c := New(Options{Timeout: 2 * time.Second})
+	host := extractHostFromTestURL(t, srv.URL)
+	res, err := c.RPC(context.Background(), host, "Shelly.Reboot", nil)
+	if err != nil {
+		t.Fatalf("null result must not error: %v", err)
+	}
+	if res != nil {
+		t.Errorf("expected nil result, got %#v", res)
+	}
+}
+
+// TestRPCStatusErrorWithHTMLBody: error statuses legitimately carry non-JSON
+// bodies (proxy error pages) — the HTTP status must win, not a parse error.
+func TestRPCStatusErrorWithHTMLBody(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprint(w, "<html>502 bad gateway</html>")
+	}))
+	defer srv.Close()
+	c := New(Options{Timeout: 2 * time.Second})
+	host := extractHostFromTestURL(t, srv.URL)
+	_, err := c.RPC(context.Background(), host, "Shelly.GetConfig", nil)
+	if err == nil {
+		t.Fatal("expected error on 500")
+	}
+	if !strings.Contains(err.Error(), "500") {
+		t.Errorf("expected status in error, got %v", err)
+	}
+	if strings.Contains(err.Error(), "invalid JSON-RPC response") {
+		t.Errorf("status error must not surface as parse error: %v", err)
+	}
+}
+
 // TestRPCContextCancel ensures we propagate context cancellation cleanly.
 func TestRPCContextCancel(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
