@@ -77,6 +77,27 @@ var (
 	ErrTLSCertInvalid = errors.New("shellyclient: TLS certificate validation failed")
 )
 
+// maxResponseBytes caps how much of a device response is buffered into memory.
+// Real Shelly payloads top out in the tens of KB (Shelly.GetComponents on the
+// largest models); 4 MiB is generous headroom. Anything bigger is a misbehaving
+// or non-Shelly endpoint, and reading it unbounded would let a single LAN host
+// OOM the scan/refresh workers.
+const maxResponseBytes = 4 << 20
+
+// readBodyLimited reads at most maxResponseBytes from r and fails explicitly
+// on overflow — silent truncation would surface as a confusing JSON parse
+// error downstream instead of naming the real problem.
+func readBodyLimited(r io.Reader) ([]byte, error) {
+	body, err := io.ReadAll(io.LimitReader(r, maxResponseBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(body) > maxResponseBytes {
+		return nil, fmt.Errorf("shellyclient: response body exceeds %d byte limit", maxResponseBytes)
+	}
+	return body, nil
+}
+
 // New builds a Client. Multiple goroutines may share one Client.
 func New(opts Options) *Client {
 	if opts.Timeout <= 0 {
@@ -125,7 +146,7 @@ func (c *Client) Probe(ctx context.Context, ip string) (map[string]any, error) {
 	if resp.StatusCode >= 400 {
 		return nil, fmt.Errorf("shellyclient: probe %s returned %s", ip, resp.Status)
 	}
-	body, err := io.ReadAll(resp.Body)
+	body, err := readBodyLimited(resp.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +188,7 @@ func (c *Client) RPC(ctx context.Context, ip, method string, params map[string]a
 		return nil, err
 	}
 	defer resp.Body.Close()
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := readBodyLimited(resp.Body)
 	if err != nil {
 		return nil, err
 	}

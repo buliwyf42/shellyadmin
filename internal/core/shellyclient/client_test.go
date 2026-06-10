@@ -1,6 +1,7 @@
 package shellyclient
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -238,6 +239,55 @@ func TestProbeOK(t *testing.T) {
 	}
 	if out["model"] != "SNSW-001P16EU" {
 		t.Errorf("model=%v", out["model"])
+	}
+}
+
+// writeOversizedBody streams maxResponseBytes+1 of junk so the reader-side
+// limit (not a server-side Content-Length check) is what trips.
+func writeOversizedBody(w http.ResponseWriter) {
+	chunk := bytes.Repeat([]byte("x"), 64*1024)
+	for written := 0; written <= maxResponseBytes; written += len(chunk) {
+		if _, err := w.Write(chunk); err != nil {
+			return
+		}
+	}
+}
+
+// TestProbeRejectsOversizedBody: a misbehaving (or hostile) LAN endpoint
+// streaming an arbitrarily large /shelly response must fail with an explicit
+// size error instead of being buffered unbounded into memory.
+func TestProbeRejectsOversizedBody(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		writeOversizedBody(w)
+	}))
+	defer srv.Close()
+	c := New(Options{Timeout: 5 * time.Second})
+	host := extractHostFromTestURL(t, srv.URL)
+	_, err := c.Probe(context.Background(), host)
+	if err == nil {
+		t.Fatal("expected error on oversized probe body")
+	}
+	if !strings.Contains(err.Error(), "byte limit") {
+		t.Errorf("expected size-limit error, got %v", err)
+	}
+}
+
+// TestRPCRejectsOversizedBody mirrors the probe case for the /rpc path.
+func TestRPCRejectsOversizedBody(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		writeOversizedBody(w)
+	}))
+	defer srv.Close()
+	c := New(Options{Timeout: 5 * time.Second})
+	host := extractHostFromTestURL(t, srv.URL)
+	_, err := c.RPC(context.Background(), host, "Shelly.GetConfig", nil)
+	if err == nil {
+		t.Fatal("expected error on oversized rpc body")
+	}
+	if !strings.Contains(err.Error(), "byte limit") {
+		t.Errorf("expected size-limit error, got %v", err)
 	}
 }
 
