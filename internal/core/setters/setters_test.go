@@ -39,6 +39,11 @@ func newCaptureServer(t *testing.T, status int) (*httptest.Server, *captured) {
 		}
 		cap.body = payload
 		w.WriteHeader(status)
+		// Real Shellys always answer /rpc with a JSON-RPC envelope; a bare
+		// 200 is rejected by shellyclient's envelope validation.
+		if status < 400 {
+			_, _ = io.WriteString(w, `{"id":1,"result":null}`)
+		}
 	}))
 	t.Cleanup(srv.Close)
 	return srv, cap

@@ -202,14 +202,32 @@ func (c *Client) RPC(ctx context.Context, ip, method string, params map[string]a
 		Result map[string]any `json:"result"`
 		Error  any            `json:"error"`
 	}
-	if len(respBody) > 0 {
-		_ = json.Unmarshal(respBody, &envelope)
+	if resp.StatusCode >= 400 {
+		// Prefer the structured RPC error when the device sent one; fall back
+		// to the HTTP status. Error statuses legitimately carry non-JSON
+		// bodies (proxy HTML error pages), so a parse failure here is not
+		// itself an error condition.
+		if len(respBody) > 0 && json.Unmarshal(respBody, &envelope) == nil && envelope.Error != nil {
+			return nil, &RPCError{Method: method, Raw: envelope.Error}
+		}
+		return nil, fmt.Errorf("shellyclient: RPC %s on %s: %s", method, ip, resp.Status)
+	}
+	// On a success status the body must be a parseable JSON-RPC envelope.
+	// Silently accepting garbage here used to surface as a nil result with
+	// a nil error — indistinguishable from a legitimate empty response.
+	if len(respBody) == 0 {
+		return nil, fmt.Errorf("shellyclient: RPC %s on %s: empty response body", method, ip)
+	}
+	if err := json.Unmarshal(respBody, &envelope); err != nil {
+		return nil, fmt.Errorf("shellyclient: RPC %s on %s: invalid JSON-RPC response: %w", method, ip, err)
 	}
 	if envelope.Error != nil {
-		return envelope.Result, &RPCError{Method: method, Raw: envelope.Error}
-	}
-	if resp.StatusCode >= 400 {
-		return envelope.Result, fmt.Errorf("shellyclient: RPC %s on %s: %s", method, ip, resp.Status)
+		// JSON-RPC 2.0 §5: result and error are mutually exclusive. Both
+		// present means the envelope didn't come from a conforming device.
+		if len(envelope.Result) > 0 {
+			return nil, fmt.Errorf("shellyclient: RPC %s on %s: malformed JSON-RPC envelope (both result and error present)", method, ip)
+		}
+		return nil, &RPCError{Method: method, Raw: envelope.Error}
 	}
 	return envelope.Result, nil
 }
