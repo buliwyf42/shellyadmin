@@ -17,7 +17,9 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"strings"
 
+	"shellyadmin/internal/core/provisioner"
 	"shellyadmin/internal/core/scanner"
 	"shellyadmin/internal/models"
 )
@@ -158,6 +160,17 @@ func Template(template map[string]interface{}) error {
 	}
 	if len(body) > MaxTemplateBytes {
 		return fmt.Errorf("template exceeds %d bytes", MaxTemplateBytes)
+	}
+	// Every top-level key is dispatched as a provisioner section. Unknown
+	// names used to fall through to the <Capitalized>.SetConfig catch-all
+	// and only fail (silently, as "skipped") at the device — reject them at
+	// save time instead. gen2_rpc remains the escape hatch for arbitrary
+	// RPC methods.
+	for section := range template {
+		if !provisioner.KnownTemplateSection(section) {
+			return fmt.Errorf("unknown template section %q (valid sections: %s; use gen2_rpc for arbitrary RPC methods)",
+				section, strings.Join(provisioner.KnownTemplateSections(), ", "))
+		}
 	}
 	return nil
 }
