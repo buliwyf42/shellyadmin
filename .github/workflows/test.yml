@@ -190,8 +190,12 @@ jobs:
         run: npm run format:check
         working-directory: web
 
-      - name: Unit tests
-        run: npm test
+      # Coverage thresholds live in web/vitest.config.ts (30% statements/
+      # lines vs a ~36%/38% baseline at introduction) — the frontend
+      # counterpart of the backend's 45% gate. vitest exits non-zero when
+      # the floor is undercut.
+      - name: Unit tests (with coverage gate)
+        run: npm run test:coverage
         working-directory: web
 
       - name: Build
