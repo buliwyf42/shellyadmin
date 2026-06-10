@@ -51,8 +51,13 @@ jobs:
       # backup/, etc.) instead of leaving each sub-package at 0%
       # package-local coverage. Without this flag the same code looks
       # ~12 points less covered than it actually is.
+      #
+      # -race because AppService guards shared state with several
+      # mutexes (mu, authMu, jobSpawnMu) plus a WaitGroup — lock-
+      # discipline regressions are invisible to plain tests but show
+      # up here. -covermode=atomic is already the -race-compatible mode.
       - name: Run tests with coverage
-        run: go test ./... -coverpkg=./... -coverprofile=coverage.out -covermode=atomic
+        run: go test ./... -race -coverpkg=./... -coverprofile=coverage.out -covermode=atomic
 
       # M3 — drift check between `internal/models.*` and the canonical
       # snapshot in `internal/models/schema.gen.json`. A new field on a
