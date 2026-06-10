@@ -84,7 +84,7 @@ docker run -d \
 
 Anschließend `http://localhost:8080` öffnen und auf dem **Ersteinrichtungs-Bildschirm** das Administrator-Konto anlegen. Passwort vergessen? `docker exec shellyadmin shellyctl reset-auth --force` setzt die Instanz wieder in den Setup-Modus zurück.
 
-`SHELLYADMIN_ENCRYPTION_KEY` ist seit v0.3.0 **zwingend erforderlich** — der Container startet ohne ihn nicht. Einmal generieren und bei jedem Recreate **denselben Wert wiederverwenden**; ein neuer Schlüssel verwaist alle gespeicherten Anmeldedaten.
+`SHELLYADMIN_ENCRYPTION_KEY` ist seit v0.3.0 **zwingend erforderlich** — der Container startet ohne ihn nicht. Einmal generieren und bei jedem Recreate **denselben Wert wiederverwenden**; ein ohne Rotation getauschter Schlüssel verwaist alle gespeicherten Anmeldedaten. Für einen geplanten Schlüsselwechsel gibt es `shellyctl rotate-key` (v0.5.3) — siehe [docs/SECURITY.md](docs/SECURITY.md).
 
 `COOKIE_SECURE=false` ist nur über reines HTTP im vertrauenswürdigen LAN unbedenklich. Für jede andere Bereitstellung `COOKIE_SECURE=true` setzen (und dem Container TLS vorschalten).
 
