@@ -53,6 +53,9 @@ func main() {
 		case "reset-auth":
 			runResetAuth(os.Args[2:])
 			return
+		case "rotate-key":
+			runRotateKey(os.Args[2:])
+			return
 		}
 		// Read-only operator CLI (HTTP + PAT, ADR-0016). A matching verb
 		// dispatches here; bare `shellyctl` falls through to the server.

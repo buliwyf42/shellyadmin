@@ -130,3 +130,32 @@ func TestSeal_RequiresKey(t *testing.T) {
 		t.Errorf("Open() without key should fail")
 	}
 }
+
+func TestWithKeyVariants_RoundTripAndWrongKey(t *testing.T) {
+	keyA := bytes.Repeat([]byte{0x11}, 32)
+	keyB := bytes.Repeat([]byte{0x22}, 32)
+
+	blob, err := SealStringWithKey(keyA, "rotate-me")
+	if err != nil {
+		t.Fatalf("SealStringWithKey: %v", err)
+	}
+	got, err := OpenStringWithKey(keyA, blob)
+	if err != nil {
+		t.Fatalf("OpenStringWithKey: %v", err)
+	}
+	if got != "rotate-me" {
+		t.Fatalf("round trip = %q, want rotate-me", got)
+	}
+	if _, err := OpenStringWithKey(keyB, blob); err == nil {
+		t.Fatal("wrong key must not open the blob")
+	}
+}
+
+func TestWithKeyVariants_RejectBadKeyLength(t *testing.T) {
+	if _, err := SealStringWithKey([]byte("short"), "x"); err == nil {
+		t.Fatal("expected error for short key on seal")
+	}
+	if _, err := OpenStringWithKey([]byte("short"), "v1$x$y"); err == nil {
+		t.Fatal("expected error for short key on open")
+	}
+}

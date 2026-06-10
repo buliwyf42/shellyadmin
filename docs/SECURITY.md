@@ -114,39 +114,47 @@ location** (Docker secret, sops-encrypted file in a config repo, password
 manager): keeping them in the same backup defeats the purpose of
 externalizing the key.
 
-#### Key rotation (manual playbook)
+#### Key rotation (`shellyctl rotate-key`)
 
-There is no built-in `rotate-key` command yet, and the rotation has a hard
-constraint: **any sealed row still in the database after the key swap
-surfaces as a `decrypt …` error in the code path that reads it** —
-credential listing breaks, the Settings read path breaks on a stale MCP
-token, and a TOTP-enrolled login can lock the operator out. Every sealed
-surface must therefore be cleared while the old key is still active:
+`shellyctl rotate-key` re-encrypts every sealed value — device credentials,
+credential groups, TOTP material, the persisted MCP token — from the
+current key to a new one, in a single transaction. The admin login is
+argon2id (not sealed) and unaffected.
 
-1. **Rollback point**: stop the container, copy the SQLite files (including
-   `-wal`/`-shm`) plus the old key somewhere safe, start again. Restoring
-   both together undoes a botched rotation.
-2. With the **old key still active**:
-   - **Disable TOTP** (Settings) — a sealed TOTP secret that can no longer
-     be opened makes the login unverifiable.
-   - **Disable the MCP listener / clear its token** (Settings) — a stale
-     sealed token makes the settings read path error out.
-   - **Export a backup with secrets** (Settings → Backup). The bundle
-     carries credential-group passwords in plaintext JSON — treat it like a
-     password export.
-   - **Delete all credential groups** (deleting a group also removes its
-     mirrored credential row). Groups referenced by a template refuse
-     deletion — detach the template's credential reference first, it is
-     restored by the import.
-3. Stop the container; replace `SHELLYADMIN_ENCRYPTION_KEY` / the key file
-   with a new key (`openssl rand -base64 32`).
-4. Start the container and **import the backup** (apply, not dry-run).
-   Credential groups and device assignments are re-created and sealed under
-   the new key.
-5. Re-enter the MCP token and re-enroll TOTP.
-6. Verify a refresh against an auth-protected device succeeds, then
-   securely delete the plaintext bundle and — once verified — the old key
-   and the pre-rotation DB copy.
+Keys come from the environment, never argv (argv leaks into shell history
+and `ps`): the current key from `SHELLYADMIN_ENCRYPTION_KEY[_FILE]` (the
+same variables the server uses), the new key from
+`SHELLYADMIN_NEW_ENCRYPTION_KEY[_FILE]`.
+
+1. Stop the container. The command refuses to run while a server holds a
+   fresh runtime-lock heartbeat — rotating under a live server would
+   corrupt rows it writes concurrently.
+2. Dry run (inside the container image or any host with the data dir):
+
+   ```bash
+   export SHELLYADMIN_NEW_ENCRYPTION_KEY="$(openssl rand -base64 32)"
+   shellyctl rotate-key            # opens every blob with the old key, writes nothing
+   ```
+
+   A wrong current key fails here, before anything is touched.
+
+3. `shellyctl rotate-key --force` — writes a timestamped DB backup
+   (`shellyctl.db.backup-…`), then rotates. Any failure rolls the whole
+   transaction back; the database is never left half-rotated.
+4. Point `SHELLYADMIN_ENCRYPTION_KEY` / the key file at the **new** key and
+   start the container. The old key no longer opens anything.
+5. Verify a refresh against an auth-protected device succeeds, then retire
+   the old key and the pre-rotation backup.
+
+Rollback: restore the backup file together with the old key.
+
+Background for older versions (pre-rotate-key): any sealed row left in the
+database after a manual key swap surfaces as a `decrypt …` error in
+whatever reads it — credential listing breaks, the Settings read path
+breaks on a stale MCP token, and a TOTP-enrolled login can lock the
+operator out. The export-with-secrets → clear-all-sealed-surfaces →
+swap-key → re-import procedure documented in this section's git history
+still works as a fallback, but the command supersedes it.
 
 ## Network Scope
 
