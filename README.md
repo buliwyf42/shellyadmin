@@ -84,7 +84,7 @@ docker run -d \
 
 Then open `http://localhost:8080` and create the admin account on the **first-run setup** screen. Forgot the password later? `docker exec shellyadmin shellyctl reset-auth --force` returns the instance to setup mode.
 
-`SHELLYADMIN_ENCRYPTION_KEY` is **required** since v0.3.0 — the container won't start without it. Generate it once and **reuse the same value** on every recreate; a new key orphans all stored credentials.
+`SHELLYADMIN_ENCRYPTION_KEY` is **required** since v0.3.0 — the container won't start without it. Generate it once and **reuse the same value** on every recreate; swapping in a new key without rotation orphans all stored credentials. To rotate to a new key deliberately, use `shellyctl rotate-key` (v0.5.3) — see [docs/SECURITY.md](docs/SECURITY.md).
 
 `COOKIE_SECURE=false` is only safe on plain HTTP over a trusted LAN. Set `COOKIE_SECURE=true` (and front the container with TLS) for any other deployment.
 
