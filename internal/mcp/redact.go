@@ -2,6 +2,12 @@ package mcp
 
 import "shellyadmin/internal/models"
 
+// Redaction inventory for the MCP surface: list_credentials goes through
+// RedactedCredential below; get_settings (tools.go) masks the decrypted
+// MCPToken to services.MCPTokenRedacted. Any new tool that returns a type
+// carrying secret material must add its redactor here or inline before
+// the tool ships — see CLAUDE.md "Secret hygiene".
+
 // RedactedCredential is the safe shape returned by list_credentials. It
 // deliberately omits Password and HA1 so the bearer-token holder cannot
 // pull plaintext secrets out of the credential store via MCP.

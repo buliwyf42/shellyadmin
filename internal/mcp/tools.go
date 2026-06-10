@@ -344,16 +344,24 @@ func registerCredentialTool(server *mcp.Server, svc *services.AppService) {
 
 // ----- settings -----
 
-// AppSettings as defined in internal/models/settings.go contains no
-// secret material today (subnets, timeouts, badge classes, compliance
-// rules). If a future field stores a token or hash, add a redactor here
-// before exposing it.
+// AppSettings carries one piece of secret material: MCPToken, decrypted by
+// services.GetSettings. It is redacted to services.MCPTokenRedacted
+// ("<set>") below, mirroring the HTTP API GET handler — the plaintext
+// token must not leave the process over MCP either. If a future field
+// stores a token or hash, add a redactor here before exposing it.
 func registerSettingsTool(server *mcp.Server, svc *services.AppService) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "get_settings",
 		Description: "Fetch the application settings (subnets, scan/refresh timeouts, compliance rules, firmware-check cadence, badge styling).",
 	}, tool(svc, "get_settings", func(_ context.Context, _ emptyInput) (models.AppSettings, error) {
-		return svc.GetSettings()
+		settings, err := svc.GetSettings()
+		if err != nil {
+			return settings, err
+		}
+		if settings.MCPToken != "" {
+			settings.MCPToken = services.MCPTokenRedacted
+		}
+		return settings, nil
 	}))
 }
 

@@ -286,3 +286,44 @@ func contains(s, sub string) bool {
 	}
 	return len(sub) == 0
 }
+
+// TestGetSettingsRedactsMCPToken: the settings row carries the MCP token;
+// services.GetSettings hands it to the tool decrypted. The tool must mask
+// it to services.MCPTokenRedacted — the plaintext authenticating the very
+// caller is circular today, but with the env-var override active a caller
+// holding the env token could otherwise read a *different* persisted token.
+func TestGetSettingsRedactsMCPToken(t *testing.T) {
+	database, session := connectInMemory(t)
+	settings := models.DefaultSettings()
+	settings.Subnets = []string{"10.0.0.0/24"}
+	settings.MCPEnabled = true
+	settings.MCPToken = "PlaintextMCPToken-do-not-leak-0123"
+	if err := database.SaveSettings(settings); err != nil {
+		t.Fatalf("SaveSettings: %v", err)
+	}
+
+	res, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "get_settings",
+		Arguments: map[string]any{},
+	})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("tool error: %+v", res)
+	}
+	var out models.AppSettings
+	if err := remarshal(res.StructuredContent, &out); err != nil {
+		t.Fatalf("structured content unmarshal: %v", err)
+	}
+	if out.MCPToken != services.MCPTokenRedacted {
+		t.Errorf("MCPToken = %q, want redacted placeholder %q", out.MCPToken, services.MCPTokenRedacted)
+	}
+	blob, err := json.Marshal(res.StructuredContent)
+	if err != nil {
+		t.Fatalf("marshal structured content: %v", err)
+	}
+	if contains(string(blob), "PlaintextMCPToken-do-not-leak-0123") {
+		t.Errorf("get_settings response leaks the plaintext MCP token: %s", blob)
+	}
+}
