@@ -76,3 +76,41 @@ func TestScanParamsRejectsOutOfRangeConcurrency(t *testing.T) {
 		t.Fatal("ScanParams() error = nil, want concurrency-out-of-range error")
 	}
 }
+
+func TestTemplateAcceptsKnownSections(t *testing.T) {
+	tpl := map[string]interface{}{
+		"sys":      map[string]interface{}{"device": map[string]interface{}{"name": "x"}},
+		"mqtt":     map[string]interface{}{"enable": true},
+		"ui":       map[string]interface{}{"idle_brightness": 30}, // catch-all-served
+		"gen2_rpc": map[string]interface{}{"Sys.SetConfig": map[string]interface{}{}},
+		"ota":      map[string]interface{}{"enabled": true}, // legacy, tolerated
+	}
+	if err := Template(tpl); err != nil {
+		t.Fatalf("Template() error = %v, want nil", err)
+	}
+}
+
+func TestTemplateAcceptsMixedCaseSection(t *testing.T) {
+	// applySection lowercases before dispatch, so "SYS" is a valid key.
+	if err := Template(map[string]interface{}{"SYS": map[string]interface{}{}}); err != nil {
+		t.Fatalf("Template() error = %v, want nil", err)
+	}
+}
+
+func TestTemplateRejectsUnknownSection(t *testing.T) {
+	err := Template(map[string]interface{}{"syss": map[string]interface{}{}})
+	if err == nil {
+		t.Fatal("Template() error = nil, want unknown-section error")
+	}
+	if !strings.Contains(err.Error(), `"syss"`) || !strings.Contains(err.Error(), "gen2_rpc") {
+		t.Fatalf("error should name the section and the gen2_rpc escape hatch: %v", err)
+	}
+}
+
+func TestTemplateRejectsUntrimmedSection(t *testing.T) {
+	// "sys " would dispatch a broken "Sys .SetConfig" at runtime — the
+	// validator must mirror applySection (lowercase, no trim) and reject it.
+	if err := Template(map[string]interface{}{"sys ": map[string]interface{}{}}); err == nil {
+		t.Fatal("Template() error = nil, want unknown-section error for untrimmed key")
+	}
+}
