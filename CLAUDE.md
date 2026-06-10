@@ -255,6 +255,8 @@ Migration recipe for operators upgrading from v0.2.x with an auto-generated `{da
 
 Threat closed: a volume snapshot exfiltrating both the encrypted credentials in `shellyctl.db` AND the key file sitting next to it — defeated the at-rest encryption entirely. External key management = both halves no longer share a backup boundary.
 
+**Key rotation (v0.5.3)**: `shellyctl rotate-key` re-seals every secretbox blob — credentials, credential groups, TOTP material, the MCP token inside the settings JSON — in ONE transaction (`internal/db/rotate.go` `RotateSealedColumns`). Old key from `SHELLYADMIN_ENCRYPTION_KEY[_FILE]`, new key from `SHELLYADMIN_NEW_ENCRYPTION_KEY[_FILE]`; without `--force` it's a dry run that verifies the old key opens everything. Writes a timestamped DB backup before applying; refuses while a fresh runtime-lock heartbeat exists (live server). Explicit-key seal/open variants: `secretbox.{Seal,Open}StringWithKey`. **A new sealed column anywhere must be added to `RotateSealedColumns`**, or rotation silently leaves it orphaned under the old key.
+
 ---
 
 ## Single-Instance Constraint (ADR-0015, v0.3.0)

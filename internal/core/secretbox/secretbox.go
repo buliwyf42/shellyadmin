@@ -80,6 +80,28 @@ func Seal(plaintext []byte) (string, error) {
 	if k == nil {
 		return "", errors.New("secretbox: key not initialized")
 	}
+	return sealWith(k, plaintext)
+}
+
+// Open decrypts a blob produced by Seal. An empty blob returns an empty
+// byte slice, matching the Seal contract.
+func Open(blob string) ([]byte, error) {
+	if blob == "" {
+		return nil, nil
+	}
+	keyMu.RLock()
+	k := key
+	keyMu.RUnlock()
+	if k == nil {
+		return nil, errors.New("secretbox: key not initialized")
+	}
+	return openWith(k, blob)
+}
+
+func sealWith(k *[keyLen]byte, plaintext []byte) (string, error) {
+	if len(plaintext) == 0 {
+		return "", nil
+	}
 	var nonce [nonceLen]byte
 	if _, err := rand.Read(nonce[:]); err != nil {
 		return "", err
@@ -89,21 +111,13 @@ func Seal(plaintext []byte) (string, error) {
 	return prefix + "$" + enc.EncodeToString(nonce[:]) + "$" + enc.EncodeToString(ct), nil
 }
 
-// Open decrypts a blob produced by Seal. An empty blob returns an empty
-// byte slice, matching the Seal contract.
-func Open(blob string) ([]byte, error) {
+func openWith(k *[keyLen]byte, blob string) ([]byte, error) {
 	if blob == "" {
 		return nil, nil
 	}
 	parts := strings.SplitN(blob, "$", 3)
 	if len(parts) != 3 || parts[0] != prefix {
 		return nil, errors.New("secretbox: unrecognized blob format")
-	}
-	keyMu.RLock()
-	k := key
-	keyMu.RUnlock()
-	if k == nil {
-		return nil, errors.New("secretbox: key not initialized")
 	}
 	enc := base64.StdEncoding
 	nonceBytes, err := enc.DecodeString(parts[1])
@@ -124,6 +138,40 @@ func Open(blob string) ([]byte, error) {
 		return nil, errors.New("secretbox: authentication failed")
 	}
 	return plain, nil
+}
+
+func keyFromRaw(raw []byte) (*[keyLen]byte, error) {
+	if len(raw) != keyLen {
+		return nil, fmt.Errorf("secretbox: key must be %d bytes, got %d", keyLen, len(raw))
+	}
+	var k [keyLen]byte
+	copy(k[:], raw)
+	return &k, nil
+}
+
+// SealStringWithKey encrypts with an explicit key instead of the
+// process-global one. Exists for `shellyctl rotate-key`, which must read
+// blobs under the old key and write them under the new key in a single
+// pass without flipping the global key mid-flight.
+func SealStringWithKey(rawKey []byte, plaintext string) (string, error) {
+	k, err := keyFromRaw(rawKey)
+	if err != nil {
+		return "", err
+	}
+	return sealWith(k, []byte(plaintext))
+}
+
+// OpenStringWithKey decrypts with an explicit key — see SealStringWithKey.
+func OpenStringWithKey(rawKey []byte, blob string) (string, error) {
+	k, err := keyFromRaw(rawKey)
+	if err != nil {
+		return "", err
+	}
+	plain, err := openWith(k, blob)
+	if err != nil {
+		return "", err
+	}
+	return string(plain), nil
 }
 
 // SealString is a convenience for string payloads.
