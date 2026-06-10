@@ -20,6 +20,10 @@ It is not designed for:
 - session-cookie authentication
 - login rate limiting
 - POST logout
+- optional TOTP 2FA with single-use backup codes (v0.3.0)
+- personal access tokens (`pat_…`) with per-route scopes for headless
+  callers; PAT-authed requests cannot mint, list, or revoke other PATs
+  (v0.3.0)
 
 ### Admin credential storage
 
@@ -78,22 +82,71 @@ Required safeguards:
 
 ### Encryption at Rest
 
-Device credential `password` and `ha1` values stored in `credentials` and
-`credential_groups` are encrypted with XSalsa20-Poly1305 (NaCl secretbox). The
-32-byte key is resolved in this order at startup:
+Secrets stored in SQLite are encrypted with XSalsa20-Poly1305 (NaCl
+secretbox). Sealed material includes:
 
-1. `SHELLYADMIN_ENCRYPTION_KEY` — base64-encoded 32-byte key. Also honours the
-   `_FILE` suffix (reads the key from a file path).
-2. `${DATA_DIR}/shellyadmin.key` — generated on first boot if nothing else is
-   configured. The file is written `0600`.
+- device credential `password` / `ha1` values (`credentials`,
+  `credential_groups`)
+- the MCP listener token persisted via Settings
+- TOTP secrets and backup codes
+
+The 32-byte key comes from `SHELLYADMIN_ENCRYPTION_KEY` (base64-encoded) or
+`SHELLYADMIN_ENCRYPTION_KEY_FILE`. **Since v0.3.0 (ADR-0013) the key is
+mandatory** — the server refuses to start without it. The pre-v0.3.0
+auto-generated `${DATA_DIR}/shellyadmin.key` fallback was removed because a
+key sitting next to the database shares its backup boundary: one stolen
+volume snapshot defeated the encryption entirely. Upgraders: copy the legacy
+file's contents to a secret store outside the data volume and point
+`SHELLYADMIN_ENCRYPTION_KEY_FILE` at it (the startup error names the legacy
+path when it detects one).
 
 The key never leaves process memory at runtime; the SQLite file alone is not
-enough to recover credentials. **Back up the key file alongside the database**
-— losing the key permanently orphans every stored credential.
+enough to recover credentials. This defends against offline DB exposure
+(stolen backup, container escape reading `/data`, misconfigured volume). It
+does not defend against an attacker with live access to the running process.
 
-This defends against offline DB exposure (stolen backup, container escape
-reading `/data`, misconfigured volume). It does not defend against an attacker
-with live access to the running process.
+#### Key backup
+
+**Losing the key permanently orphans every sealed secret** — device
+credentials, the MCP token, and TOTP enrollment. There is no recovery path.
+Back up the key with the same rigor as the database, but in a **separate
+location** (Docker secret, sops-encrypted file in a config repo, password
+manager): keeping them in the same backup defeats the purpose of
+externalizing the key.
+
+#### Key rotation (manual playbook)
+
+There is no built-in `rotate-key` command yet, and the rotation has a hard
+constraint: **any sealed row still in the database after the key swap
+surfaces as a `decrypt …` error in the code path that reads it** —
+credential listing breaks, the Settings read path breaks on a stale MCP
+token, and a TOTP-enrolled login can lock the operator out. Every sealed
+surface must therefore be cleared while the old key is still active:
+
+1. **Rollback point**: stop the container, copy the SQLite files (including
+   `-wal`/`-shm`) plus the old key somewhere safe, start again. Restoring
+   both together undoes a botched rotation.
+2. With the **old key still active**:
+   - **Disable TOTP** (Settings) — a sealed TOTP secret that can no longer
+     be opened makes the login unverifiable.
+   - **Disable the MCP listener / clear its token** (Settings) — a stale
+     sealed token makes the settings read path error out.
+   - **Export a backup with secrets** (Settings → Backup). The bundle
+     carries credential-group passwords in plaintext JSON — treat it like a
+     password export.
+   - **Delete all credential groups** (deleting a group also removes its
+     mirrored credential row). Groups referenced by a template refuse
+     deletion — detach the template's credential reference first, it is
+     restored by the import.
+3. Stop the container; replace `SHELLYADMIN_ENCRYPTION_KEY` / the key file
+   with a new key (`openssl rand -base64 32`).
+4. Start the container and **import the backup** (apply, not dry-run).
+   Credential groups and device assignments are re-created and sealed under
+   the new key.
+5. Re-enter the MCP token and re-enroll TOTP.
+6. Verify a refresh against an auth-protected device succeeds, then
+   securely delete the plaintext bundle and — once verified — the old key
+   and the pre-rotation DB copy.
 
 ## Network Scope
 
@@ -125,6 +178,35 @@ Recommended pattern:
 
 - optional reverse proxy terminates TLS
 - app remains private and internal
+
+## MCP Listener Token Hygiene
+
+The MCP listener (`:8081`, ADR-0011) accepts its token two ways:
+
+1. `Authorization: Bearer <token>` header — **preferred**.
+2. First URL path segment (`http://host:8081/<token>/`) — kept because
+   `mcp-remote`-style clients and Home Assistant make header configuration
+   awkward.
+
+**The path form writes the token into anything that logs request paths**:
+reverse-proxy access logs, log aggregators consuming container stdout,
+browser history if the URL is ever opened interactively, and shell history
+when pasted into `curl`. The token authenticates every MCP tool including
+the confirm-gated state-changing ones, so treat those logs as
+secret-bearing.
+
+Guidance:
+
+- Use the Bearer header wherever the client supports it.
+- If the path form is unavoidable behind a reverse proxy, redact the first
+  path segment in the proxy's access-log format, or disable access logging
+  for the MCP port.
+- **Rotate on suspected exposure**: save a new token in Settings → MCP —
+  the listener reconciles live, no restart needed. Instances locked via the
+  `SHELLYADMIN_MCP_TOKEN` env var ignore Settings; change the env var and
+  restart instead.
+- After rotation, every MCP client needs the new token; stale clients fail
+  closed with 401.
 
 ## Network Segmentation (M13)
 
@@ -218,5 +300,4 @@ Docker stdout JSON.
 The current design intentionally does not include:
 
 - multi-user RBAC
-- external API tokens
 - public internet hardening beyond sensible defaults for a LAN appliance
