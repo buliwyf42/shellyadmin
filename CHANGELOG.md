@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.5.5] - 2026-07-01 — Dependency roll-up + dead-code cleanup
+
+Housekeeping release: no runtime behaviour change. Bundles the Dependabot
+dependency bumps with the ponytail-audit dead-code removal.
+
+### Changed
+
+- **Runtime base image Alpine 3.23 → 3.24** (`docker/Dockerfile`), plus the
+  `node:26-alpine` and `golang:1.26-alpine` build-stage digests refreshed.
+  Alpine 3.24.1 ships the same CVE-clean OpenSSL (`libcrypto3`/`libssl3`
+  3.5.7-r0) that v0.5.4 pinned by digest.
+- **Dev-dependency bumps** (`web/`): playwright 1.60→1.61, typescript-eslint
+  8.60→8.62, vitest coverage 4.1.8→4.1.9, eslint 10.4→10.6, prettier 3.8→3.9
+  (+ eslint-plugin-svelte, vite). The prettier bump reformatted four
+  pre-existing files (whitespace only, no logic change).
+- **CI action bumps**: `actions/checkout` 6→7, `actions/setup-go` 6.4→6.5,
+  `golangci/golangci-lint-action` digest.
+
+### Removed
+
+- **Dead frontend code** flagged by ponytail-audit (grep-verified zero
+  references, no behaviour change): the unused `ProgressBar` `label` prop and
+  its branches/CSS, the `supportsWebSocket()` placeholder, and the orphaned
+  `FirmwareUpdateResult` type.
+
 ## [0.5.4] - 2026-07-01 — Shelly 2.0.0-beta3: alt-firmware + provisioning visibility
 
 ### Added

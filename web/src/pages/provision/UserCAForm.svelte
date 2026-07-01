@@ -137,8 +137,7 @@
     class="form-control font-monospace"
     rows="6"
     placeholder="-----BEGIN CERTIFICATE-----&#10;...&#10;-----END CERTIFICATE-----"
-    bind:value={pem}
-  ></textarea>
+    bind:value={pem}></textarea>
   {#if !pemLooksValid}
     <div class="text-warning mt-1 text-hint-md">
       Warning: content does not contain a PEM header.

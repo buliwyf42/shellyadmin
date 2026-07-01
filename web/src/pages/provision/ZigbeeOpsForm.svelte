@@ -177,8 +177,7 @@
             class="form-control font-monospace"
             rows="4"
             bind:value={state.writeAttr.attrsJSON}
-            placeholder={'[ { "id": 0, "type": "uint8", "value": 1 } ]'}
-          ></textarea>
+            placeholder={'[ { "id": 0, "type": "uint8", "value": 1 } ]'}></textarea>
           <div class="text-secondary text-hint-xs mt-1">
             ZCL type strings like uint8, int16, bool, string. The backend forwards as-is to
             <code>Zigbee.WriteAttr</code>.

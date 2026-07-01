@@ -218,8 +218,7 @@
             (settings.subnets = (e.currentTarget as HTMLTextAreaElement).value
               .split('\n')
               .map((v) => v.trim())
-              .filter(Boolean))}
-        ></textarea>
+              .filter(Boolean))}></textarea>
         <div class="row g-3">
           <div class="col-md-4">
             <label class="form-label" for="settings-scan-timeout">Scan timeout (s)</label><input
@@ -541,8 +540,7 @@
           class="form-control font-monospace mb-2"
           rows="10"
           bind:value={importText}
-          placeholder="Paste exported backup JSON here"
-        ></textarea>
+          placeholder="Paste exported backup JSON here"></textarea>
         <div class="d-flex gap-2 flex-wrap">
           <button
             class="btn btn-outline-light"

@@ -49,7 +49,7 @@ Die Anwendung ist als Einzel-Container-Deployment ausgelegt mit:
 
 ## Status
 
-In aktiver Entwicklung. Aktuelles Release ist `v0.5.4` (Shelly-Firmware-2.0.0-beta3-Unterstützung: read-only Sichtbarkeit alternativer Firmware-Varianten und des Secure-Provisioning-Status, additiv zu `/api/devices` und der MCP-Fläche); die UI/API-Baseline ist ansonsten seit `v0.4.0` unverändert. Das Projekt folgt vor v1.0 dem SemVer-Schema mit Vorbehalt: Minor-Versionen können Breaking Changes enthalten. SemVer-Garantien gelten ab `v1.0.0`.
+In aktiver Entwicklung. Aktuelles Release ist `v0.5.5` (Wartung: Dependency-Sammel-Update inkl. Alpine-3.24-Runtime-Base + Dead-Code-Cleanup, ohne Verhaltensänderung). Das letzte Feature-Release war `v0.5.4` (Shelly-Firmware-2.0.0-beta3-Unterstützung: read-only Sichtbarkeit alternativer Firmware-Varianten und des Secure-Provisioning-Status); die UI/API-Baseline ist ansonsten seit `v0.4.0` unverändert. Das Projekt folgt vor v1.0 dem SemVer-Schema mit Vorbehalt: Minor-Versionen können Breaking Changes enthalten. SemVer-Garantien gelten ab `v1.0.0`.
 
 Eingeplantes Einsatzprofil:
 

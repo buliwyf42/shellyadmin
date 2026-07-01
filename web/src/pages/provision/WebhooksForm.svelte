@@ -103,8 +103,7 @@
             class="form-control form-control-sm font-monospace"
             rows="3"
             bind:value={entry.urls}
-            placeholder="https://example.com/hook"
-          ></textarea>
+            placeholder="https://example.com/hook"></textarea>
         </div>
       </div>
     {/each}
