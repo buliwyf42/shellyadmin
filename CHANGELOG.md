@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.5.4] - 2026-07-01 — Shelly 2.0.0-beta3: alt-firmware + provisioning visibility
+
 ### Added
 
 - **Alternative firmware variants (`sys.alt`) surfaced read-only** — Shelly

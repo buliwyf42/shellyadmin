@@ -49,7 +49,7 @@ It is designed as a single-container deployment with:
 
 ## Status
 
-Under active development. Current release is `v0.5.3` (hardening: `shellyctl rotate-key`, device-response limits + JSON-RPC envelope validation, template-section validation, CI race detector + frontend coverage gate); the UI/API baseline is unchanged since `v0.4.0`. The project follows pre-1.0 semver: minor versions may carry breaking changes. Semver guarantees apply from `v1.0.0`.
+Under active development. Current release is `v0.5.4` (Shelly firmware 2.0.0-beta3 support: read-only visibility of alternative firmware variants and secure-provisioning status, additive to `/api/devices` and the MCP surface); the UI/API baseline is otherwise unchanged since `v0.4.0`. The project follows pre-1.0 semver: minor versions may carry breaking changes. Semver guarantees apply from `v1.0.0`.
 
 Intended posture:
 
