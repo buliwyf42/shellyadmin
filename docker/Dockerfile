@@ -1,4 +1,4 @@
-FROM node:26-alpine@sha256:144769ec3f32e8ee36b3cfde91e82bee25d9367b20f31a151f3f7eea3a2a8541 AS frontend
+FROM node:26-alpine@sha256:725aeba2364a9b16beae49e180d83bd597dbd0b15c47f1f28875c290bfd255b9 AS frontend
 WORKDIR /app/web
 COPY web/package*.json ./
 # --ignore-scripts blocks malicious postinstall hooks in compromised npm deps;
@@ -8,7 +8,7 @@ RUN npm ci --ignore-scripts
 COPY web/ .
 RUN npm run build
 
-FROM golang:1.26-alpine@sha256:f23e8b227fb4493eabe03bede4d5a32d04092da71962f1fb79b5f7d1e6c2a17f AS backend
+FROM golang:1.26-alpine@sha256:3ad57304ad93bbec8548a0437ad9e06a455660655d9af011d58b993f6f615648 AS backend
 WORKDIR /app
 ARG VERSION
 ARG VCS_REF=unknown
@@ -20,7 +20,7 @@ COPY --from=frontend /app/web/dist ./cmd/shellyctl/dist
 RUN V=${VERSION:-$(cat VERSION 2>/dev/null || echo "dev")} && \
     go build -ldflags="-s -w -X main.AppVersion=${V} -X main.CommitHash=${VCS_REF}" -o /shellyadmin ./cmd/shellyctl
 
-FROM alpine:3.23@sha256:fd791d74b68913cbb027c6546007b3f0d3bc45125f797758156952bc2d6daf40
+FROM alpine:3.24@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
 RUN apk add --no-cache ca-certificates tzdata su-exec
 RUN addgroup -S shelly && adduser -S -G shelly -h /app shelly
 # S14 — initialise /data and /tmp as shelly-owned at build time so a named
