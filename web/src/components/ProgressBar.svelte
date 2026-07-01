@@ -2,12 +2,10 @@
   export let done: number;
   export let total: number;
   export let running: boolean;
-  export let label: string | undefined = undefined;
   export let ariaLabel: string;
 
   $: pct = total > 0 ? Math.min(100, (done / total) * 100) : 0;
   $: determinate = total > 0;
-  $: labelInside = determinate && pct >= 25;
 </script>
 
 <div
@@ -23,15 +21,8 @@
     class="pb-fill"
     class:pb-running={running}
     style={determinate ? `width:${pct}%` : running ? 'width:100%' : 'width:0'}
-  >
-    {#if label && labelInside}
-      <span class="pb-label">{label}</span>
-    {/if}
-  </div>
+  ></div>
 </div>
-{#if label && !labelInside}
-  <span class="pb-label-below">{label}</span>
-{/if}
 
 <style>
   .pb-track {
@@ -78,19 +69,5 @@
     to {
       background-position: 40px 0;
     }
-  }
-
-  .pb-label {
-    position: relative;
-    z-index: 1;
-    white-space: nowrap;
-  }
-
-  .pb-label-below {
-    display: block;
-    margin-top: 0.25rem;
-    font-size: 0.8rem;
-    color: rgba(255, 255, 255, 0.6);
-    text-align: center;
   }
 </style>

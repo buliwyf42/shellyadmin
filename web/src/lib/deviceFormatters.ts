@@ -63,12 +63,6 @@ export function formatCoords(device: Device): string {
   return `${device.lat.toFixed(5)}, ${device.lon.toFixed(5)}`;
 }
 
-/** Currently always true — placeholder for future per-device websocket
- * capability gating. */
-export function supportsWebSocket(_device: Device): boolean {
-  return true;
-}
-
 /** "fresh" when the last refresh probe returned data, else "stale". */
 export function refreshState(device: Device): 'fresh' | 'stale' {
   return device.last_refresh_ok ? 'fresh' : 'stale';

@@ -358,14 +358,6 @@ export interface ProvisionResult {
   restart_required?: boolean;
 }
 
-/** Mirrors internal/core/firmware/firmware.go:UpdateResult. */
-export interface FirmwareUpdateResult {
-  ip: string;
-  mac: string;
-  status: string;
-  detail: string;
-}
-
 /** Mirrors internal/services/app.go:UploadUserCAResult. */
 export interface UploadUserCAResult {
   ip: string;
