@@ -450,6 +450,85 @@ func componentInstances(device models.Device, componentType string) []int {
 	return ids
 }
 
+// sysAltVariants extracts the alternative-firmware variants a device
+// advertises under Shelly.GetStatus → sys.alt (firmware 2.0.0+): a Zigbee or
+// Matter build for the same hardware. Read from the cached RawStatus — no
+// extra RPC, same source as componentInstances. Returns nil when the device
+// exposes none (the common case). Variants are sorted by id for stable output.
+func sysAltVariants(device models.Device) []models.AltFirmwareVariant {
+	altMap, ok := sysSubObject(device.RawStatus, "alt")
+	if !ok {
+		return nil
+	}
+	out := make([]models.AltFirmwareVariant, 0, len(altMap))
+	for id, raw := range altMap {
+		entry, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		v := models.AltFirmwareVariant{
+			ID:   id,
+			Name: stringField(entry["name"]),
+			Desc: stringField(entry["desc"]),
+		}
+		if stable, ok := entry["stable"].(map[string]any); ok {
+			v.Stable = stringField(stable["version"])
+		}
+		if beta, ok := entry["beta"].(map[string]any); ok {
+			v.Beta = stringField(beta["version"])
+		}
+		out = append(out, v)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out
+}
+
+// sysProvisioning returns the Shelly.GetStatus → sys.provisioning object
+// (secure-provisioning state, firmware 2.0.0+) as a raw map, or nil when the
+// device is not enrolled (fleet-wide default). Read-only passthrough.
+func sysProvisioning(device models.Device) map[string]any {
+	obj, ok := sysSubObject(device.RawStatus, "provisioning")
+	if !ok {
+		return nil
+	}
+	return obj
+}
+
+// sysSubObject pulls RawStatus → sys → <key> as a map. Shared by the alt /
+// provisioning derivers; both live under the device's sys component status.
+func sysSubObject(rawStatus, key string) (map[string]any, bool) {
+	if rawStatus == "" {
+		return nil, false
+	}
+	var status map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(rawStatus), &status); err != nil {
+		return nil, false
+	}
+	sysRaw, ok := status["sys"]
+	if !ok {
+		return nil, false
+	}
+	var sys map[string]any
+	if err := json.Unmarshal(sysRaw, &sys); err != nil {
+		return nil, false
+	}
+	obj, ok := sys[key].(map[string]any)
+	if !ok || len(obj) == 0 {
+		return nil, false
+	}
+	return obj, true
+}
+
+func stringField(v any) string {
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return ""
+}
+
 // parseInstancedActionID splits a "switch_toggle:0" form into ("switch_toggle", 0).
 // Returns the original id and -1 when there's no `:N` suffix — used by
 // ExecuteDeviceAction to dispatch component-bound actions back to their

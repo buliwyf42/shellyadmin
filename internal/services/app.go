@@ -352,6 +352,8 @@ func (s *AppService) GetDevices() ([]models.Device, error) {
 		devices[i].SwitchCount = len(componentInstances(devices[i], "switch"))
 		devices[i].CoverCount = len(componentInstances(devices[i], "cover"))
 		devices[i].LightCount = len(componentInstances(devices[i], "light"))
+		devices[i].FWAlt = sysAltVariants(devices[i])
+		devices[i].Provisioning = sysProvisioning(devices[i])
 	}
 	// M4 — refresh the inventory-size gauge on every read. GetDevices
 	// is called frequently enough by the SPA (every /api/devices)

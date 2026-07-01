@@ -1,3 +1,13 @@
+// AltFirmwareVariant is one alternative firmware build a device can run
+// (e.g. a Zigbee or Matter variant of the same hardware), from sys.alt.
+export interface AltFirmwareVariant {
+  id: string;
+  name: string;
+  desc: string;
+  stable?: string;
+  beta?: string;
+}
+
 // Device is the per-row shape the SPA consumes from /api/devices,
 // /api/devices/refresh, /api/devices/refresh-one, and (wrapped in
 // DeviceDetail) /api/devices/{target}. v0.3.0 (M8) split the wire
@@ -75,6 +85,10 @@ export interface Device {
   switch_count?: number;
   cover_count?: number;
   light_count?: number;
+  /** Alternative firmware variants (e.g. Zigbee/Matter builds) the device
+   * advertises under sys.alt (firmware 2.0.0+). Read-only — switching is not
+   * supported by the Shelly API. Absent for devices with no variants. */
+  fw_alt?: AltFirmwareVariant[];
   serial: string;
   is_new?: boolean;
   compliant: boolean;

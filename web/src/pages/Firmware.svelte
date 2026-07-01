@@ -238,6 +238,7 @@
         switchCount: d.switch_count,
         coverCount: d.cover_count,
         lightCount: d.light_count,
+        fwAlt: d.fw_alt ?? [],
         currentVer: d.fw,
         stableVer,
         betaVer,
@@ -559,6 +560,14 @@
             {:else}
               -
             {/if}
+            {#each row.fwAlt as alt (alt.id)}
+              <span
+                class="badge bg-warning text-dark ms-1"
+                title={`Alternative firmware available: ${alt.desc || alt.name}${alt.stable ? `\nstable: ${alt.stable}` : ''}${alt.beta ? `\nbeta: ${alt.beta}` : ''}\n(read-only — cannot be switched via ShellyAdmin)`}
+              >
+                alt: {alt.id}
+              </span>
+            {/each}
           </td>
           <td
             ><a href={`http://${row.ip}/`} target="_blank" rel="noreferrer noopener">{row.ip}</a

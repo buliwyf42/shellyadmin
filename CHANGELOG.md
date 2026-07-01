@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Alternative firmware variants (`sys.alt`) surfaced read-only** — Shelly
+  firmware 2.0.0-beta3 advertises alternative firmware builds for the same
+  hardware (e.g. Power Strip Gen4 / Mini 1PM Gen4 → Zigbee, Pro 3EM → Pro
+  Sensor Addon) under `Shelly.GetStatus` → `sys.alt`. ShellyAdmin now derives
+  these from the already-cached `RawStatus` (no extra RPC, no new DB column,
+  mirroring the `switch_count` deriver) into `Device.FWAlt`, exposed on
+  `/api/devices`, MCP `get_device`/`list_devices`, and as an `alt: <id>` badge
+  on the Firmware page's Model cell. **Visibility only** — `Shelly.Update` has
+  no `stage:"alt"` and the alt object carries no `url`, so switching a device
+  to a variant (e.g. flashing a plug to Zigbee firmware) is not possible via
+  the documented API and is done from the device's own web UI. The
+  `sys.provisioning` object (secure-provisioning state) rides the same read
+  into `Device.Provisioning`, surfaced in `get_device`.
+
 ## [0.5.3] - 2026-06-10
 
 Hardening release — items 1–8 from the June 2026 architecture/security

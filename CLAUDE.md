@@ -90,6 +90,16 @@ The Shelly Gen2 API has **no `OTA.SetConfig` / `Sys.SetAutoUpdate` / dedicated O
 
 Persisted on the Device row as `fw_auto_update` with values `""` (never read) | `off` | `stable` | `beta`. Read during every firmware check job. Bulk-settable via the Firmware page's "Auto → Off / Stable / Beta" buttons (action `set_auto_update`). Surfaced in compliance via the `auto_update_stage` rule.
 
+### Alternative firmware variants — `sys.alt` (firmware 2.0.0+), read-only
+
+Firmware 2.0.0-beta3 added an `alt` object: alternative firmware **variants** for the same hardware — a Zigbee or Matter build, or an add-on profile (e.g. Power Strip Gen4 → `PowerStripZB` "with Zigbee", Mini 1PM Gen4 → `Mini1PMG4ZB`, Pro 3EM → `Pro3EMProAddon`). It is a **map** keyed by variant id → `{name, desc, stable?{version,build_id}, beta?{version,build_id}}`, NOT a scalar third channel.
+
+**Source is `Shelly.GetStatus` → `sys.alt`**, not `Shelly.CheckForUpdate` (the changelog says CheckForUpdate but empirically the plugs only carry it in sys status; CheckForUpdate stayed stable+beta only). The scanner already fetches `Shelly.GetStatus` into `Device.RawStatus`, so **no extra RPC and no new DB column** — `sysAltVariants()` in `internal/services/actions.go` derives `Device.FWAlt []models.AltFirmwareVariant` from the cached RawStatus at `GetDevices()` time, exactly like `SwitchCount`. Surfaced in `/api/devices` (DeviceListView) + MCP `get_device`/`list_devices`, and as an `alt: <id>` badge in the Model cell of the Firmware page.
+
+**Read-only, by design.** `Shelly.Update` accepts only `stage` (stable|beta) or `url` — there is **no `stage:"alt"`** and the alt object carries **no `url`**. So a variant/protocol switch (e.g. flashing a plug to Zigbee firmware) is NOT wired and can't be, with the currently documented API. ShellyAdmin only *shows* which devices could switch (useful for the ZHA fleet); the actual switch is done via the device's own web UI. If Shelly later documents an install path, wiring lives at the `TriggerUpdate*` seam in `internal/core/firmware/firmware.go`.
+
+`sys.provisioning` (secure-provisioning state, same firmware) rides the same RawStatus read: `sysProvisioning()` → `Device.Provisioning map[string]any`, surfaced in `get_device`. Absent fleet-wide until a device is enrolled in secure provisioning.
+
 Historical context: the `ota` provisioner section and an `ota_auto_update` compliance field that called `OTA.SetConfig` were **fully removed in v0.0.16** (the v0.0.14 removal was partial). If an `ota` block still appears in a user-supplied JSON template, it falls through to the catch-all handler (calls `Ota.SetConfig` → 404 → gracefully skipped).
 
 ### mqtt.ssl_ca valid values

@@ -83,9 +83,32 @@ type Device struct {
 	// (not persisted). Used by the Devices-page Capabilities column to
 	// show at-a-glance how many switch/cover/light instances each device
 	// exposes. 0 = device doesn't expose this component type.
-	SwitchCount int    `json:"switch_count"`
-	CoverCount  int    `json:"cover_count"`
-	LightCount  int    `json:"light_count"`
-	RawConfig   string `json:"-"`
-	RawStatus   string `json:"-"`
+	SwitchCount int `json:"switch_count"`
+	CoverCount  int `json:"cover_count"`
+	LightCount  int `json:"light_count"`
+	// FWAlt lists alternative firmware variants the device advertises under
+	// Shelly.GetStatus → sys.alt (firmware 2.0.0+): a different protocol/OS
+	// build for the same hardware — e.g. a Zigbee or Matter variant. Derived
+	// from RawStatus at GetDevices time (not persisted). nil = none offered.
+	// Read-only: switching to an alt variant is NOT wired — Shelly.Update
+	// exposes no stage/url to select one (see CLAUDE.md firmware section).
+	FWAlt []AltFirmwareVariant `json:"fw_alt,omitempty"`
+	// Provisioning mirrors Shelly.GetStatus → sys.provisioning (secure-
+	// provisioning state, firmware 2.0.0+). Derived from RawStatus; absent
+	// until a device is enrolled in secure provisioning. nil = not present.
+	Provisioning map[string]any `json:"provisioning,omitempty"`
+	RawConfig    string         `json:"-"`
+	RawStatus    string         `json:"-"`
+}
+
+// AltFirmwareVariant describes one alternative firmware build a device can run
+// (e.g. a Zigbee or Matter variant of the same hardware), flattened from the
+// Shelly.GetStatus → sys.alt map. Stable/Beta hold the available version
+// strings for that variant's channels (empty when the variant offers none).
+type AltFirmwareVariant struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Desc   string `json:"desc"`
+	Stable string `json:"stable,omitempty"`
+	Beta   string `json:"beta,omitempty"`
 }

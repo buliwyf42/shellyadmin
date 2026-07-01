@@ -77,6 +77,9 @@ type DeviceListView struct {
 	SwitchCount        int      `json:"switch_count"`
 	CoverCount         int      `json:"cover_count"`
 	LightCount         int      `json:"light_count"`
+	// FWAlt surfaces alternative-firmware variants (e.g. Zigbee/Matter builds)
+	// the device advertises under sys.alt. Read-only visibility — see Device.
+	FWAlt []AltFirmwareVariant `json:"fw_alt,omitempty"`
 }
 
 // ToListView projects a full Device down to the slim DeviceListView
@@ -140,6 +143,7 @@ func (d Device) ToListView() DeviceListView {
 		SwitchCount:        d.SwitchCount,
 		CoverCount:         d.CoverCount,
 		LightCount:         d.LightCount,
+		FWAlt:              d.FWAlt,
 	}
 }
 
