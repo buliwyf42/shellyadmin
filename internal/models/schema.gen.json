@@ -686,6 +686,15 @@
           "tag": "fw"
         },
         {
+          "name": "FWAlt",
+          "json_name": "fw_alt",
+          "go_type": "[]shellyadmin/internal/models.AltFirmwareVariant",
+          "tag": "fw_alt,omitempty",
+          "options": [
+            "omitempty"
+          ]
+        },
+        {
           "name": "FWAutoUpdate",
           "json_name": "fw_auto_update",
           "go_type": "string",
@@ -840,6 +849,15 @@
           "json_name": "power_w",
           "go_type": "*float64",
           "tag": "power_w"
+        },
+        {
+          "name": "Provisioning",
+          "json_name": "provisioning",
+          "go_type": "map[string]interface {}",
+          "tag": "provisioning,omitempty",
+          "options": [
+            "omitempty"
+          ]
         },
         {
           "name": "Scheme",

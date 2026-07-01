@@ -1,8 +1,10 @@
 package services
 
-import "testing"
+import (
+	"testing"
 
-import "shellyadmin/internal/models"
+	"shellyadmin/internal/models"
+)
 
 // Real sys.alt payload shape from a Power Strip Gen4 (Zigbee variant) and a
 // Pro 3EM (Pro Sensor Addon variant), plus a device without alt.
