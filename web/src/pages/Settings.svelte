@@ -17,7 +17,8 @@
     gen2_badge_class: 'bg-warning text-dark',
     gen3_badge_class: 'bg-success',
     gen4_badge_class: 'bg-info text-dark',
-    firmware_install_timeout: 300,
+    firmware_install_timeout: 600,
+    firmware_install_quiet_period: 150,
     firmware_install_poll_interval: 5,
     firmware_check_interval: 0,
     mcp_enabled: false,
@@ -295,7 +296,22 @@
               min="60"
               step="30"
               bind:value={settings.firmware_install_timeout}
-              title="Per-device timeout: how long the install_job waits for a device to reboot onto the new firmware before marking it 'unknown'. Default 300 (5 min)."
+              title="Per-device timeout: how long the install_job waits for a device to reboot onto the new firmware before marking it 'unknown'. Default 600 (10 min). Raised automatically to at least the quiet period + 150s."
+            />
+          </div>
+          <div class="col-md-4">
+            <label class="form-label" for="settings-firmware-install-quiet-period">
+              Install quiet period (s)
+            </label>
+            <input
+              id="settings-firmware-install-quiet-period"
+              class="form-control"
+              type="number"
+              min="0"
+              max="600"
+              step="10"
+              bind:value={settings.firmware_install_quiet_period}
+              title="How long the install_job leaves a device completely alone after triggering the update. Default 150. An in-flight OTA has very little heap to spare — answering RPCs during the download stalls it at 0%, so polling only starts once this has elapsed. Lower it only if you know the device downloads faster."
             />
           </div>
           <div class="col-md-4">
@@ -310,7 +326,7 @@
               max="60"
               step="1"
               bind:value={settings.firmware_install_poll_interval}
-              title="How often the install_job re-queries a device's firmware version during the post-trigger wait. Default 5; bounded 1–60."
+              title="How often the install_job re-queries a device's firmware version once the quiet period has elapsed. Default 5; bounded 1–60."
             />
           </div>
         </div>

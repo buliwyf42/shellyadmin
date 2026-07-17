@@ -4,6 +4,57 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.5.6] - 2026-07-17 — Stop starving the OTA we're waiting for
+
+Firmware installs triggered from ShellyAdmin failed on every attempt, while the
+same update applied fine from Shelly's cloud rollout or the device's own web UI.
+The cause was ShellyAdmin itself, and the fallout from Shelly firmware 2.0.0's
+phased rollout made it impossible to see.
+
+### Fixed
+
+- **The install job killed the update it was waiting for.** `installOne` began
+  polling `Shelly.GetDeviceInfo` every 5s immediately after triggering
+  `Shelly.Update`. A device downloading firmware buffers a ~3.6 MB image with
+  almost no heap to spare (~62 KB free on a Gen3), and answering those RPCs
+  starves the download — it stalls at 0%, silently, and never recovers. The job
+  then waited out its timeout and reported the healthy device as `unknown`
+  ("device still on X after 5 min").
+
+  Measured on two identical Plug Gen3s, same firmware, same trigger: unpolled
+  reached 100% in **2:25** and rebooted onto 2.0.0; polled every 5s sat at
+  **0% for 2.5 min** and never moved. The job now leaves the device strictly
+  alone for `firmware_install_quiet_period` before it starts polling — nothing
+  can change until the device flashes and reboots anyway.
+
+- **Available-update detection compared version strings, not versions.**
+  `StableUpdate`/`BetaUpdate` were `channelVer != currentVer`, so a device
+  running a beta — which sits *ahead* of its model's stable channel — was
+  offered the older stable as an "update". During the phased 2.0.0 rollout that
+  mislabelled 36 of 44 fleet devices (on `2.0.0-beta3`, offered stable `1.7.5` /
+  `1.7.99-powerstripg4prod1` / `1.8.99-plugmg3prod0`), and every resulting
+  install was silently ignored by the device. Now `firmware.IsNewer` orders
+  versions with `x/mod/semver`, which gets prerelease < release right.
+  Unparseable versions fall back to string inequality, so an odd vendor string
+  can fail to suppress a downgrade but can never hide a real update.
+
+- **A successful install could be reported as `unknown`.** The poll loop required
+  an exact match against the version predicted by the last `firmware_check`. A
+  device installing anything else polled to the timeout despite having updated.
+  Any move off the original version now counts as landed.
+
+### Added
+
+- **`firmware_install_quiet_period`** app setting (default 150s, bounds
+  `[0, 600]`): how long the install job leaves a device untouched after the
+  trigger. Surfaced in the Settings UI.
+
+### Changed
+
+- **`firmware_install_timeout` default 300 → 600s.** `Normalize` now also forces
+  it to at least `quiet_period + 150`, which repairs existing settings rows
+  carrying the old 300 — too tight once a quiet period exists.
+
 ## [0.5.5] - 2026-07-01 — Dependency roll-up + dead-code cleanup
 
 Housekeeping release: no runtime behaviour change. Bundles the Dependabot

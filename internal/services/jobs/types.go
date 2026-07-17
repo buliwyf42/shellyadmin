@@ -34,7 +34,8 @@ const (
 // upstream Shelly cloud rate-limits firmware fetches around 5 parallel
 // installs.
 const (
-	DefaultFirmwareInstallTimeout      = 5 * time.Minute
+	DefaultFirmwareInstallTimeout      = 10 * time.Minute
+	DefaultFirmwareInstallQuietPeriod  = 150 * time.Second
 	DefaultFirmwareInstallPollInterval = 5 * time.Second
 	FirmwareInstallConcurrency         = 5
 )
@@ -130,12 +131,26 @@ func RefreshJobStale(job models.Job, now time.Time) (bool, error) {
 }
 
 // FirmwareInstallTimeoutFromSettings returns the per-device install cap
-// (5 min default if unset).
+// (10 min default if unset).
 func FirmwareInstallTimeoutFromSettings(s models.AppSettings) time.Duration {
 	if s.FirmwareInstallTimeout > 0 {
 		return time.Duration(s.FirmwareInstallTimeout * float64(time.Second))
 	}
 	return DefaultFirmwareInstallTimeout
+}
+
+// FirmwareInstallQuietPeriodFromSettings returns how long installOne must keep
+// its hands off a device after triggering the update. See the field comment on
+// models.AppSettings.FirmwareInstallQuietPeriod for why this exists: polling an
+// in-flight OTA starves it. Zero is honoured (opt-out), so this cannot use the
+// >0 shape of the helpers above — a 0 in a settings row that pre-dates the
+// field is indistinguishable from a deliberate 0, and defaulting is the safer
+// reading for rows written before v0.5.6.
+func FirmwareInstallQuietPeriodFromSettings(s models.AppSettings) time.Duration {
+	if s.FirmwareInstallQuietPeriod > 0 {
+		return time.Duration(s.FirmwareInstallQuietPeriod * float64(time.Second))
+	}
+	return DefaultFirmwareInstallQuietPeriod
 }
 
 // FirmwareInstallPollIntervalFromSettings mirrors the timeout helper above.

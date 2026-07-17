@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/mod/semver"
+
 	"shellyadmin/internal/core/clock"
 	"shellyadmin/internal/core/shellyclient"
 	"shellyadmin/internal/models"
@@ -137,10 +139,31 @@ func CheckOneOnClient(ctx context.Context, client *shellyclient.Client, d models
 	if beta, ok := payload["beta"].(map[string]any); ok {
 		res.BetaVer = stringValue(beta["version"])
 	}
-	res.StableUpdate = res.StableVer != "" && res.StableVer != res.CurrentVer
-	res.BetaUpdate = res.BetaVer != "" && res.BetaVer != res.CurrentVer
+	res.StableUpdate = res.StableVer != "" && IsNewer(res.StableVer, res.CurrentVer)
+	res.BetaUpdate = res.BetaVer != "" && IsNewer(res.BetaVer, res.CurrentVer)
 	res.Status = "ok"
 	return res
+}
+
+// IsNewer reports whether candidate is a strictly newer version than current.
+//
+// This must not be a string comparison. A device running a beta sits *ahead* of
+// its model's stable channel (2.0.0-beta3 vs stable 1.7.5 during the phased
+// 2.0.0 rollout), and "differs from current" would advertise that older stable
+// as an available update. Shelly.Update then accepts the call and silently does
+// nothing, which surfaces as a five-minute wait ending in "unknown".
+//
+// Shelly versions are semver-shaped ("2.0.0", "2.0.0-beta3", "1.7.99-plugmg3prod0"),
+// so semver decides the ordering — including prerelease < release, which is the
+// case that matters here. Unparseable versions fall back to the old
+// string-inequality behaviour so an odd vendor string can never *hide* a real
+// update; it can only fail to suppress a downgrade.
+func IsNewer(candidate, current string) bool {
+	c, cur := "v"+candidate, "v"+current
+	if !semver.IsValid(c) || !semver.IsValid(cur) {
+		return candidate != current
+	}
+	return semver.Compare(c, cur) > 0
 }
 
 // TriggerUpdate retains the original signature; callers wishing to thread

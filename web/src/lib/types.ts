@@ -161,9 +161,11 @@ export interface AppSettings {
   gen2_badge_class?: string;
   gen3_badge_class?: string;
   gen4_badge_class?: string;
-  /** Per-device install timeout in seconds. Default 300. */
+  /** Per-device install timeout in seconds. Default 600. Forced to at least firmware_install_quiet_period + 150. */
   firmware_install_timeout?: number;
-  /** How often the install_job polls a device's firmware version while waiting for the reboot. Seconds; default 5; bounded [1, 60]. */
+  /** How long the install_job leaves a device untouched after triggering the update, before polling. Seconds; default 150; bounded [0, 600]. Polling an in-flight OTA starves it. */
+  firmware_install_quiet_period?: number;
+  /** How often the install_job polls a device's firmware version once the quiet period has elapsed. Seconds; default 5; bounded [1, 60]. */
   firmware_install_poll_interval?: number;
   /** Scheduled firmware check cadence in seconds. 0 = disabled. */
   firmware_check_interval?: number;

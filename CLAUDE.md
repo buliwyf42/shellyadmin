@@ -75,6 +75,57 @@ Shelly uses **non-standard JSON-RPC error code `404`** (not `-32601`) when a met
 
 `isMethodNotFound()` in `provisioner.go` handles both `404` and `-32601` for safety.
 
+### Firmware 2.0.0 auth — brute-force protection → `429`
+
+Firmware **2.0.0** (2026-07-13) added device-side brute-force protection plus RFC-7616-compliant nonce management. Fleet operations (`bulk_action`, `refresh_all_devices`) run against a device with **wrong or stale credentials** can trip a per-device lockout, surfaced as HTTP `429 Too Many Requests`. No code fix is needed — `shellyclient` is already 2.0.0-shaped: RFC-7616 Digest with per-client nonce reuse + `nc` counter, a **stale-nonce retry** (re-parses the fresh challenge on a second 401, `client.go:316-358`), and `429` pass-through (`client.go:355`). Operational takeaway only: repeated wrong-credential attempts across the fleet will lock devices, so fix the credential before re-running a bulk job.
+
+### Polling an in-flight OTA starves it — never touch a downloading device
+
+**The single most expensive bug found in this repo so far (v0.5.6).** A Gen2+ device
+downloading firmware buffers a ~3.6 MB image with almost no heap to spare (`hf≈62 KB`
+free on a Gen3 at OTA start). Answering a concurrent `Shelly.GetDeviceInfo` RPC costs
+enough of that heap to **stall the download — at 0%, silently, forever**. It does not
+error, it does not abort, it just never progresses; the device stays healthy and on the
+old version.
+
+`installOne` used to poll `Shelly.GetDeviceInfo` every 5s *starting immediately after the
+trigger*, so ShellyAdmin reliably killed the very update it was waiting for, then reported
+`status="unknown"` / "device still on X after 5 min". Every ShellyAdmin-driven install
+failed this way, while Shelly's cloud rollout and the device's own web UI succeeded —
+neither polls.
+
+Measured 2026-07-17 on two identical Plug Gen3s, same firmware, same trigger:
+
+| Device | Polling | Result |
+| ------ | ------- | ------ |
+| `.92` shelly-plug3-12 | none | `ota_progress` 0→100% in **2:25**, `ota_success`, rebooted onto 2.0.0 |
+| `.59` shelly-plug3-08 | every 5s | `ota_progress` **0%, 0%, 0%, 0%** for 2.5 min, never moved |
+
+The fix is the `FirmwareInstallQuietPeriod` knob (default 150s): after triggering, the job
+leaves the device strictly alone, *then* polls. Nothing is lost by waiting — the version
+cannot change until the device flashes and reboots. **Do not "optimise" the quiet period
+away, and do not add any new device call (not even a cheap one) between the trigger and
+the reboot.** The device's own OTA timeout is 3600s, so it is patient; we must be too.
+
+**Diagnostic:** `curl -N http://<ip>/debug/log` streams the device's log as plain text over
+HTTP — no config change, no MQTT/websocket detour. It carries `ota_begin` / `ota_progress` /
+`ota_success` events and the resolved `fwcdn.shelly.cloud` URL, and is the fastest way to see
+what an OTA is actually doing. Note the stream itself is an HTTP connection to the device —
+useful for observing, but it means the log is not free either.
+
+### Update availability is a version comparison, not a string compare
+
+`firmware.IsNewer` (x/mod/semver, `internal/core/firmware/firmware.go`) decides
+`Result.StableUpdate` / `BetaUpdate`. It must never go back to `!=`: a device on a beta sits
+**ahead** of its model's stable channel, so string inequality advertises the older stable as
+an available update. During the phased 2.0.0 rollout that mislabelled **36 of 44** fleet
+devices (on `2.0.0-beta3`, offered stable `1.7.5` / `1.7.99-powerstripg4prod1` /
+`1.8.99-plugmg3prod0`), and each triggered install was silently ignored by the device.
+
+Shelly versions are semver-shaped, so prerelease < release gives `2.0.0-beta3 < 2.0.0`
+correctly. Unparseable versions fall back to string inequality — an odd vendor string can
+fail to suppress a downgrade, but can never *hide* a real update.
+
 ### OTA configuration on Gen2+ — implemented via `Schedule.*`, not `OTA.SetConfig`
 
 The Shelly Gen2 API has **no `OTA.SetConfig` / `Sys.SetAutoUpdate` / dedicated OTA-config method**. The `OTA.*` methods that DO exist (`OTA.Start/Write/Data/Abort/Commit/Revert`) are byte-level chunked-upload plumbing, not configuration. Direct firmware update lives at:
@@ -94,7 +145,7 @@ Persisted on the Device row as `fw_auto_update` with values `""` (never read) | 
 
 Firmware 2.0.0-beta3 added an `alt` object: alternative firmware **variants** for the same hardware — a Zigbee or Matter build, or an add-on profile (e.g. Power Strip Gen4 → `PowerStripZB` "with Zigbee", Mini 1PM Gen4 → `Mini1PMG4ZB`, Pro 3EM → `Pro3EMProAddon`). It is a **map** keyed by variant id → `{name, desc, stable?{version,build_id}, beta?{version,build_id}}`, NOT a scalar third channel.
 
-**Source is `Shelly.GetStatus` → `sys.alt`**, not `Shelly.CheckForUpdate` (the changelog says CheckForUpdate but empirically the plugs only carry it in sys status; CheckForUpdate stayed stable+beta only). The scanner already fetches `Shelly.GetStatus` into `Device.RawStatus`, so **no extra RPC and no new DB column** — `sysAltVariants()` in `internal/services/actions.go` derives `Device.FWAlt []models.AltFirmwareVariant` from the cached RawStatus at `GetDevices()` time, exactly like `SwitchCount`. Surfaced in `/api/devices` (DeviceListView) + MCP `get_device`/`list_devices`, and as an `alt: <id>` badge in the Model cell of the Firmware page.
+**Source is `Shelly.GetStatus` → `sys.alt`**, not `Shelly.CheckForUpdate` — a deliberate choice, not the only option: as of firmware **2.0.0 stable** (2026-07-13) the `alt` object *is* also carried in `Shelly.CheckForUpdate` (during the betas it lived only in sys status, so the earlier note that "CheckForUpdate stayed stable+beta only" is now outdated). We keep reading `sys.alt` because it's free — the scanner already fetches `Shelly.GetStatus` into `Device.RawStatus`, so **no extra RPC and no new DB column** — `sysAltVariants()` in `internal/services/actions.go` derives `Device.FWAlt []models.AltFirmwareVariant` from the cached RawStatus at `GetDevices()` time, exactly like `SwitchCount`. Surfaced in `/api/devices` (DeviceListView) + MCP `get_device`/`list_devices`, and as an `alt: <id>` badge in the Model cell of the Firmware page.
 
 **Read-only, by design.** `Shelly.Update` accepts only `stage` (stable|beta) or `url` — there is **no `stage:"alt"`** and the alt object carries **no `url`**. So a variant/protocol switch (e.g. flashing a plug to Zigbee firmware) is NOT wired and can't be, with the currently documented API. ShellyAdmin only *shows* which devices could switch (useful for the ZHA fleet); the actual switch is done via the device's own web UI. If Shelly later documents an install path, wiring lives at the `TriggerUpdate*` seam in `internal/core/firmware/firmware.go`.
 
@@ -222,8 +273,9 @@ Defined in `models.AppSettings` (`internal/models/settings.go`), normalised on l
 
 | Field                         | JSON key                         | Default     | Bounds      | Notes                                                                                         |
 | ----------------------------- | -------------------------------- | ----------- | ----------- | --------------------------------------------------------------------------------------------- |
-| `FirmwareInstallTimeout`      | `firmware_install_timeout`       | 300 (5 min) | `> 0`       | Per-device cap before install_job marks "unknown"                                             |
-| `FirmwareInstallPollInterval` | `firmware_install_poll_interval` | 5           | `[1, 60]` s | How often the install_job re-queries device firmware while waiting for reboot (added v0.1.13) |
+| `FirmwareInstallTimeout`      | `firmware_install_timeout`       | 600 (10 min) | `> 0`, and `≥ quiet + 150` | Per-device cap before install_job marks "unknown". Normalize forces the floor over the quiet period, which also repairs pre-v0.5.6 rows stuck at 300 |
+| `FirmwareInstallQuietPeriod`  | `firmware_install_quiet_period`  | 150         | `[0, 600]` s | How long install_job leaves the device **completely alone** after the trigger. Load-bearing — see the OTA-starvation quirk above (v0.5.6)      |
+| `FirmwareInstallPollInterval` | `firmware_install_poll_interval` | 5           | `[1, 60]` s | How often the install_job re-queries device firmware **after** the quiet period (added v0.1.13)                                               |
 | `FirmwareCheckInterval`       | `firmware_check_interval`        | 0 (off)     | `≥ 0` s     | Periodic firmware_check job cadence; 0 disables the scheduler                                 |
 
 The pattern for adding a new knob:

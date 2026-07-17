@@ -14,12 +14,25 @@ type AppSettings struct {
 	Gen4BadgeClass      string   `json:"gen4_badge_class"`
 	// FirmwareInstallTimeout caps how long an individual device may take to
 	// reboot onto the new firmware before the install_job marks it "unknown".
-	// Seconds; default 300 (5 min). Per-device, not job-total.
+	// Seconds; default 600 (10 min). Per-device, not job-total. Must comfortably
+	// exceed FirmwareInstallQuietPeriod plus the download itself (~2.5 min for a
+	// 3.6 MB Gen3 image), or the job gives up while the OTA is still healthy.
 	FirmwareInstallTimeout float64 `json:"firmware_install_timeout"`
+	// FirmwareInstallQuietPeriod is how long the install_job leaves a device
+	// completely alone after triggering Shelly.Update, before it starts polling
+	// for the version change. Seconds; default 150. Bounded to [0, 600].
+	//
+	// This is not politeness — it is load-bearing. An in-flight OTA buffers the
+	// firmware image with very little heap to spare (~60 KB free on a Gen3), and
+	// answering concurrent Shelly.GetDeviceInfo RPCs starves the download: it
+	// stalls at 0% and never recovers. Measured on two identical Plug Gen3s:
+	// unpolled reached 100% in 2:25, while polling every 5s held it at 0% for
+	// 2.5 min until the job timed out. Poll *after* the download, never during.
+	FirmwareInstallQuietPeriod float64 `json:"firmware_install_quiet_period"`
 	// FirmwareInstallPollInterval is how often the install_job re-queries a
-	// device's reported firmware version while waiting for the reboot. Seconds;
-	// default 5. Bounded to [1, 60] in Normalize — too aggressive hammers slow
-	// devices, too slow makes the UI feel stuck.
+	// device's reported firmware version once the quiet period above has
+	// elapsed. Seconds; default 5. Bounded to [1, 60]. Safe at this cadence
+	// only because by then the device is rebooting, not downloading.
 	FirmwareInstallPollInterval float64 `json:"firmware_install_poll_interval"`
 	// FirmwareCheckInterval triggers a periodic firmware_check job at the
 	// given cadence in seconds. 0 disables the scheduler (manual-only). The
@@ -151,7 +164,8 @@ func DefaultSettings() AppSettings {
 		Gen2BadgeClass:              "bg-warning text-dark",
 		Gen3BadgeClass:              "bg-success",
 		Gen4BadgeClass:              "bg-info text-dark",
-		FirmwareInstallTimeout:      300,
+		FirmwareInstallTimeout:      600,
+		FirmwareInstallQuietPeriod:  150,
 		FirmwareInstallPollInterval: 5,
 		FirmwareCheckInterval:       0,
 		AuditRetentionDays:          90,
@@ -189,7 +203,20 @@ func (s *AppSettings) Normalize() {
 		s.Gen4BadgeClass = "bg-info text-dark"
 	}
 	if s.FirmwareInstallTimeout <= 0 {
-		s.FirmwareInstallTimeout = 300
+		s.FirmwareInstallTimeout = 600
+	}
+	if s.FirmwareInstallQuietPeriod < 0 {
+		s.FirmwareInstallQuietPeriod = 0
+	} else if s.FirmwareInstallQuietPeriod > 600 {
+		s.FirmwareInstallQuietPeriod = 600
+	}
+	// The two knobs interact: the job spends the quiet period not looking, so a
+	// timeout that barely exceeds it would give up while the download is still
+	// running and report a healthy OTA as "unknown". Keep at least a download's
+	// worth of polling window on top. This also repairs settings rows carrying
+	// the pre-v0.5.6 default of 300, which is too tight once a quiet period exists.
+	if min := s.FirmwareInstallQuietPeriod + 150; s.FirmwareInstallTimeout < min {
+		s.FirmwareInstallTimeout = min
 	}
 	if s.FirmwareInstallPollInterval <= 0 {
 		s.FirmwareInstallPollInterval = 5

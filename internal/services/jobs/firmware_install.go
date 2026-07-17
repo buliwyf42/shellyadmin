@@ -61,21 +61,23 @@ func (s *Service) StartFirmwareInstall(macs []string, stage string) (int64, int,
 		return 0, 0, err
 	}
 	timeout := DefaultFirmwareInstallTimeout
+	quietPeriod := DefaultFirmwareInstallQuietPeriod
 	pollInterval := DefaultFirmwareInstallPollInterval
 	if settings, err := s.store.GetSettings(); err == nil {
 		timeout = FirmwareInstallTimeoutFromSettings(settings)
+		quietPeriod = FirmwareInstallQuietPeriodFromSettings(settings)
 		pollInterval = FirmwareInstallPollIntervalFromSettings(settings)
 	}
 	bg := s.host.BackgroundJobs()
 	bg.Add(1)
 	go func() {
 		defer bg.Done()
-		s.runFirmwareInstallJob(jobID, targetMACs, stage, index, timeout, pollInterval)
+		s.runFirmwareInstallJob(jobID, targetMACs, stage, index, timeout, quietPeriod, pollInterval)
 	}()
 	return jobID, len(targetMACs), nil
 }
 
-func (s *Service) runFirmwareInstallJob(jobID int64, macs []string, stage string, index map[string]models.Device, timeout time.Duration, pollInterval time.Duration) {
+func (s *Service) runFirmwareInstallJob(jobID int64, macs []string, stage string, index map[string]models.Device, timeout time.Duration, quietPeriod time.Duration, pollInterval time.Duration) {
 	requested := make([]string, 0, len(macs))
 	for _, mac := range macs {
 		requested = append(requested, "mac:"+mac)
@@ -150,7 +152,7 @@ func (s *Service) runFirmwareInstallJob(jobID int64, macs []string, stage string
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			s.installOne(jobID, i, mac, stage, index[mac], timeout, pollInterval, setResult, persistProgress)
+			s.installOne(jobID, i, mac, stage, index[mac], timeout, quietPeriod, pollInterval, setResult, persistProgress)
 		}()
 	}
 	wg.Wait()
@@ -165,7 +167,7 @@ func (s *Service) runFirmwareInstallJob(jobID int64, macs []string, stage string
 	}
 }
 
-func (s *Service) installOne(jobID int64, idx int, mac, stage string, device models.Device, timeout time.Duration, pollInterval time.Duration, setResult func(int, func(*FirmwareInstallResult)), persistProgress func()) {
+func (s *Service) installOne(jobID int64, idx int, mac, stage string, device models.Device, timeout time.Duration, quietPeriod time.Duration, pollInterval time.Duration, setResult func(int, func(*FirmwareInstallResult)), persistProgress func()) {
 	shutdown := s.host.ShutdownContext()
 	if shutdown.Err() != nil {
 		setResult(idx, func(r *FirmwareInstallResult) {
@@ -198,6 +200,24 @@ func (s *Service) installOne(jobID int64, idx int, mac, stage string, device mod
 	deadline := time.Now().Add(timeout)
 	initialVer := device.FW
 	expected := TargetVersion(device, stage)
+
+	// Leave the device strictly alone while it downloads. Every RPC we send
+	// during an OTA competes for the same scarce heap the image is buffered in,
+	// and the download stalls at 0% rather than failing — so the old "poll
+	// immediately every 5s" loop reliably killed the very update it was watching
+	// for. There is nothing worth learning here anyway: the version cannot change
+	// until the device flashes and reboots.
+	select {
+	case <-shutdown.Done():
+		setResult(idx, func(r *FirmwareInstallResult) {
+			r.Status = "unknown"
+			r.Detail = "service shutting down"
+		})
+		persistProgress()
+		return
+	case <-time.After(quietPeriod):
+	}
+
 	for {
 		if shutdown.Err() != nil {
 			setResult(idx, func(r *FirmwareInstallResult) {
@@ -230,10 +250,12 @@ func (s *Service) installOne(jobID int64, idx int, mac, stage string, device mod
 		if err != nil || ver == "" {
 			continue
 		}
-		// Success criteria: version matches the expected target (when known)
-		// OR the version simply moved off the original.
-		matched := (expected != "" && ver == expected) || (expected == "" && ver != initialVer)
-		if !matched {
+		// Success criterion: the running version moved. `expected` is only a
+		// prediction from the last firmware_check, so gating on an exact match
+		// would poll to the timeout and report "unknown" whenever the device
+		// installs something other than predicted — a successful update read as
+		// a failure. Any movement off the original means the OTA landed.
+		if ver == initialVer {
 			continue
 		}
 		// Persist the new firmware on the device row and clear the channel's
