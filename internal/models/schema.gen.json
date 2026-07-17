@@ -87,6 +87,12 @@
           "tag": "firmware_install_poll_interval"
         },
         {
+          "name": "FirmwareInstallQuietPeriod",
+          "json_name": "firmware_install_quiet_period",
+          "go_type": "float64",
+          "tag": "firmware_install_quiet_period"
+        },
+        {
           "name": "FirmwareInstallTimeout",
           "json_name": "firmware_install_timeout",
           "go_type": "float64",
