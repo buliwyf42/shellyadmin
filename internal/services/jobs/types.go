@@ -139,13 +139,12 @@ func FirmwareInstallTimeoutFromSettings(s models.AppSettings) time.Duration {
 	return DefaultFirmwareInstallTimeout
 }
 
-// FirmwareInstallQuietPeriodFromSettings returns how long installOne must keep
-// its hands off a device after triggering the update. See the field comment on
-// models.AppSettings.FirmwareInstallQuietPeriod for why this exists: polling an
-// in-flight OTA starves it. Zero is honoured (opt-out), so this cannot use the
-// >0 shape of the helpers above — a 0 in a settings row that pre-dates the
-// field is indistinguishable from a deliberate 0, and defaulting is the safer
-// reading for rows written before v0.5.6.
+// FirmwareInstallQuietPeriodFromSettings returns how long installOne keeps its
+// hands off a device after triggering the update (150s default if unset). Zero
+// is NOT an opt-out: it means "unset" and takes the default, matching
+// models.AppSettings.Normalize — a row written before the field existed carries
+// 0 and must not silently disable the wait. See the field comment on
+// models.AppSettings.FirmwareInstallQuietPeriod for the rationale.
 func FirmwareInstallQuietPeriodFromSettings(s models.AppSettings) time.Duration {
 	if s.FirmwareInstallQuietPeriod > 0 {
 		return time.Duration(s.FirmwareInstallQuietPeriod * float64(time.Second))

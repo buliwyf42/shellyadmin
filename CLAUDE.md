@@ -79,39 +79,51 @@ Shelly uses **non-standard JSON-RPC error code `404`** (not `-32601`) when a met
 
 Firmware **2.0.0** (2026-07-13) added device-side brute-force protection plus RFC-7616-compliant nonce management. Fleet operations (`bulk_action`, `refresh_all_devices`) run against a device with **wrong or stale credentials** can trip a per-device lockout, surfaced as HTTP `429 Too Many Requests`. No code fix is needed — `shellyclient` is already 2.0.0-shaped: RFC-7616 Digest with per-client nonce reuse + `nc` counter, a **stale-nonce retry** (re-parses the fresh challenge on a second 401, `client.go:316-358`), and `429` pass-through (`client.go:355`). Operational takeaway only: repeated wrong-credential attempts across the fleet will lock devices, so fix the credential before re-running a bulk job.
 
-### Polling an in-flight OTA starves it — never touch a downloading device
+### OTA failures: `premature end of data` — cause UNKNOWN, do not guess again
 
-**The single most expensive bug found in this repo so far (v0.5.6).** A Gen2+ device
-downloading firmware buffers a ~3.6 MB image with almost no heap to spare (`hf≈62 KB`
-free on a Gen3 at OTA start). Answering a concurrent `Shelly.GetDeviceInfo` RPC costs
-enough of that heap to **stall the download — at 0%, silently, forever**. It does not
-error, it does not abort, it just never progresses; the device stays healthy and on the
-old version.
+Fleet OTAs to 2.0.0 fail at random progress percentages with a device-side error:
 
-`installOne` used to poll `Shelly.GetDeviceInfo` every 5s *starting immediately after the
-trigger*, so ShellyAdmin reliably killed the very update it was waiting for, then reported
-`status="unknown"` / "device still on X after 5 min". Every ShellyAdmin-driven install
-failed this way, while Shelly's cloud rollout and the device's own web UI succeeded —
-neither polls.
+```
+hos_http_client.cpp: Finished; bytes 326/45056, code 200, status -1: Connection error: -14
+shos_ota.cpp:650     Update failed (DATA_LOSS: ZIP flush error : premature end of data), will not reboot
+```
 
-Measured 2026-07-17 on two identical Plug Gen3s, same firmware, same trigger:
+The device's download from `fwcdn.shelly.cloud` truncates. **The root cause is not known.**
+What is established (2026-07-17):
 
-| Device | Polling | Result |
-| ------ | ------- | ------ |
-| `.92` shelly-plug3-12 | none | `ota_progress` 0→100% in **2:25**, `ota_success`, rebooted onto 2.0.0 |
-| `.59` shelly-plug3-08 | every 5s | `ota_progress` **0%, 0%, 0%, 0%** for 2.5 min, never moved |
+- **Not the CDN.** The same URL fetched from the LAN returns the full image, 3× in a row:
+  3,814,926 bytes, `Content-Length` matches, valid zip.
+- **Not ShellyAdmin's polling.** Same device (`.129`, RSSI −58), same firmware: failed at 12%
+  while polled every 5s, failed at 37% with no polling at all — identical error both times.
+- **Signal is a factor, not the whole story.** `.59` sits at **−78 dBm** (the device's own
+  roam threshold is −80) and fails early plus times out on ordinary RPCs. But `.129` at
+  −58 dBm fails too.
+- **It is not universal.** `.92` (−50 dBm) completed 0→100% in 2:25 once, and four devices
+  self-updated overnight via Shelly's phased cloud rollout.
+- **Untested lead:** curl on a LAN host could not verify `fwcdn.shelly.cloud`'s certificate
+  ("unable to get local issuer certificate"), which would fit TLS interception somewhere in
+  the path. The devices pin `shelly_cloud.pem`. Unverified.
 
-The fix is the `FirmwareInstallQuietPeriod` knob (default 150s): after triggering, the job
-leaves the device strictly alone, *then* polls. Nothing is lost by waiting — the version
-cannot change until the device flashes and reboots. **Do not "optimise" the quiet period
-away, and do not add any new device call (not even a cheap one) between the trigger and
-the reboot.** The device's own OTA timeout is 3600s, so it is patient; we must be too.
+**A prior version of this section claimed the cause was ShellyAdmin polling the device
+during the download. That was wrong** — it rested on comparing two *different* devices
+(`.92` unpolled vs `.59` polled) and attributing the difference to polling, when `.59` also
+has the worst signal in the fleet and fails unpolled. v0.5.6 shipped that claim in its
+CHANGELOG; v0.5.7 retracted it. If you are tempted to explain these failures from one
+suggestive pair of runs, don't — get the A/B on one device first.
+
+**Gotcha for any future measurement:** the Docker host is multi-homed and the production
+ShellyAdmin reaches the IoT VLAN as **`192.168.211.88`**, polling every device roughly every
+60s. An "unpolled" experiment against the live fleet is not unpolled unless that instance is
+stopped. Check the source IPs in the device log before trusting a result.
 
 **Diagnostic:** `curl -N http://<ip>/debug/log` streams the device's log as plain text over
 HTTP — no config change, no MQTT/websocket detour. It carries `ota_begin` / `ota_progress` /
-`ota_success` events and the resolved `fwcdn.shelly.cloud` URL, and is the fastest way to see
-what an OTA is actually doing. Note the stream itself is an HTTP connection to the device —
-useful for observing, but it means the log is not free either.
+`ota_success` / `ota_error` events and the resolved `fwcdn.shelly.cloud` URL, and is by far
+the fastest way to see what an OTA is actually doing.
+
+`FirmwareInstallQuietPeriod` (default 150s) keeps the job off the device between trigger and
+reboot. Keep it — the version cannot change during the download, so polling then buys
+nothing — but it is hygiene, **not** a fix for the failures above.
 
 ### Update availability is a version comparison, not a string compare
 
@@ -273,8 +285,8 @@ Defined in `models.AppSettings` (`internal/models/settings.go`), normalised on l
 
 | Field                         | JSON key                         | Default     | Bounds      | Notes                                                                                         |
 | ----------------------------- | -------------------------------- | ----------- | ----------- | --------------------------------------------------------------------------------------------- |
-| `FirmwareInstallTimeout`      | `firmware_install_timeout`       | 600 (10 min) | `> 0`, and `≥ quiet + 150` | Per-device cap before install_job marks "unknown". Normalize forces the floor over the quiet period, which also repairs pre-v0.5.6 rows stuck at 300 |
-| `FirmwareInstallQuietPeriod`  | `firmware_install_quiet_period`  | 150         | `[0, 600]` s | How long install_job leaves the device **completely alone** after the trigger. Load-bearing — see the OTA-starvation quirk above (v0.5.6)      |
+| `FirmwareInstallTimeout`      | `firmware_install_timeout`       | 600 (10 min) | `> 0`, and `≥ quiet + 150` | Per-device cap before install_job marks "unknown". Normalize forces the floor so the timeout can't expire before the first poll |
+| `FirmwareInstallQuietPeriod`  | `firmware_install_quiet_period`  | 150         | `(0, 600]` s; 0 = unset → default | How long install_job leaves the device alone after the trigger. Hygiene, **not** a fix — see the OTA-failure section above (v0.5.6 claimed otherwise, v0.5.7 retracted) |
 | `FirmwareInstallPollInterval` | `firmware_install_poll_interval` | 5           | `[1, 60]` s | How often the install_job re-queries device firmware **after** the quiet period (added v0.1.13)                                               |
 | `FirmwareCheckInterval`       | `firmware_check_interval`        | 0 (off)     | `≥ 0` s     | Periodic firmware_check job cadence; 0 disables the scheduler                                 |
 

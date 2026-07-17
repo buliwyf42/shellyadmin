@@ -4,7 +4,56 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.5.7] - 2026-07-17 — Retract v0.5.6's root cause; patch the build's Go
+
+### Retracted
+
+- **v0.5.6 claimed OTA installs failed because ShellyAdmin polled the device
+  during the download. That claim was wrong and is withdrawn.** It rested on
+  comparing two *different* devices — one unpolled that succeeded, one polled
+  that failed — and crediting the difference to polling. The polled device also
+  has the weakest Wi-Fi in the fleet (−78 dBm, against its own −80 roam
+  threshold) and fails unpolled too.
+
+  The A/B that should have been run first: one device (RSSI −58), same firmware,
+  same trigger — failed at 12% polled every 5s, failed at 37% with no polling,
+  both with the identical device-side error `DATA_LOSS: ZIP flush error :
+  premature end of data`. Polling is not the cause.
+
+  What is now known about the real failure is recorded in CLAUDE.md: the device's
+  download from `fwcdn.shelly.cloud` truncates; the CDN itself serves the full
+  3,814,926-byte image fine from the LAN; the root cause is **not identified**.
+
+  The v0.5.6 *code* is unaffected by this retraction — the released image is
+  sound, and the changes it shipped stand on their own. Only the stated reason
+  for the quiet period was wrong. The knob is kept, redocumented as hygiene:
+  the reported version cannot change until the device flashes and reboots, so
+  polling during the download learns nothing while costing the device heap.
+
+  v0.5.6's own GitHub Release was never published — its `Trivy image scan` step
+  failed (below) after the image had already been pushed and signed.
+
+### Fixed
+
+- **Build's Go stdlib carried CVE-2026-39822** (`os.Root` symlink following,
+  HIGH). The `golang:1.26-alpine` base was pinned to a digest shipping Go 1.26.4;
+  repinned to Go 1.26.5, which carries the fix. Not exploitable here — the
+  codebase never calls `os.Root`/`os.OpenRoot`, and the reachability-based
+  `govulncheck` gate was green throughout — but Trivy version-matches the stdlib
+  and failed the release, so v0.5.6 published an image without a Release entry.
+
+- **`firmware_install_quiet_period` disagreed with itself.** `Normalize` left a
+  stored `0` alone while the job's `…FromSettings` helper read `0` as "unset" and
+  substituted 150s, so the persisted value and the effective one diverged — and
+  the timeout floor, computed from the stored `0`, under-sized the polling window.
+  `Normalize` now substitutes the default too, and the helper's doc no longer
+  claims a `0` opt-out it never honoured.
+
 ## [0.5.6] - 2026-07-17 — Stop starving the OTA we're waiting for
+
+> **Superseded by v0.5.7.** The root cause asserted below — that polling an
+> in-flight OTA starves it — was retracted. The code changes stand; the
+> explanation does not. See v0.5.7.
 
 Firmware installs triggered from ShellyAdmin failed on every attempt, while the
 same update applied fine from Shelly's cloud rollout or the device's own web UI.

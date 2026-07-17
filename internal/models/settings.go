@@ -20,14 +20,19 @@ type AppSettings struct {
 	FirmwareInstallTimeout float64 `json:"firmware_install_timeout"`
 	// FirmwareInstallQuietPeriod is how long the install_job leaves a device
 	// completely alone after triggering Shelly.Update, before it starts polling
-	// for the version change. Seconds; default 150. Bounded to [0, 600].
+	// for the version change. Seconds; default 150. Normalize substitutes the
+	// default for 0 and clamps to [0, 600].
 	//
-	// This is not politeness — it is load-bearing. An in-flight OTA buffers the
-	// firmware image with very little heap to spare (~60 KB free on a Gen3), and
-	// answering concurrent Shelly.GetDeviceInfo RPCs starves the download: it
-	// stalls at 0% and never recovers. Measured on two identical Plug Gen3s:
-	// unpolled reached 100% in 2:25, while polling every 5s held it at 0% for
-	// 2.5 min until the job timed out. Poll *after* the download, never during.
+	// Rationale is hygiene, not a proven fix: the reported version cannot change
+	// until the device has flashed and rebooted, so polling during the download
+	// learns nothing while costing the device heap it is short of (~60 KB free on
+	// a Gen3 mid-OTA). Waiting is free; poking a flashing device is not.
+	//
+	// Do NOT restore the claim that polling *causes* OTA failures. v0.5.6 shipped
+	// that story and v0.5.7 retracted it: the same device (192.168.211.129) failed
+	// identically with and without polling, both times with the device-side error
+	// "DATA_LOSS: ZIP flush error : premature end of data". See the firmware
+	// section of CLAUDE.md for what is actually known.
 	FirmwareInstallQuietPeriod float64 `json:"firmware_install_quiet_period"`
 	// FirmwareInstallPollInterval is how often the install_job re-queries a
 	// device's reported firmware version once the quiet period above has
@@ -205,16 +210,19 @@ func (s *AppSettings) Normalize() {
 	if s.FirmwareInstallTimeout <= 0 {
 		s.FirmwareInstallTimeout = 600
 	}
-	if s.FirmwareInstallQuietPeriod < 0 {
-		s.FirmwareInstallQuietPeriod = 0
+	// 0 means "unset" and takes the default, matching the other knobs above and
+	// FirmwareInstallQuietPeriodFromSettings. A settings row written before the
+	// field existed is indistinguishable from a deliberate 0, and defaulting is
+	// the safer reading — so there is no true opt-out; the floor is 1s.
+	if s.FirmwareInstallQuietPeriod <= 0 {
+		s.FirmwareInstallQuietPeriod = 150
 	} else if s.FirmwareInstallQuietPeriod > 600 {
 		s.FirmwareInstallQuietPeriod = 600
 	}
 	// The two knobs interact: the job spends the quiet period not looking, so a
-	// timeout that barely exceeds it would give up while the download is still
-	// running and report a healthy OTA as "unknown". Keep at least a download's
-	// worth of polling window on top. This also repairs settings rows carrying
-	// the pre-v0.5.6 default of 300, which is too tight once a quiet period exists.
+	// timeout that barely exceeds it would expire before the first poll and report
+	// a device that updated fine as "unknown". Keep a download's worth of polling
+	// window on top (a 3.6 MB Gen3 image takes ~2.5 min when it succeeds at all).
 	if min := s.FirmwareInstallQuietPeriod + 150; s.FirmwareInstallTimeout < min {
 		s.FirmwareInstallTimeout = min
 	}

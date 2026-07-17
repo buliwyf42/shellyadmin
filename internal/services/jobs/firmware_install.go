@@ -201,12 +201,14 @@ func (s *Service) installOne(jobID int64, idx int, mac, stage string, device mod
 	initialVer := device.FW
 	expected := TargetVersion(device, stage)
 
-	// Leave the device strictly alone while it downloads. Every RPC we send
-	// during an OTA competes for the same scarce heap the image is buffered in,
-	// and the download stalls at 0% rather than failing — so the old "poll
-	// immediately every 5s" loop reliably killed the very update it was watching
-	// for. There is nothing worth learning here anyway: the version cannot change
-	// until the device flashes and reboots.
+	// Leave the device alone while it downloads. The reported version cannot
+	// change until it has flashed and rebooted, so polling here learns nothing
+	// while costing the device heap it is short of mid-OTA. Waiting is free.
+	//
+	// This is hygiene, not a fix for a known failure: v0.5.6 claimed polling
+	// caused OTAs to stall and v0.5.7 retracted it — the failures reproduce
+	// identically without polling (device-side "DATA_LOSS: ZIP flush error :
+	// premature end of data"). Don't re-derive the old story from this code.
 	select {
 	case <-shutdown.Done():
 		setResult(idx, func(r *FirmwareInstallResult) {

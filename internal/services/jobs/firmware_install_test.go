@@ -164,14 +164,15 @@ func (h *installHost) ReleaseFirmwareTargets([]string)                          
 
 // --- the regression --------------------------------------------------------
 
-// A device downloading firmware has almost no heap to spare; answering RPCs
-// while it does starves the download, which then stalls at 0% and never
-// recovers (measured on real Plug Gen3s, 2026-07-17 — see CLAUDE.md). The old
-// loop began polling Shelly.GetDeviceInfo 5s after the trigger and so reliably
-// killed the update it was waiting for, reporting the healthy OTA as "unknown".
+// installOne must send the device nothing between the trigger and the end of the
+// quiet period. The reported version cannot change until the device has flashed
+// and rebooted, so polling during the download learns nothing while costing the
+// device heap it is short of mid-OTA.
 //
-// This pins the contract that fixes it: between the trigger and the end of the
-// quiet period, installOne must send the device NOTHING.
+// This pins the behaviour, not a theory of failure: v0.5.6 claimed the old
+// poll-immediately loop was what broke OTAs, and v0.5.7 retracted that (the
+// failures reproduce identically unpolled). The contract is still worth holding
+// — but if you are here because an OTA failed, this is not your culprit.
 func TestInstallOneSendsNothingDuringQuietPeriod(t *testing.T) {
 	const (
 		quietPeriod = 400 * time.Millisecond

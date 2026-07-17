@@ -16,11 +16,14 @@ func TestNormalizeKeepsInstallTimeoutAboveQuietPeriod(t *testing.T) {
 		wantTimeout float64
 		wantQuiet   float64
 	}{
-		{"legacy 300s row is raised past the quiet period", 300, 150, 300, 150},
+		{"legacy 300s row still clears the default quiet period", 300, 150, 300, 150},
 		{"timeout under the floor is raised", 120, 150, 300, 150},
 		{"operator's generous timeout is left alone", 900, 150, 900, 150},
 		{"zero timeout takes the default", 0, 150, 600, 150},
-		{"quiet period opt-out still keeps a polling window", 100, 0, 150, 0},
+		// A row written before the field existed carries 0. That must not read as
+		// "skip the wait" — it means unset, and takes the default like every other
+		// knob. There is deliberately no opt-out.
+		{"zero quiet period is unset, not an opt-out", 100, 0, 300, 150},
 		{"quiet period is clamped, timeout follows it up", 200, 9000, 750, 600},
 	}
 	for _, tc := range tests {
