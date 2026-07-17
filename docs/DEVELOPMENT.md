@@ -195,13 +195,29 @@ UI on the Docker host. The stack files live on the host under
    `git push origin main vX.Y.Z`.
 2. `publish-image.yml` builds and pushes `ghcr.io/buliwyf42/shellyadmin:vX.Y.Z`
    and `:latest` (~17–22 min) and auto-creates the GitHub Release.
-3. In the container manager: pull the new image, then "deploy" / "recreate"
-   the `shellyadmin` stack. The stack pins `:latest`, so a pull + recreate
-   is the full upgrade. Via the MCP server this is
-   `pull_image(image="ghcr.io/buliwyf42/shellyadmin:latest")` followed
-   by `start_stack(name="shellyadmin")` (or restart_stack if already
-   up). SQLite persists across recreates because of the
+3. In the container manager: pull the new image, then **recreate** the
+   `shellyadmin` stack. The stack pins `:latest`, so pull + recreate is the
+   full upgrade. SQLite persists across recreates because of the
    host-data-dir → `/data` bind mount.
+
+   **`start_stack` and `restart_stack` do NOT swap the image** (verified
+   2026-07-17, v0.5.7 deploy). `start_stack` is `docker compose up -d`, which
+   no-ops on an already-running stack; `restart_stack` is `docker compose
+   restart`, which restarts the *existing* container. Both return
+   `{"success": true}` while the container keeps its old `ImageID` and its
+   uptime — the return value says nothing about what happened. Via the MCP
+   server, what actually works is:
+
+   ```
+   pull_image(image="ghcr.io/buliwyf42/shellyadmin:latest")
+   down_stack(name="shellyadmin")     # brief downtime; bind mount survives
+   start_stack(name="shellyadmin")
+   ```
+
+   Then **verify against the container, not the tool output**: its `ImageID`
+   must have changed, and `GET /api/settings` must show a field only the new
+   version has. `update_stack_compose(restart: true)` reportedly recreates
+   without going down first — untested here.
 
 ### Stack shape
 
