@@ -138,6 +138,13 @@ Shelly versions are semver-shaped, so prerelease < release gives `2.0.0-beta3 < 
 correctly. Unparseable versions fall back to string inequality — an odd vendor string can
 fail to suppress a downgrade, but can never *hide* a real update.
 
+**The rollout is phased per device, not per model** — do not diagnose it as a device fault.
+Two identical `S4PL-00416EU` strips, checked the same minute (2026-07-21): `shelly-strip4-01`
+was offered stable `2.0.0`, `shelly-strip4-02` still stable `1.7.99-powerstripg4prod1`
+(build `20250819`, the factory image). Same for their `alt` `PowerStripZB` entry. Ground
+truth is the device's own `Shelly.CheckForUpdate` — the server answers per device id, so a
+missing update on one unit says nothing about the model. Nothing to fix; wait for the bucket.
+
 ### OTA configuration on Gen2+ — implemented via `Schedule.*`, not `OTA.SetConfig`
 
 The Shelly Gen2 API has **no `OTA.SetConfig` / `Sys.SetAutoUpdate` / dedicated OTA-config method**. The `OTA.*` methods that DO exist (`OTA.Start/Write/Data/Abort/Commit/Revert`) are byte-level chunked-upload plumbing, not configuration. Direct firmware update lives at:
@@ -150,6 +157,14 @@ The Shelly Gen2 API has **no `OTA.SetConfig` / `Sys.SetAutoUpdate` / dedicated O
 - **Read**: `Schedule.List` → filter for `calls[].origin == "shelly_service"` AND `calls[].method == "Shelly.Update"`. The `params.stage` field tells you `stable` or `beta`. Absent or disabled → `off`.
 - **Set stable/beta**: `Schedule.Create` with `enable: true`, `timespec: "0 0 0 * * 0,1,2,3,4,5,6"` (cron-style; daily at midnight), `calls: [{method: "Shelly.Update", params: {stage: <stable|beta>}, origin: "shelly_service"}]`.
 - **Disable**: `Schedule.Delete` for the matching job id.
+
+**`stage` is a slot, not a floor.** `stage: "beta"` installs whatever the server lists under
+`beta` — it does **not** mean "beta or anything newer". A device parked on `2.0.0-beta3` with
+`stage: "beta"` is a permanent no-op (its beta slot already matches) and will *not* pick up
+`2.0.0` when that lands, because the final release ships in the **stable** slot. For a device
+sitting ahead of its own stable channel during a phased rollout, `stage: "stable"` is the
+correct setting: it no-ops while the offered stable is older (the device ignores the install,
+see the rollout note above) and installs the new build the moment the rollout reaches it.
 
 Persisted on the Device row as `fw_auto_update` with values `""` (never read) | `off` | `stable` | `beta`. Read during every firmware check job. Bulk-settable via the Firmware page's "Auto → Off / Stable / Beta" buttons (action `set_auto_update`). Surfaced in compliance via the `auto_update_stage` rule.
 
