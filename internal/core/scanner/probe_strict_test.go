@@ -81,6 +81,7 @@ func TestProbe_AcceptsRealShellyResponse(t *testing.T) {
 	dev := ProbeDeviceWithOptions(context.Background(), ip, ProbeOptions{Timeout: time.Second}, nopLog)
 	if dev == nil {
 		t.Fatal("expected non-nil device for real Shelly response")
+		return
 	}
 	if dev.MAC != "AA:BB:CC:DD:EE:FF" {
 		t.Errorf("MAC = %q", dev.MAC)
@@ -139,6 +140,7 @@ func TestProbe_RejectsHTTPSRedirectWithSelfSignedCert(t *testing.T) {
 	dev = ProbeDeviceWithOptions(context.Background(), ip, ProbeOptions{Timeout: time.Second, KnownMAC: "AA:BB:CC:DD:EE:FF"}, nopLog)
 	if dev == nil {
 		t.Fatal("refresh path: expected partial record carrying KnownMAC, got nil")
+		return
 	}
 	if dev.MAC != "AA:BB:CC:DD:EE:FF" {
 		t.Errorf("refresh path: MAC = %q, want known mac", dev.MAC)
@@ -184,6 +186,7 @@ func TestProbe_AcceptsMACOnly(t *testing.T) {
 	dev := ProbeDeviceWithOptions(context.Background(), ip, ProbeOptions{Timeout: time.Second}, nopLog)
 	if dev == nil {
 		t.Fatal("expected device for mac-only response")
+		return
 	}
 	if dev.MAC != "AA:BB:CC:DD:EE:FF" {
 		t.Errorf("MAC = %q (want normalized form)", dev.MAC)

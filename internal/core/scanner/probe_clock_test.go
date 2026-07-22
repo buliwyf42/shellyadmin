@@ -42,6 +42,7 @@ func TestProbeDeviceOnClientStampsLastSeenFromClock(t *testing.T) {
 	dev := ProbeDeviceOnClient(context.Background(), client, ip, "", fake, nopLog)
 	if dev == nil {
 		t.Fatalf("dev = nil, want a populated Device")
+		return
 	}
 	if dev.LastSeen != "2026-05-08T14:30:00Z" {
 		t.Errorf("LastSeen = %q, want 2026-05-08T14:30:00Z (FakeClock value)", dev.LastSeen)
@@ -67,6 +68,7 @@ func TestReportProbeFailureLockoutUsesClock(t *testing.T) {
 	dev := reportProbeFailure("10.1.2.3", shellyclient.ErrAuthLockout, "AA:BB:CC:DD:EE:FF", fake)
 	if dev == nil {
 		t.Fatalf("dev = nil, want partial Device for refresh path with knownMAC")
+		return
 	}
 	if !dev.AuthRequired {
 		t.Errorf("AuthRequired = false, want true (lockout implies auth-required for the UI badge)")
@@ -141,6 +143,7 @@ func TestProbeDeviceOnClientRefreshPathAuthRequiredKeepsMAC(t *testing.T) {
 	dev := ProbeDeviceOnClient(context.Background(), client, ip, mac, clock.Real(), nopLog)
 	if dev == nil {
 		t.Fatalf("dev = nil, want partial Device")
+		return
 	}
 	if dev.MAC != mac {
 		t.Errorf("MAC = %q, want %q (must carry knownMAC forward)", dev.MAC, mac)
@@ -172,6 +175,7 @@ func TestProbeDeviceOnClientNilClockDoesNotPanic(t *testing.T) {
 	dev := ProbeDeviceOnClient(context.Background(), client, ip, "", nil, nopLog)
 	if dev == nil {
 		t.Fatalf("dev = nil, expected populated Device")
+		return
 	}
 	if _, err := time.Parse(time.RFC3339, dev.LastSeen); err != nil {
 		t.Errorf("LastSeen = %q, not a valid RFC3339 (clock.Real fallback should produce one)", dev.LastSeen)
