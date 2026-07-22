@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-07-22 — Show Shelly marketing names next to model SKUs
+
 ### Added
 
 - Model column on the Firmware and Devices pages now shows the Shelly
