@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { APIError, api, triggerDownload } from '../lib/api';
   import { currentPath, navigate } from '../lib/stores';
+  import { modelName } from '../lib/shellyModels';
   import { formatDateTime, formatRelativeDateTime } from '../lib/time';
   import type { DeviceActionResult, DeviceDetail } from '../lib/types';
   import ErrorNotice from '../components/ErrorNotice.svelte';
@@ -164,7 +165,9 @@
             </div>
             <div>
               <span class="text-secondary">Model SKU</span><strong
-                >{detail.device.model || 'n/a'}</strong
+                >{detail.device.model || 'n/a'}{#if modelName(detail.device.model)}
+                  <span class="text-secondary">({modelName(detail.device.model)})</span>
+                {/if}</strong
               >
             </div>
             <div>

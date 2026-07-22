@@ -11,6 +11,7 @@
     FirmwareStatus,
   } from '../lib/types';
   import { genBadgeClass, genLabel, genTitle } from '../lib/genBadge';
+  import { modelName } from '../lib/shellyModels';
   import ErrorNotice from '../components/ErrorNotice.svelte';
   import ProgressBar from '../components/ProgressBar.svelte';
   import SortHeader from '../components/SortHeader.svelte';
@@ -545,9 +546,11 @@
           </td>
           <td>
             {#if row.app || row.model}
+              {@const friendly = modelName(row.model)}
               {@const tip = [
                 row.app ? `App: ${row.app}` : '',
                 row.model ? `Model: ${row.model}` : '',
+                friendly ? `Name: ${friendly}` : '',
                 `Gen ${row.gen}`,
                 row.switchCount ? `Switch: ${row.switchCount}` : '',
                 row.coverCount ? `Cover: ${row.coverCount}` : '',
@@ -556,7 +559,7 @@
                 .filter(Boolean)
                 .join('\n')}
               <div title={tip}>
-                {row.app || row.model}
+                {row.app || friendly || row.model}
               </div>
             {:else}
               -

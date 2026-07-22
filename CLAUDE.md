@@ -236,6 +236,12 @@ Extend the list only after confirming a new SKU (via a real device's `Shelly.Get
 
 Historical context: the `ota` provisioner section and an `ota_auto_update` compliance field that called `OTA.SetConfig` were **fully removed in v0.0.16** (the v0.0.14 removal was partial). If an `ota` block still appears in a user-supplied JSON template, it falls through to the catch-all handler (calls `Ota.SetConfig` → 404 → gracefully skipped).
 
+### Model SKU → marketing name lookup (frontend-only)
+
+The Model column on the Firmware and Devices pages only ever had the raw SKU (e.g. `SNSW-001X16EU`) or Shelly's own `app` code (e.g. `Plus1PM`) to show — neither is the human name a user recognizes. `modelName(sku)` in `web/src/lib/shellyModels.ts` resolves a SKU to its marketing name (e.g. `"Shelly Plus 1"`) from the same [aioshelly](https://github.com/home-assistant-libs/aioshelly) `const.py` `MODEL_NAMES` table used for the feature-frozen allowlist above (144 entries, checked 2026-07-22). One aioshelly SKU constant (`MODEL_WALL_DISPLAY_X2I`) ships with a leading-space typo in the upstream source — stripped when building the table here.
+
+Deliberately **frontend-only**: this is pure display formatting, not business logic, so there's no Go lookup, no `Device` field, no migration — `modelName()` is called directly in `Firmware.svelte`, `devices/DeviceTable.svelte`, and `DeviceDetail.svelte` at render time (tooltip text + the model-column fallback display when `app` is empty). Contrast with `IsFeatureFrozen` above, which had to live server-side because it feeds a compliance rule.
+
 ### mqtt.ssl_ca valid values
 
 The `mqtt.ssl_ca` field only accepts exactly four values:

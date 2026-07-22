@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Model column on the Firmware and Devices pages now shows the Shelly
+  marketing name (e.g. "Shelly Plus 1") instead of just the raw SKU
+  (`SNSW-001X16EU`) or Shelly's `app` code, via a static SKU→name lookup
+  sourced from aioshelly (same source as the feature-frozen allowlist — see
+  CLAUDE.md). Frontend-only, no backend/API/DB change.
+
 ## [0.6.0] - 2026-07-22 — Flag feature-frozen Shelly firmware lines
 
 ### Added

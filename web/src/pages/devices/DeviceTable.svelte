@@ -28,6 +28,7 @@
     supportClass as supportClassFn,
     supportTitle,
   } from '../../lib/deviceFormatters';
+  import { modelName } from '../../lib/shellyModels';
   import ComplianceBadge from '../../components/ComplianceBadge.svelte';
   import SortHeader from '../../components/SortHeader.svelte';
 
@@ -323,9 +324,11 @@
             >{/if}
           {#if $colVis.model}<td>
               {#if device.app || device.model}
+                {@const friendly = modelName(device.model)}
                 {@const tooltip = [
                   device.app ? `App: ${device.app}` : '',
                   device.model ? `Model: ${device.model}` : '',
+                  friendly ? `Name: ${friendly}` : '',
                   `Gen ${device.gen}`,
                   device.switch_count ? `Switch: ${device.switch_count}` : '',
                   device.cover_count ? `Cover: ${device.cover_count}` : '',
@@ -334,7 +337,7 @@
                   .filter(Boolean)
                   .join('\n')}
                 <div title={tooltip}>
-                  {device.app || device.model}
+                  {device.app || friendly || device.model}
                 </div>
               {:else}<span class="text-secondary">n/a</span>{/if}
             </td>{/if}
