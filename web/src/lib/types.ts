@@ -89,6 +89,10 @@ export interface Device {
    * advertises under sys.alt (firmware 2.0.0+). Read-only — switching is not
    * supported by the Shelly API. Absent for devices with no variants. */
   fw_alt?: AltFirmwareVariant[];
+  /** True when this device's firmware line is feature-frozen per Shelly's
+   * Firmware Update Policy (will never receive 2.0.0+). Derived server-side —
+   * informational only, never blocks the install action. */
+  fw_frozen?: boolean;
   serial: string;
   is_new?: boolean;
   compliant: boolean;
@@ -138,6 +142,9 @@ export interface ComplianceRules {
   ble_paired?: boolean | null;
   webhooks_configured?: boolean | null;
   auto_update_stage?: '' | 'off' | 'stable' | 'beta';
+  /** Off by default. When true, compliance.Evaluate flags devices whose
+   * firmware line is feature-frozen as non-compliant. */
+  flag_frozen_firmware?: boolean;
   custom_rules?: CustomRule[];
 }
 

@@ -102,6 +102,7 @@
   let wifiHostnameEnabled = false;
   let blePairedField = false;
   let webhooksConfiguredField = false;
+  let flagFrozenFirmwareField = false;
 
   let wifiOpen = false;
   let wifiAPOpen = false;
@@ -154,7 +155,8 @@
     tlsCertValidField ||
     wifiHostnameEnabled ||
     blePairedField ||
-    webhooksConfiguredField;
+    webhooksConfiguredField ||
+    flagFrozenFirmwareField;
   $: autoUpdateExpanded =
     settings.compliance.auto_update_stage !== '' &&
     settings.compliance.auto_update_stage !== undefined;
@@ -209,6 +211,8 @@
       settings.compliance.webhooks_configured = null;
     if (settings.compliance.auto_update_stage === undefined)
       settings.compliance.auto_update_stage = '';
+    if (settings.compliance.flag_frozen_firmware === undefined)
+      settings.compliance.flag_frozen_firmware = false;
   }
 
   function initToggles() {
@@ -306,6 +310,7 @@
     webhooksConfiguredField =
       settings.compliance.webhooks_configured !== null &&
       settings.compliance.webhooks_configured !== undefined;
+    flagFrozenFirmwareField = Boolean(settings.compliance.flag_frozen_firmware);
   }
 
   function applyTogglesToSettings() {
@@ -425,6 +430,7 @@
     settings.compliance.webhooks_configured = webhooksConfiguredField
       ? Boolean(settings.compliance.webhooks_configured)
       : null;
+    settings.compliance.flag_frozen_firmware = flagFrozenFirmwareField;
   }
 
   // load() + the original save() moved to the parent (Compliance.svelte);
@@ -950,6 +956,13 @@
                 label={settings.compliance.webhooks_configured ? 'Required' : 'Forbidden'}
               />
             </FieldRow>
+          </div>
+          <div data-span="4">
+            <FieldRow
+              label="Flag Feature-Frozen Firmware"
+              bind:enabled={flagFrozenFirmwareField}
+              help="Flags devices on a Shelly firmware line that will never receive 2.0.0+ (per Shelly's Firmware Update Policy) as non-compliant. Informational only."
+            />
           </div>
         </div>
       </SectionCard>

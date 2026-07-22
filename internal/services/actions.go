@@ -497,6 +497,12 @@ func sysProvisioning(device models.Device) map[string]any {
 	return obj
 }
 
+// fwFrozen reports whether device.Model is on the static feature-frozen allowlist
+// (see firmware.IsFeatureFrozen).
+func fwFrozen(device models.Device) bool {
+	return firmware.IsFeatureFrozen(device.Model)
+}
+
 // sysSubObject pulls RawStatus → sys → <key> as a map. Shared by the alt /
 // provisioning derivers; both live under the device's sys component status.
 func sysSubObject(rawStatus, key string) (map[string]any, bool) {

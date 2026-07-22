@@ -114,6 +114,46 @@ func TestEvaluate_CloudEnabledMismatch(t *testing.T) {
 	}
 }
 
+func TestEvaluate_FrozenFirmwareRuleOff(t *testing.T) {
+	dev := models.Device{Gen: 2, Model: "SNSW-001X16EU", FWFrozen: true}
+	rules := models.ComplianceRules{} // FlagFrozenFirmware defaults false
+
+	compliant, issues := Evaluate(dev, rules)
+	if !compliant || len(issues) != 0 {
+		t.Fatalf("expected no issue with rule off, got compliant=%v issues=%v", compliant, issues)
+	}
+}
+
+func TestEvaluate_FrozenFirmwareRuleOnFrozenDevice(t *testing.T) {
+	dev := models.Device{Gen: 2, Model: "SNSW-001X16EU", FWFrozen: true}
+	rules := models.ComplianceRules{FlagFrozenFirmware: true}
+
+	compliant, issues := Evaluate(dev, rules)
+	if compliant {
+		t.Fatalf("expected non-compliant device")
+	}
+	want := "firmware line is feature-frozen — will never receive 2.0.0+ (Shelly Firmware Update Policy)"
+	found := false
+	for _, s := range issues {
+		if s == want {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected frozen-firmware issue, got %v", issues)
+	}
+}
+
+func TestEvaluate_FrozenFirmwareRuleOnNonFrozenDevice(t *testing.T) {
+	dev := models.Device{Gen: 2, Model: "SNSW-002P16EU-nonexistent", FWFrozen: false}
+	rules := models.ComplianceRules{FlagFrozenFirmware: true}
+
+	compliant, issues := Evaluate(dev, rules)
+	if !compliant || len(issues) != 0 {
+		t.Fatalf("expected no issue for non-frozen device, got compliant=%v issues=%v", compliant, issues)
+	}
+}
+
 func TestEvaluate_MQTTConnectedCheck(t *testing.T) {
 	rules := models.ComplianceRules{MQTTConnected: boolPtr(true)}
 

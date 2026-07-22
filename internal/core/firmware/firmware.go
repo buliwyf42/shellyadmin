@@ -166,6 +166,45 @@ func IsNewer(candidate, current string) bool {
 	return semver.Compare(c, cur) > 0
 }
 
+// featureFrozenModels: static, explicitly-sourced allowlist of Shelly model SKUs that are
+// feature-frozen per Shelly's Firmware Update Policy
+// (https://shelly-api-docs.shelly.cloud/gen2/General/FirmwareUpdatePolicy/) and will never
+// receive 2.0.0+. SKUs come from aioshelly (github.com/home-assistant-libs/aioshelly,
+// internal/const.py, checked 2026-07-22) — Shelly's own docs don't publish a SKU table. The
+// Plus1/Plus2PM entries are additionally verified against this fleet's own devices
+// (fw_available_beta == "" on both). Two policy-listed lines are deliberately omitted: the DC
+// variant of Plus i4 (SNSN-0D24X) — the policy only names "Plus i4", not the DC variant
+// separately — and the BLU Gateway's Gen3 successor (a different generation, not the Gen2
+// device the policy means). Add a new entry only after confirming its SKU, never by guessing.
+var featureFrozenModels = map[string]struct{}{
+	"SNSW-001X16EU":  {}, // Plus 1 — 2x in this fleet
+	"SNSW-001X8EU":   {}, // Plus 1 Mini
+	"SNSW-001X15UL":  {}, // Plus 1 (UL/US)
+	"SNSW-001P16EU":  {}, // Plus 1 PM
+	"SNSW-001P15UL":  {}, // Plus 1 PM (UL)
+	"SNSW-001P8EU":   {}, // Plus 1 PM Mini
+	"SNSW-002P16EU":  {}, // Plus 2 PM
+	"SNSW-002P15UL":  {}, // Plus 2 PM (UL)
+	"SNSW-102P16EU":  {}, // Plus 2 PM V2 — 2x in this fleet
+	"SNPM-001PCEU16": {}, // Plus PM Mini
+	"SNSN-0024X":     {}, // Plus i4
+	"SNPL-00112EU":   {}, // Plus Plug S
+	"SNPL-10112EU":   {}, // Plus Plug S v2
+	"SNPL-00110IT":   {}, // Plus Plug S (IT)
+	"SNPL-00116US":   {}, // Plus Plug US
+	"SNSN-0013A":     {}, // Plus H&T
+	"SNDM-00100WW":   {}, // Plus 0-10V Dimmer
+	"SNGW-0A11WW010": {}, // Plus 0-10V Dimmer (pre-release SKU)
+	"SNGW-BT01":      {}, // BLU Gateway (Gen2)
+}
+
+// IsFeatureFrozen reports whether model belongs to a Shelly firmware line permanently capped
+// below 2.0.0. Informational only — see ADR-0002: never gates or blocks an install.
+func IsFeatureFrozen(model string) bool {
+	_, ok := featureFrozenModels[model]
+	return ok
+}
+
 // TriggerUpdate retains the original signature; callers wishing to thread
 // credentials/scheme should use TriggerUpdateWithOptions.
 func TriggerUpdate(ctx context.Context, ip string, gen int, stage string, timeout time.Duration) UpdateResult {

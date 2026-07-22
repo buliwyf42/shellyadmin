@@ -239,6 +239,7 @@
         coverCount: d.cover_count,
         lightCount: d.light_count,
         fwAlt: d.fw_alt ?? [],
+        fwFrozen: d.fw_frozen ?? false,
         currentVer: d.fw,
         stableVer,
         betaVer,
@@ -568,6 +569,14 @@
                 alt: {alt.id}
               </span>
             {/each}
+            {#if row.fwFrozen}
+              <span
+                class="badge bg-secondary ms-1"
+                title="This firmware line is feature-frozen at its current stable version and will never receive 2.0.0+ (Shelly Firmware Update Policy). Informational only — does not block updates/installs."
+              >
+                frozen
+              </span>
+            {/if}
           </td>
           <td
             ><a href={`http://${row.ip}/`} target="_blank" rel="noreferrer noopener">{row.ip}</a

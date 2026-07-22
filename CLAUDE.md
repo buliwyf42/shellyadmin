@@ -222,6 +222,18 @@ Firmware 2.0.0-beta3 added an `alt` object: alternative firmware **variants** fo
 
 `sys.provisioning` (secure-provisioning state, same firmware) rides the same RawStatus read: `sysProvisioning()` → `Device.Provisioning map[string]any`, surfaced in `get_device`. Absent fleet-wide until a device is enrolled in secure provisioning.
 
+### Feature-frozen firmware lines — static allowlist by model SKU
+
+Some Gen2 "Plus" device lines are feature-frozen per Shelly's [Firmware Update Policy](https://shelly-api-docs.shelly.cloud/gen2/General/FirmwareUpdatePolicy/) — they keep working and get critical bug fixes, but will **never** receive 2.0.0+ (no end date given anywhere Shelly publishes). `firmware.IsFeatureFrozen(model)` (`internal/core/firmware/firmware.go`) answers this from a static `map[string]struct{}` keyed by **model SKU**, not the `app` string — Shelly's own docs list the frozen lines only by marketing name, no SKU or `app`-identifier table, so the SKUs were sourced from [aioshelly](https://github.com/home-assistant-libs/aioshelly) (`internal/const.py`, checked 2026-07-22), Home Assistant's actively-maintained Shelly library, cross-checked against the policy page's device names. The `Plus1`/`Plus2PM` entries are additionally confirmed against this fleet's own devices (`fw_available_beta == ""` on both).
+
+Two policy-listed lines are deliberately **not** in the allowlist:
+- **Plus i4's DC variant** (`SNSN-0D24X`) — the policy only names "Plus i4", not the DC variant separately; freezing it too is a plausible but unconfirmed inference.
+- **BLU Gateway Gen3** (`S3GW-1DBT001`) — a different generation from the Gen2 "BLU Gateway" the policy means.
+
+Extend the list only after confirming a new SKU (via a real device's `Shelly.GetDeviceInfo`, or a corroborated third-party source) — never by guessing; a wrong entry either silently mislabels a still-supported device or misses a genuinely frozen one.
+
+`Device.FWFrozen` mirrors this at `GetDevices()` time (`fwFrozen()` in `internal/services/actions.go`, same derived/no-migration pattern as `FWAlt`/`Provisioning` — must run **before** `compliance.Evaluate` in `app.go`, since the opt-in `flag_frozen_firmware` compliance rule reads it). Surfaced as a `frozen` badge next to the `alt:` badge on the Firmware page, and via `get_device`/`list_devices`/`compliance_summary` with zero extra MCP code. Purely informational per ADR-0002 — never gates the install button, and the compliance rule defaults off.
+
 Historical context: the `ota` provisioner section and an `ota_auto_update` compliance field that called `OTA.SetConfig` were **fully removed in v0.0.16** (the v0.0.14 removal was partial). If an `ota` block still appears in a user-supplied JSON template, it falls through to the catch-all handler (calls `Ota.SetConfig` → 404 → gracefully skipped).
 
 ### mqtt.ssl_ca valid values

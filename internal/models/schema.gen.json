@@ -268,6 +268,15 @@
           "tag": "eth_ipv4mode"
         },
         {
+          "name": "FlagFrozenFirmware",
+          "json_name": "flag_frozen_firmware",
+          "go_type": "bool",
+          "tag": "flag_frozen_firmware,omitempty",
+          "options": [
+            "omitempty"
+          ]
+        },
+        {
           "name": "Lat",
           "json_name": "lat",
           "go_type": "*float64",
@@ -723,6 +732,15 @@
           "json_name": "fw_checked_at",
           "go_type": "string",
           "tag": "fw_checked_at"
+        },
+        {
+          "name": "FWFrozen",
+          "json_name": "fw_frozen",
+          "go_type": "bool",
+          "tag": "fw_frozen,omitempty",
+          "options": [
+            "omitempty"
+          ]
         },
         {
           "name": "FWID",

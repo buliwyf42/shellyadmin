@@ -80,6 +80,9 @@ type DeviceListView struct {
 	// FWAlt surfaces alternative-firmware variants (e.g. Zigbee/Matter builds)
 	// the device advertises under sys.alt. Read-only visibility — see Device.
 	FWAlt []AltFirmwareVariant `json:"fw_alt,omitempty"`
+	// FWFrozen mirrors Device.FWFrozen — see Device for the source-of-truth doc
+	// comment and the Firmware Update Policy citation.
+	FWFrozen bool `json:"fw_frozen,omitempty"`
 }
 
 // ToListView projects a full Device down to the slim DeviceListView
@@ -144,6 +147,7 @@ func (d Device) ToListView() DeviceListView {
 		CoverCount:         d.CoverCount,
 		LightCount:         d.LightCount,
 		FWAlt:              d.FWAlt,
+		FWFrozen:           d.FWFrozen,
 	}
 }
 

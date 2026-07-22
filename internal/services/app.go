@@ -348,12 +348,14 @@ func (s *AppService) GetDevices() ([]models.Device, error) {
 		return nil, err
 	}
 	for i := range devices {
-		devices[i].Compliant, devices[i].ComplianceIssues = compliance.Evaluate(devices[i], settings.Compliance)
 		devices[i].SwitchCount = len(componentInstances(devices[i], "switch"))
 		devices[i].CoverCount = len(componentInstances(devices[i], "cover"))
 		devices[i].LightCount = len(componentInstances(devices[i], "light"))
 		devices[i].FWAlt = sysAltVariants(devices[i])
 		devices[i].Provisioning = sysProvisioning(devices[i])
+		devices[i].FWFrozen = fwFrozen(devices[i])
+		// FWFrozen must be set before Evaluate — the flag_frozen_firmware rule reads it.
+		devices[i].Compliant, devices[i].ComplianceIssues = compliance.Evaluate(devices[i], settings.Compliance)
 	}
 	// M4 — refresh the inventory-size gauge on every read. GetDevices
 	// is called frequently enough by the SPA (every /api/devices)

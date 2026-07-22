@@ -112,6 +112,9 @@ func Evaluate(dev models.Device, rules models.ComplianceRules) (bool, []string) 
 			issues = append(issues, "auto_update_stage mismatch")
 		}
 	}
+	if rules.FlagFrozenFirmware && dev.FWFrozen {
+		issues = append(issues, "firmware line is feature-frozen — will never receive 2.0.0+ (Shelly Firmware Update Policy)")
+	}
 	evaluateCustomRules(&issues, dev, rules.CustomRules, deviceName)
 
 	return len(issues) == 0, issues
@@ -239,6 +242,8 @@ func resolveDevicePath(dev models.Device, path string) (string, bool) {
 		return dev.WiFiHostname, dev.WiFiHostname != ""
 	case "wifi_channel":
 		return strconv.Itoa(dev.WiFiChannel), dev.WiFiChannel > 0
+	case "fw_frozen":
+		return anyToString(dev.FWFrozen), true
 	default:
 		return "", false
 	}

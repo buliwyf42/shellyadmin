@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Devices on a feature-frozen Shelly firmware line (per Shelly's Firmware
+  Update Policy — Plus 1, Plus 1 Mini, Plus 1 PM, Plus 1 PM Mini, Plus 2 PM,
+  Plus PM Mini, Plus i4, Plus Plug S/US, Plus H&T, Plus 0-10V Dimmer, BLU
+  Gateway Gen2) are now flagged with a "frozen" badge on the Firmware page,
+  and can optionally be surfaced as a compliance issue via a new opt-in rule
+  (`flag_frozen_firmware`, off by default). Detection is by model SKU (static
+  allowlist, sourced from aioshelly — see CLAUDE.md), computed with no extra
+  RPC call and no migration. Informational only — never blocks a firmware
+  install (ADR-0002).
+
 ## [0.5.7] - 2026-07-17 — Retract v0.5.6's root cause; patch the build's Go
 
 ### Retracted

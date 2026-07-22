@@ -97,8 +97,11 @@ type Device struct {
 	// provisioning state, firmware 2.0.0+). Derived from RawStatus; absent
 	// until a device is enrolled in secure provisioning. nil = not present.
 	Provisioning map[string]any `json:"provisioning,omitempty"`
-	RawConfig    string         `json:"-"`
-	RawStatus    string         `json:"-"`
+	// FWFrozen: firmware.IsFeatureFrozen(Model) — derived at GetDevices time, not
+	// persisted, same pattern as FWAlt/Provisioning. Informational only (ADR-0002).
+	FWFrozen  bool   `json:"fw_frozen,omitempty"`
+	RawConfig string `json:"-"`
+	RawStatus string `json:"-"`
 }
 
 // AltFirmwareVariant describes one alternative firmware build a device can run

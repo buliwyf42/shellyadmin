@@ -146,7 +146,13 @@ type ComplianceRules struct {
 	BLEPaired        *bool        `json:"ble_paired"`
 	WebhooksConfig   *bool        `json:"webhooks_configured"`
 	AutoUpdateStage  string       `json:"auto_update_stage"` // "" (skip) | "off" | "stable" | "beta"
-	CustomRules      []CustomRule `json:"custom_rules"`
+	// FlagFrozenFirmware: when true, Evaluate flags devices whose firmware line
+	// is feature-frozen (see firmware.IsFeatureFrozen) as non-compliant. Off by
+	// default — frozen firmware is a known, unfixable fact for these models, not
+	// a misconfiguration; this is an opt-in fleet-hygiene signal. ADR-0002:
+	// advisory only, never blocks.
+	FlagFrozenFirmware bool         `json:"flag_frozen_firmware,omitempty"`
+	CustomRules        []CustomRule `json:"custom_rules"`
 }
 
 type CustomRule struct {
