@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-07-22 — Configurable badge color for feature-frozen devices
+
+### Added
+
+- The generation badge (Devices + Firmware pages) now shows a distinct,
+  configurable color for devices whose firmware line is feature-frozen
+  (`fw_frozen`), regardless of their actual gen — e.g. "Gen 2.x (frozen)".
+  New setting `gen_frozen_badge_class` (Settings → Generation badge colors),
+  default amber/orange, same as Gen 2's default. Replaces the standalone
+  "frozen" text badge previously shown only on the Firmware page's Model
+  column — the enhanced generation badge now carries that signal on both
+  pages, since they already share the same badge helper.
+
 ## [0.6.1] - 2026-07-22 — Show Shelly marketing names next to model SKUs
 
 ### Added
