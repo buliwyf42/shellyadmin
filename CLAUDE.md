@@ -145,6 +145,39 @@ was offered stable `2.0.0`, `shelly-strip4-02` still stable `1.7.99-powerstripg4
 truth is the device's own `Shelly.CheckForUpdate` — the server answers per device id, so a
 missing update on one unit says nothing about the model. Nothing to fix; wait for the bucket.
 
+### The firmware index: `updates.shelly.cloud` — and why it can't shortcut a phased rollout
+
+Contrary to the forum consensus that Gen2+ has no offline update path, there **is** a public index:
+
+```
+curl -k https://updates.shelly.cloud/update/<APP>     # APP = Shelly.GetDeviceInfo → "app", e.g. Mini1PMG3
+→ {"stable":{"version","build_id","url"},"beta":{…},"alt":…,"time":…}
+```
+
+`-k` is required — `updates.` and `fwcdn.shelly.cloud` serve certificates from Allterco's internal CA, so
+curl fails with a bare `https://` (exit 60, and a *silent* `000` if you don't check the status). The `url`
+points at `https://fwcdn.shelly.cloud/gen2-ntest/<APP>/<sha256>` and serves the ZIP to a LAN host fine
+(verified 2026-07-22: `200`, `Content-Type: application/zip`, 3,435,534 B for Mini1PMG3 beta3). That image
+can be handed to a device via `Shelly.Update{"url": …}` — the one param ShellyAdmin does **not** send
+(`TriggerUpdateOnClient` passes only `stage`).
+
+**But the index carries only the broadly-published builds, not the rollout bucket.** Checked 2026-07-22
+across all 12 fleet apps while 31 of 44 devices already ran stable `2.0.0` (`20260710-101127/2.0.0-g87fbfa4`):
+**every** app still advertised stable `1.7.5` (or the model's factory build) and beta `2.0.0-beta3`. 2.0.0
+stable appeared for **no app at all**. Device-identifying query params (`id`, `uid`, `mac`, `device_id`,
+`ver`) do not change the answer — the bucketing happens elsewhere. So a `url` install cannot pull a device
+forward into a rollout it hasn't been assigned to; every reachable URL is either a downgrade or the build
+it already runs. **Do not re-derive this.** Wait for the bucket.
+
+Where the index *is* worth using: it's the missing piece for the `premature end of data` failures above —
+fetch the ZIP once to a LAN host, serve it (`python3 -m http.server`), point `Shelly.Update{url}` at plain
+`http://`, and the device never touches `fwcdn.shelly.cloud`. That sidesteps the whole untested TLS-
+interception lead. Not yet tried against a real failure — there has been nothing to install since.
+
+Second, unrelated use: **the index dates EOL hardware without trusting a vendor blog post.** `Plus1` and
+`Plus2PM` are the only fleet apps with **no `beta` key at all**, while every Gen3/Gen4 app carries
+`2.0.0-beta3` — independent confirmation that the Gen2 Plus line is frozen at 1.7.5.
+
 ### OTA configuration on Gen2+ — implemented via `Schedule.*`, not `OTA.SetConfig`
 
 The Shelly Gen2 API has **no `OTA.SetConfig` / `Sys.SetAutoUpdate` / dedicated OTA-config method**. The `OTA.*` methods that DO exist (`OTA.Start/Write/Data/Abort/Commit/Revert`) are byte-level chunked-upload plumbing, not configuration. Direct firmware update lives at:
