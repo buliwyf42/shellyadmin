@@ -161,13 +161,24 @@ points at `https://fwcdn.shelly.cloud/gen2-ntest/<APP>/<sha256>` and serves the 
 can be handed to a device via `Shelly.Update{"url": …}` — the one param ShellyAdmin does **not** send
 (`TriggerUpdateOnClient` passes only `stage`).
 
-**But the index carries only the broadly-published builds, not the rollout bucket.** Checked 2026-07-22
-across all 12 fleet apps while 31 of 44 devices already ran stable `2.0.0` (`20260710-101127/2.0.0-g87fbfa4`):
-**every** app still advertised stable `1.7.5` (or the model's factory build) and beta `2.0.0-beta3`. 2.0.0
-stable appeared for **no app at all**. Device-identifying query params (`id`, `uid`, `mac`, `device_id`,
-`ver`) do not change the answer — the bucketing happens elsewhere. So a `url` install cannot pull a device
-forward into a rollout it hasn't been assigned to; every reachable URL is either a downgrade or the build
-it already runs. **Do not re-derive this.** Wait for the bucket.
+**But the index does not carry the build the fleet is actually running.** Checked 2026-07-22 across all 12
+fleet apps while 27 of 44 devices ran stable `2.0.0` (`20260710-101127/2.0.0-g87fbfa4`): **every** app
+still advertised stable `1.7.5` (or the model's factory build) and beta `2.0.0-beta3`. 2.0.0 stable
+appeared for **no app at all**. Device-identifying query params (`id`, `uid`, `mac`, `device_id`, `ver`)
+do not change the answer. So a `url` install cannot pull a device forward; every reachable URL is either a
+downgrade or the build it already runs. **Do not re-derive this.**
+
+**Whether that means the rollout was paused is UNRESOLVED — do not assert either way.** Uptime dates the
+install (a firmware change reboots): no 2.0.0 device exceeds **132 h** uptime and the main block sits at
+**116 h** = 2026-07-17, i.e. the manual fleet-OTA session — *nothing* installed 2.0.0 in the three days
+after the 2026-07-13 release, and nothing has moved in the five nights since, though two devices poll
+`stage: stable` nightly. So on 2026-07-17 the stable channel served 2.0.0 and today it serves 1.7.5.
+That fits a withdrawal — but Shelly announced none, and the changelog still lists 2.0.0 as a phased
+rollout. The obvious live test does **not** separate the cases: a 2.0.0 device gets `{}` from
+`Shelly.CheckForUpdate` while a beta3 device gets `1.7.5`, which is equally consistent with per-device
+bucketing and with a global revert that deliberately pulls prerelease devices back onto the stable line.
+Settle it by **snapshotting the index over time**, not by reasoning from one reading: if 2.0.0 reappears
+under `stable`, it was a pause.
 
 Where the index *is* worth using: it's the missing piece for the `premature end of data` failures above —
 fetch the ZIP once to a LAN host, serve it (`python3 -m http.server`), point `Shelly.Update{url}` at plain
