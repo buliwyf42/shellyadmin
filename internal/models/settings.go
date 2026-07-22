@@ -140,12 +140,12 @@ type ComplianceRules struct {
 	ModbusEnabled   *bool    `json:"modbus_enabled"`
 	ZigbeeEnabled   *bool    `json:"zigbee_enabled"`
 	// Firmware 2.0.0-beta1 additions:
-	EnhancedSecurity *bool        `json:"enhanced_security"`
-	TLSCertValid     *bool        `json:"tls_cert_valid"`
-	WiFiHostname     string       `json:"wifi_hostname"`
-	BLEPaired        *bool        `json:"ble_paired"`
-	WebhooksConfig   *bool        `json:"webhooks_configured"`
-	AutoUpdateStage  string       `json:"auto_update_stage"` // "" (skip) | "off" | "stable" | "beta"
+	EnhancedSecurity *bool  `json:"enhanced_security"`
+	TLSCertValid     *bool  `json:"tls_cert_valid"`
+	WiFiHostname     string `json:"wifi_hostname"`
+	BLEPaired        *bool  `json:"ble_paired"`
+	WebhooksConfig   *bool  `json:"webhooks_configured"`
+	AutoUpdateStage  string `json:"auto_update_stage"` // "" (skip) | "off" | "stable" | "beta"
 	// FlagFrozenFirmware: when true, Evaluate flags devices whose firmware line
 	// is feature-frozen (see firmware.IsFeatureFrozen) as non-compliant. Off by
 	// default — frozen firmware is a known, unfixable fact for these models, not
