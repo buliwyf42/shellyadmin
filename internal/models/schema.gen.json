@@ -117,6 +117,12 @@
           "tag": "gen4_badge_class"
         },
         {
+          "name": "GenFrozenBadgeClass",
+          "json_name": "gen_frozen_badge_class",
+          "go_type": "string",
+          "tag": "gen_frozen_badge_class"
+        },
+        {
           "name": "MCPEnabled",
           "json_name": "mcp_enabled",
           "go_type": "bool",

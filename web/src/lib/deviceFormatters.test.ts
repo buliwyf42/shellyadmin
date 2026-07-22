@@ -2,12 +2,15 @@ import { describe, expect, it } from 'vitest';
 import {
   compareDevices,
   formatCoords,
+  generationLabel,
   refreshState,
   refreshStateBadgeClass,
   refreshStateText,
   refreshStateTitle,
   statusBadgeClass,
   statusText,
+  supportClass,
+  supportTitle,
 } from './deviceFormatters';
 import type { Device } from './types';
 
@@ -145,5 +148,33 @@ describe('compareDevices', () => {
   });
   it('returns 0 for unknown sort keys', () => {
     expect(compareDevices(dev(), dev(), 'no-such-column')).toBe(0);
+  });
+});
+
+describe('generation badge — feature-frozen override', () => {
+  it('labels an ordinary Gen 2 device without the frozen marker', () => {
+    const d = dev({ gen: 2, fw_frozen: false });
+    expect(generationLabel(d)).toBe('Gen 2.x');
+  });
+
+  it('labels a feature-frozen device regardless of its gen', () => {
+    const d = dev({ gen: 2, fw_frozen: true });
+    expect(generationLabel(d)).toBe('Gen 2.x (frozen)');
+  });
+
+  it('uses the configurable gen_frozen_badge_class override, not the plain gen color', () => {
+    const d = dev({ gen: 2, fw_frozen: true });
+    const settings = { gen2_badge_class: 'bg-danger', gen_frozen_badge_class: 'bg-secondary' };
+    expect(supportClass(d, settings as never)).toBe('bg-secondary');
+  });
+
+  it('falls back to the default frozen color when unset', () => {
+    const d = dev({ gen: 2, fw_frozen: true });
+    expect(supportClass(d, null)).toBe('bg-warning text-dark');
+  });
+
+  it('gives the frozen tooltip precedence over the plain gen tooltip', () => {
+    const d = dev({ gen: 3, fw_frozen: true });
+    expect(supportTitle(d)).toContain('Firmware Update Policy');
   });
 });

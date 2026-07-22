@@ -12,6 +12,11 @@ type AppSettings struct {
 	Gen2BadgeClass      string   `json:"gen2_badge_class"`
 	Gen3BadgeClass      string   `json:"gen3_badge_class"`
 	Gen4BadgeClass      string   `json:"gen4_badge_class"`
+	// GenFrozenBadgeClass overrides the generation badge for devices where
+	// FWFrozen is true (see firmware.IsFeatureFrozen), regardless of their
+	// actual gen — so a feature-frozen Gen2 device reads differently from an
+	// ordinary Gen2 device that still gets updates.
+	GenFrozenBadgeClass string `json:"gen_frozen_badge_class"`
 	// FirmwareInstallTimeout caps how long an individual device may take to
 	// reboot onto the new firmware before the install_job marks it "unknown".
 	// Seconds; default 600 (10 min). Per-device, not job-total. Must comfortably
@@ -175,6 +180,7 @@ func DefaultSettings() AppSettings {
 		Gen2BadgeClass:              "bg-warning text-dark",
 		Gen3BadgeClass:              "bg-success",
 		Gen4BadgeClass:              "bg-info text-dark",
+		GenFrozenBadgeClass:         "bg-warning text-dark",
 		FirmwareInstallTimeout:      600,
 		FirmwareInstallQuietPeriod:  150,
 		FirmwareInstallPollInterval: 5,
@@ -212,6 +218,9 @@ func (s *AppSettings) Normalize() {
 	}
 	if strings.TrimSpace(s.Gen4BadgeClass) == "" {
 		s.Gen4BadgeClass = "bg-info text-dark"
+	}
+	if strings.TrimSpace(s.GenFrozenBadgeClass) == "" {
+		s.GenFrozenBadgeClass = "bg-warning text-dark"
 	}
 	if s.FirmwareInstallTimeout <= 0 {
 		s.FirmwareInstallTimeout = 600

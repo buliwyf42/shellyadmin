@@ -9,21 +9,23 @@ import { genBadgeClass, genLabel, genTitle } from './genBadge';
 import { formatDateTime } from './time';
 import type { AppSettings, Device } from './types';
 
-/** Friendly generation label ("Gen 2", "Gen 3", "Gen 4"). */
+/** Friendly generation label ("Gen 2", "Gen 3", "Gen 4"). Devices whose
+ * firmware line is feature-frozen (fw_frozen) are marked regardless of gen. */
 export function generationLabel(device: Device): string {
-  return genLabel(device.gen);
+  return genLabel(device.gen, device.fw_frozen);
 }
 
 /** Bootstrap badge class for the device-generation cell. AppSettings
  * may down-tier old gens via deprecation flags; pass null when settings
- * haven't loaded yet. */
+ * haven't loaded yet. Feature-frozen devices use the configurable
+ * gen_frozen_badge_class override instead of their plain gen color. */
 export function supportClass(device: Device, appSettings: AppSettings | null): string {
-  return genBadgeClass(device.gen, appSettings);
+  return genBadgeClass(device.gen, appSettings, device.fw_frozen);
 }
 
 /** Tooltip text describing the generation tier. */
 export function supportTitle(device: Device): string {
-  return genTitle(device.gen);
+  return genTitle(device.gen, device.fw_frozen);
 }
 
 /** Three-state badge class for boolean device fields (true/false/null).

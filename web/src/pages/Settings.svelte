@@ -17,6 +17,7 @@
     gen2_badge_class: 'bg-warning text-dark',
     gen3_badge_class: 'bg-success',
     gen4_badge_class: 'bg-info text-dark',
+    gen_frozen_badge_class: 'bg-warning text-dark',
     firmware_install_timeout: 600,
     firmware_install_quiet_period: 150,
     firmware_install_poll_interval: 5,
@@ -492,9 +493,12 @@
           >
           <span class={`badge ${settings.gen3_badge_class || 'bg-success'}`}>Gen 3.x</span>
           <span class={`badge ${settings.gen4_badge_class || 'bg-info text-dark'}`}>Gen 4.x</span>
+          <span class={`badge ${settings.gen_frozen_badge_class || 'bg-warning text-dark'}`}
+            >Gen 2.x (frozen)</span
+          >
         </p>
         <div class="row g-3">
-          <div class="col-md-4">
+          <div class="col-md-3">
             <label class="form-label" for="settings-gen2-badge">Gen 2.x</label>
             <select
               id="settings-gen2-badge"
@@ -506,7 +510,7 @@
               {/each}
             </select>
           </div>
-          <div class="col-md-4">
+          <div class="col-md-3">
             <label class="form-label" for="settings-gen3-badge">Gen 3.x</label>
             <select
               id="settings-gen3-badge"
@@ -518,12 +522,24 @@
               {/each}
             </select>
           </div>
-          <div class="col-md-4">
+          <div class="col-md-3">
             <label class="form-label" for="settings-gen4-badge">Gen 4.x</label>
             <select
               id="settings-gen4-badge"
               class="form-select"
               bind:value={settings.gen4_badge_class}
+            >
+              {#each badgeColorOptions as opt (opt.value)}
+                <option value={opt.value}>{opt.label}</option>
+              {/each}
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label" for="settings-gen-frozen-badge">Feature-frozen</label>
+            <select
+              id="settings-gen-frozen-badge"
+              class="form-select"
+              bind:value={settings.gen_frozen_badge_class}
             >
               {#each badgeColorOptions as opt (opt.value)}
                 <option value={opt.value}>{opt.label}</option>

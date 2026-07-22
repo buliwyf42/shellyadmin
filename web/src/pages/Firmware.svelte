@@ -540,8 +540,9 @@
           </td>
           <td>{row.name || '-'}</td>
           <td>
-            <span class={`badge ${genBadgeClass(row.gen, appSettings)}`} title={genTitle(row.gen)}
-              >{genLabel(row.gen)}</span
+            <span
+              class={`badge ${genBadgeClass(row.gen, appSettings, row.fwFrozen)}`}
+              title={genTitle(row.gen, row.fwFrozen)}>{genLabel(row.gen, row.fwFrozen)}</span
             >
           </td>
           <td>
@@ -572,14 +573,6 @@
                 alt: {alt.id}
               </span>
             {/each}
-            {#if row.fwFrozen}
-              <span
-                class="badge bg-secondary ms-1"
-                title="This firmware line is feature-frozen at its current stable version and will never receive 2.0.0+ (Shelly Firmware Update Policy). Informational only — does not block updates/installs."
-              >
-                frozen
-              </span>
-            {/if}
           </td>
           <td
             ><a href={`http://${row.ip}/`} target="_blank" rel="noreferrer noopener">{row.ip}</a

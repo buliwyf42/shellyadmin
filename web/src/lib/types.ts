@@ -168,6 +168,8 @@ export interface AppSettings {
   gen2_badge_class?: string;
   gen3_badge_class?: string;
   gen4_badge_class?: string;
+  /** Overrides the generation badge for devices with fw_frozen=true, regardless of gen. */
+  gen_frozen_badge_class?: string;
   /** Per-device install timeout in seconds. Default 600. Forced to at least firmware_install_quiet_period + 150. */
   firmware_install_timeout?: number;
   /** How long the install_job leaves a device untouched after triggering the update, before polling. Seconds; default 150; bounded [0, 600]. Polling an in-flight OTA starves it. */
