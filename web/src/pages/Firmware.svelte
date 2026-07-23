@@ -555,7 +555,7 @@
                 .filter(Boolean)
                 .join('\n')}
               <div title={tip}>
-                {row.app || friendly || row.model}
+                {friendly || row.app || row.model}
               </div>
             {:else}
               -

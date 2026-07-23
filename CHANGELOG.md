@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- The Model column's marketing name (added in 0.6.1) never actually showed:
+  the cell displayed `app || friendly || model`, and Shelly's own `app` code
+  (e.g. `Plus1`) is populated on virtually every device, so it always won
+  over the marketing name — which was silently demoted to tooltip-only.
+  Flipped the precedence to `friendly || app || model` on both the Firmware
+  and Devices pages.
+
 ## [0.6.2] - 2026-07-22 — Configurable badge color for feature-frozen devices
 
 ### Added

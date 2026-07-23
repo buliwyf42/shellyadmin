@@ -336,7 +336,7 @@
                   .filter(Boolean)
                   .join('\n')}
                 <div title={tooltip}>
-                  {device.app || friendly || device.model}
+                  {friendly || device.app || device.model}
                 </div>
               {:else}<span class="text-secondary">n/a</span>{/if}
             </td>{/if}
