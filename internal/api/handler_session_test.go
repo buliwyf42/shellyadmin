@@ -44,7 +44,7 @@ func sessionRouterSetup(t *testing.T) (*gin.Engine, *Handler) {
 	r := gin.New()
 	store := cookie.NewStore([]byte(cfg.Secret))
 	r.Use(sessions.Sessions("shellyadmin", store))
-	validator := h.service.SessionValidator()
+	validator := h.service.Sessions.Validator()
 	r.POST("/api/login", h.Login)
 	r.POST("/api/logout", middleware.RequireAuth(validator), h.Logout)
 	// A protected resource for the regression check. /api/version
@@ -128,7 +128,7 @@ func TestRequireAuthRejectsCookieWithoutSessionID(t *testing.T) {
 	r := gin.New()
 	store := cookie.NewStore([]byte(cfg.Secret))
 	r.Use(sessions.Sessions("shellyadmin", store))
-	validator := h.service.SessionValidator()
+	validator := h.service.Sessions.Validator()
 	// Synthetic "set user only" endpoint to simulate a pre-S5 cookie.
 	r.POST("/legacy-login", func(c *gin.Context) {
 		sess := sessions.Default(c)

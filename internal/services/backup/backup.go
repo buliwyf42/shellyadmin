@@ -18,6 +18,7 @@ import (
 	"strings"
 
 	"shellyadmin/internal/models"
+	"shellyadmin/internal/services/credentials"
 	"shellyadmin/internal/services/validation"
 )
 
@@ -64,22 +65,18 @@ type Store interface {
 	ReplaceDeviceCredentialGroupAssignments(assignments map[string]string) error
 }
 
-// GroupSaver mirrors credentials.Service.SaveGroup. Backup uses this so the
-// admin-mirror credential row is created the same way the SaveCredentialGroup
-// API does (which is exactly what credentials.Service.SaveGroup encodes).
-type GroupSaver interface {
-	SaveGroup(g models.CredentialGroup) error
-}
-
 // Service hosts Export + Import.
 type Service struct {
 	store  Store
-	groups GroupSaver
+	groups *credentials.Service
 	log    func(level, msg string)
 }
 
-// New constructs a Service. log may be nil (a no-op default is used).
-func New(store Store, groups GroupSaver, log func(level, msg string)) *Service {
+// New constructs a Service. log may be nil (a no-op default is used). groups
+// is used to mirror imported credential groups through
+// credentials.Service.SaveGroup so the admin-mirror credential row is
+// created the same way the SaveCredentialGroup API does.
+func New(store Store, groups *credentials.Service, log func(level, msg string)) *Service {
 	if log == nil {
 		log = func(string, string) {}
 	}

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { APIError, api } from '../lib/api';
+  import { api, toErrorDetails, toErrorMessage } from '../lib/api';
   import { devices } from '../lib/stores';
   import type { AppSettings } from '../lib/types';
   import ErrorNotice from '../components/ErrorNotice.svelte';
@@ -21,13 +21,8 @@
   let errorDetails = '';
 
   function captureError(err: unknown) {
-    if (err instanceof APIError) {
-      error = err.message;
-      errorDetails = `${err.method} ${err.path} -> ${err.status}\n${JSON.stringify(err.detail ?? {}, null, 2)}`;
-      return;
-    }
-    error = err instanceof Error ? err.message : String(err);
-    errorDetails = String(err);
+    error = toErrorMessage(err);
+    errorDetails = toErrorDetails(err);
   }
 
   async function load() {

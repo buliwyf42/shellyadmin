@@ -95,7 +95,7 @@ func NewRouter(database *db.DB, cfg Config) *gin.Engine {
 	h := NewHandler(database, cfg)
 
 	// S5 — RequireAuth now consults the server-side session store via
-	// AppService.SessionValidator(). Cookie alone is no longer
+	// AppService.Sessions.Validator(). Cookie alone is no longer
 	// sufficient; the session id baked into the cookie must point to
 	// an un-revoked, un-expired row in `sessions`. Tests that build a
 	// router without an AppService (Service == nil) fall back to
@@ -109,7 +109,7 @@ func NewRouter(database *db.DB, cfg Config) *gin.Engine {
 	var validator middleware.SessionValidator
 	var patValidator middleware.PATValidator
 	if h.service != nil {
-		validator = h.service.SessionValidator()
+		validator = h.service.Sessions.Validator()
 		patValidator = h.service
 	}
 	authMW := middleware.RequireAuthWithPAT(validator, patValidator)

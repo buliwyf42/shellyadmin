@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { APIError, api } from '../lib/api';
+  import { api, toErrorDetails, toErrorMessage } from '../lib/api';
   import type { AppSettings, BackupExport, Credential, ImportReport } from '../lib/types';
   import ErrorNotice from '../components/ErrorNotice.svelte';
   import AccountCard from './settings/AccountCard.svelte';
@@ -59,13 +59,8 @@
   let pendingImport: BackupExport | null = null;
 
   function captureError(err: unknown) {
-    if (err instanceof APIError) {
-      error = err.message;
-      errorDetails = `${err.method} ${err.path} -> ${err.status}\n${JSON.stringify(err.detail ?? {}, null, 2)}`;
-      return;
-    }
-    error = (err as Error).message;
-    errorDetails = String(err);
+    error = toErrorMessage(err);
+    errorDetails = toErrorDetails(err);
   }
 
   function setStatus(message: string) {

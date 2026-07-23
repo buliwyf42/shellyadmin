@@ -53,9 +53,9 @@ func (h *Handler) ChangeCredentials(c *gin.Context) {
 	}
 	// Rotate sessions so the old cookie is dead after a password change.
 	// Cover both the old and (when renamed) new username keys.
-	_ = h.service.RevokeSessionsForUser(currentUser)
+	_ = h.service.Sessions.RevokeForUser(currentUser)
 	if newUsername != currentUser {
-		_ = h.service.RevokeSessionsForUser(newUsername)
+		_ = h.service.Sessions.RevokeForUser(newUsername)
 	}
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }

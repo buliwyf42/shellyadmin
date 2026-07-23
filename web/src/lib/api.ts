@@ -62,6 +62,20 @@ export class APIError extends Error {
   }
 }
 
+/** Human-readable message for a caught error, whether it's an APIError or not. */
+export function toErrorMessage(err: unknown): string {
+  if (err instanceof APIError) return err.message;
+  return err instanceof Error ? err.message : String(err);
+}
+
+/** Verbose diagnostic text (method/path/status/body for APIError, else String(err)). */
+export function toErrorDetails(err: unknown): string {
+  if (err instanceof APIError) {
+    return `${err.method} ${err.path} -> ${err.status}\n${JSON.stringify(err.detail ?? {}, null, 2)}`;
+  }
+  return String(err);
+}
+
 // CSRF token used to be readable from every authenticated response's
 // X-CSRF-Token header; the backend stopped echoing it (Phase 1 Q12) so an
 // XSS sink can no longer scrape a token from `fetch('/api/devices')`.

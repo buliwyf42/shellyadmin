@@ -10,6 +10,7 @@ import (
 
 	"shellyadmin/internal/db"
 	"shellyadmin/internal/models"
+	mcpctl "shellyadmin/internal/services/mcp"
 )
 
 // trackingBuilder returns a build function that records every invocation
@@ -18,7 +19,7 @@ import (
 // way mcp.Build's output would be. Used by tests to assert that
 // reconcile starts/stops the listener at the expected times without
 // pulling the real MCP package in.
-func trackingBuilder(t *testing.T, builds *atomic.Int32, lastToken *atomic.Pointer[string]) MCPBuilder {
+func trackingBuilder(t *testing.T, builds *atomic.Int32, lastToken *atomic.Pointer[string]) mcpctl.Builder {
 	t.Helper()
 	return func(_ *db.DB, _, token, _, _, _ string) (*http.Server, error) {
 		builds.Add(1)
@@ -40,7 +41,7 @@ func trackingBuilder(t *testing.T, builds *atomic.Int32, lastToken *atomic.Point
 	}
 }
 
-func newTestServiceWithMCPBuilder(t *testing.T, b MCPBuilder, envToken string) (*db.DB, *AppService) {
+func newTestServiceWithMCPBuilder(t *testing.T, b mcpctl.Builder, envToken string) (*db.DB, *AppService) {
 	t.Helper()
 	database, err := db.Open(t.TempDir())
 	if err != nil {

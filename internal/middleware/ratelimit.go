@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -92,20 +93,10 @@ func MCPRateLimitMiddleware(next http.Handler) http.Handler {
 // rate-limit key.
 func clientIPFromRequest(r *http.Request) string {
 	host := r.RemoteAddr
-	if i := lastIndexByte(host, ':'); i >= 0 {
+	if i := strings.LastIndexByte(host, ':'); i >= 0 {
 		return host[:i]
 	}
 	return host
-}
-
-// lastIndexByte avoids importing strings just for this one call.
-func lastIndexByte(s string, b byte) int {
-	for i := len(s) - 1; i >= 0; i-- {
-		if s[i] == b {
-			return i
-		}
-	}
-	return -1
 }
 
 func allowRequest(store *attemptStore, key string, window time.Duration, max int) bool {

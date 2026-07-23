@@ -11,9 +11,8 @@ import (
 
 // runScopeTest wires a minimal gin router with the supplied auth-method
 // context + scopes preset on c, then runs the request through
-// RequireScope or RequireAnyScope. The handler echoes "ok" so the
-// caller can distinguish pass-through (status 200) from middleware
-// abort (status 401/403).
+// RequireScope. The handler echoes "ok" so the caller can distinguish
+// pass-through (status 200) from middleware abort (status 401/403).
 func runScopeTest(method, scope string, scopes []string, mw gin.HandlerFunc) *httptest.ResponseRecorder {
 	r := gin.New()
 	// Pre-auth shim sets the same context keys RequireAuth would set.
@@ -82,33 +81,6 @@ func TestRequireScopeUnauthenticated(t *testing.T) {
 	rec := runScopeTest("", "", nil, RequireScope("devices:read"))
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("no auth method: got %d, want 401", rec.Code)
-	}
-}
-
-// TestRequireAnyScopeAcceptsOneOf — disjunctive variant passes when
-// the PAT has at least one of the accepted scopes.
-func TestRequireAnyScopeAcceptsOneOf(t *testing.T) {
-	rec := runScopeTest(AuthMethodPAT, "", []string{"firmware:read"}, RequireAnyScope("devices:read", "firmware:read"))
-	if rec.Code != http.StatusOK {
-		t.Errorf("one-of match: got %d, want 200", rec.Code)
-	}
-}
-
-// TestRequireAnyScopeRejectsNoneOf — disjunctive variant 403s when
-// the PAT has none of the accepted scopes.
-func TestRequireAnyScopeRejectsNoneOf(t *testing.T) {
-	rec := runScopeTest(AuthMethodPAT, "", []string{"settings:read"}, RequireAnyScope("devices:read", "firmware:read"))
-	if rec.Code != http.StatusForbidden {
-		t.Errorf("none-of match: got %d, want 403", rec.Code)
-	}
-}
-
-// TestRequireAnyScopeCookiePassesThrough — cookie-authed bypasses the
-// disjunctive check just like the single-scope variant.
-func TestRequireAnyScopeCookiePassesThrough(t *testing.T) {
-	rec := runScopeTest(AuthMethodCookie, "", nil, RequireAnyScope("devices:read"))
-	if rec.Code != http.StatusOK {
-		t.Errorf("cookie-auth + RequireAnyScope: got %d, want 200", rec.Code)
 	}
 }
 

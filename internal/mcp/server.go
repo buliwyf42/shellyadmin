@@ -2,10 +2,7 @@ package mcp
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
-	"fmt"
 	"net"
 	"net/http"
 	"strings"
@@ -16,6 +13,7 @@ import (
 	"shellyadmin/internal/db"
 	"shellyadmin/internal/middleware"
 	"shellyadmin/internal/services"
+	"shellyadmin/internal/services/audit"
 )
 
 // Build constructs the MCP HTTP listener wrapping a freshly built
@@ -41,7 +39,7 @@ func Build(database *db.DB, dataDir, token, bind, port, version string) (*http.S
 	}
 
 	svc := services.NewAppService(database, dataDir, func(ctx context.Context, level, msg string) {
-		_ = database.AddLogWithAttrs(level, services.SanitizeLogMessage(msg), middleware.FromContext(ctx), services.RiskFromContext(ctx))
+		_ = database.AddLogWithAttrs(level, services.SanitizeLogMessage(msg), middleware.FromContext(ctx), audit.RiskFromContext(ctx))
 	})
 
 	server := mcp.NewServer(&mcp.Implementation{
@@ -78,46 +76,12 @@ func Build(database *db.DB, dataDir, token, bind, port, version string) (*http.S
 // correlate audit rows with client-side traces.
 func requestIDMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		id := sanitizeRequestID(r.Header.Get(middleware.HeaderRequestID))
+		id := middleware.SanitizeInbound(r.Header.Get(middleware.HeaderRequestID))
 		if id == "" {
-			id = newRequestID()
+			id = middleware.NewRequestID()
 		}
 		w.Header().Set(middleware.HeaderRequestID, id)
 		ctx := middleware.WithRequestID(r.Context(), id)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
-}
-
-// sanitizeRequestID mirrors the alnum/dash/underscore rules used by
-// internal/middleware/requestid.go's sanitizeInbound. We can't import
-// that helper directly (it's unexported) so we duplicate the small
-// validation rather than exporting it just for MCP.
-func sanitizeRequestID(raw string) string {
-	trimmed := strings.TrimSpace(raw)
-	const max = 64
-	if trimmed == "" {
-		return ""
-	}
-	if len(trimmed) > max {
-		trimmed = trimmed[:max]
-	}
-	for _, r := range trimmed {
-		switch {
-		case r >= '0' && r <= '9':
-		case r >= 'a' && r <= 'z':
-		case r >= 'A' && r <= 'Z':
-		case r == '-' || r == '_':
-		default:
-			return ""
-		}
-	}
-	return trimmed
-}
-
-func newRequestID() string {
-	var buf [8]byte
-	if _, err := rand.Read(buf[:]); err != nil {
-		return fmt.Sprintf("rid-%d", time.Now().UnixNano())
-	}
-	return hex.EncodeToString(buf[:])
 }

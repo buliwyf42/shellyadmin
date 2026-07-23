@@ -19,8 +19,8 @@ type TOTPState struct {
 
 // GetTOTP returns the row for username, or sql.ErrNoRows when the user
 // hasn't enrolled. Callers treat ErrNoRows as "TOTP not required for
-// this user" (the per-handler logic decides whether to block
-// password-only login based on AppSettings.TOTPRequired).
+// this user" — enrolled operators are required to enter a code,
+// non-enrolled operators can still log in password-only.
 func (db *DB) GetTOTP(username string) (TOTPState, error) {
 	var t TOTPState
 	err := db.sql.QueryRow(

@@ -14,22 +14,13 @@ import (
 	mcpctl "shellyadmin/internal/services/mcp"
 )
 
-// MCPBuilder constructs an *http.Server fronting an MCP listener for the
-// given token. Re-export of mcpctl.Builder so cmd/shellyctl/main.go (and the
-// existing app_mcp_test.go) doesn't need to import the sub-package.
-type MCPBuilder = mcpctl.Builder
-
-// MCPController is re-exported so existing callers that named the type keep
-// compiling. New code in this package should reach for *mcpctl.Controller.
-type MCPController = mcpctl.Controller
-
 // SetMCPParams installs the runtime parameters the MCP listener needs to
 // start. Called once from main.go after the DB is open and the service is
 // constructed. The builder argument is required — passing it in (vs.
 // importing mcp.Build directly here) avoids a services↔mcp import cycle.
 // Idempotent — last call wins. envToken=="" means the listener will be
 // settings-driven; non-empty means env-locked.
-func (s *AppService) SetMCPParams(database *db.DB, builder MCPBuilder, envToken, bind, port, version string) {
+func (s *AppService) SetMCPParams(database *db.DB, builder mcpctl.Builder, envToken, bind, port, version string) {
 	if s.mcp == nil {
 		s.mcp = mcpctl.New()
 	}

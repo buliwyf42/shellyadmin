@@ -23,10 +23,6 @@ const ScopeAdmin = "admin"
 //   - Auth method == "" (the auth middleware never ran): 401. This is
 //     defense-in-depth — a routing bug that landed a RequireScope
 //     handler outside the auth group would otherwise pass silently.
-//
-// The required-scope argument is a single string. Routes that need
-// "either of two scopes" should call RequireAnyScope instead; the
-// catalog deliberately doesn't have OR semantics in the common case.
 func RequireScope(required string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		method := AuthMethod(c)
@@ -42,36 +38,6 @@ func RequireScope(required string) gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
 				"error":          "missing scope",
 				"required_scope": required,
-			})
-			return
-		default:
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
-			return
-		}
-	}
-}
-
-// RequireAnyScope is the disjunctive variant — pass if the PAT carries
-// ANY of `accepted`. Used by routes that have a "read OR write"
-// authorization model (rare; most routes are single-scope).
-func RequireAnyScope(accepted ...string) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		method := AuthMethod(c)
-		switch method {
-		case AuthMethodCookie:
-			c.Next()
-			return
-		case AuthMethodPAT:
-			granted := PATScopes(c)
-			for _, want := range accepted {
-				if hasScope(granted, want) {
-					c.Next()
-					return
-				}
-			}
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-				"error":           "missing scope",
-				"accepted_scopes": accepted,
 			})
 			return
 		default:

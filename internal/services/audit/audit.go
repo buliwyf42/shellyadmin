@@ -4,9 +4,10 @@
 //
 // MOVED FROM internal/services/{app.go, audit_webhook.go, risk_context.go}
 // — v0.3.0 services-layer split (M7, docs/plans/phase-4b-refactor-block.md
-// Block 4b.1). The services package keeps aliases on SanitizeLogMessage,
-// WithRisk, RiskFromContext, AuditWebhookEvent so existing call sites in
-// internal/{mcp,api} and cmd/shellyctl compile unchanged.
+// Block 4b.1). The services package keeps a SanitizeLogMessage re-export
+// (internal/services/app.go) for its existing callers; WithRisk /
+// RiskFromContext / AuditWebhookEvent / ShouldForward / ValidateWebhookURL
+// are imported from this package directly everywhere else.
 package audit
 
 import (

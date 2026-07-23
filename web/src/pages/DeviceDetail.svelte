@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { APIError, api, triggerDownload } from '../lib/api';
+  import { api, toErrorDetails, toErrorMessage, triggerDownload } from '../lib/api';
   import { currentPath, navigate } from '../lib/stores';
   import { modelName } from '../lib/shellyModels';
   import { formatDateTime, formatRelativeDateTime } from '../lib/time';
@@ -30,13 +30,8 @@
   $: target = decodeURIComponent($currentPath.replace('/devices/', ''));
 
   function captureError(err: unknown) {
-    if (err instanceof APIError) {
-      error = err.message;
-      errorDetails = `${err.method} ${err.path} -> ${err.status}\n${JSON.stringify(err.detail ?? {}, null, 2)}`;
-      return;
-    }
-    error = (err as Error).message;
-    errorDetails = String(err);
+    error = toErrorMessage(err);
+    errorDetails = toErrorDetails(err);
   }
 
   async function load() {

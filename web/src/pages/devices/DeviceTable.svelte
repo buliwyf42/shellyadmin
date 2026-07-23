@@ -18,7 +18,6 @@
   import {
     formatCoords,
     generationLabel,
-    mqttManagedByCloud,
     refreshState,
     refreshStateBadgeClass,
     refreshStateText,
@@ -410,26 +409,23 @@
             >{/if}
           {#if $colVis.mqtt_enabled}
             <td
-              ><span
-                class={`badge ${mqttManagedByCloud(device) ? 'bg-secondary' : statusBadgeClass(device.mqtt_enabled)}`}
-                >{mqttManagedByCloud(device)
-                  ? 'cloud-managed'
-                  : statusText(device.mqtt_enabled)}</span
+              ><span class={`badge ${statusBadgeClass(device.mqtt_enabled)}`}
+                >{statusText(device.mqtt_enabled)}</span
               ></td
             >
           {/if}
           {#if $colVis.mqtt_server}<td
-              >{#if mqttManagedByCloud(device)}cloud-managed{:else if device.mqtt_server}{device.mqtt_server}{:else}<span
-                  class="text-secondary">n/a</span
+              >{#if device.mqtt_server}{device.mqtt_server}{:else}<span class="text-secondary"
+                  >n/a</span
                 >{/if}</td
             >{/if}
           {#if $colVis.mqtt_client_id}<td
-              >{#if mqttManagedByCloud(device)}cloud-managed{:else if device.mqtt_client_id}{device.mqtt_client_id}{:else}<span
-                  class="text-secondary">n/a</span
+              >{#if device.mqtt_client_id}{device.mqtt_client_id}{:else}<span class="text-secondary"
+                  >n/a</span
                 >{/if}</td
             >{/if}
           {#if $colVis.mqtt_topic_prefix}<td
-              >{#if mqttManagedByCloud(device)}cloud-managed{:else if device.mqtt_topic_prefix}{device.mqtt_topic_prefix}{:else}<span
+              >{#if device.mqtt_topic_prefix}{device.mqtt_topic_prefix}{:else}<span
                   class="text-secondary">n/a</span
                 >{/if}</td
             >{/if}

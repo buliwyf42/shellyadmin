@@ -33,9 +33,9 @@ const maxInboundLen = 64
 // header for tail-the-logs debugging.
 func RequestID() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		id := sanitizeInbound(c.GetHeader(HeaderRequestID))
+		id := SanitizeInbound(c.GetHeader(HeaderRequestID))
 		if id == "" {
-			id = newRequestID()
+			id = NewRequestID()
 		}
 		c.Set(ginContextKey, id)
 		c.Request = c.Request.WithContext(context.WithValue(c.Request.Context(), requestIDCtxKey{}, id))
@@ -80,7 +80,8 @@ func WithRequestID(ctx context.Context, id string) context.Context {
 	return context.WithValue(ctx, requestIDCtxKey{}, id)
 }
 
-func newRequestID() string {
+// NewRequestID generates a fresh 16-hex-char correlation ID.
+func NewRequestID() string {
 	var buf [8]byte
 	if _, err := rand.Read(buf[:]); err != nil {
 		return "rid-fallback"
@@ -88,7 +89,11 @@ func newRequestID() string {
 	return hex.EncodeToString(buf[:])
 }
 
-func sanitizeInbound(raw string) string {
+// SanitizeInbound validates a client-supplied X-Request-ID: alnum/dash/
+// underscore only, truncated to maxInboundLen. Returns "" if the raw value
+// is empty or contains a disallowed character, signalling the caller should
+// generate a fresh ID instead.
+func SanitizeInbound(raw string) string {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
 		return ""

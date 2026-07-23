@@ -2,6 +2,7 @@ package scanner
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -459,7 +460,7 @@ func marshalMap(data map[string]any) string {
 	if len(data) == 0 {
 		return ""
 	}
-	encoded, err := jsonMarshal(data)
+	encoded, err := json.Marshal(data)
 	if err != nil {
 		return ""
 	}

@@ -23,6 +23,7 @@ import (
 	"shellyadmin/internal/db"
 	"shellyadmin/internal/middleware"
 	"shellyadmin/internal/services"
+	"shellyadmin/internal/services/audit"
 )
 
 type Handler struct {
@@ -58,7 +59,7 @@ func NewHandler(database *db.DB, cfg Config) *Handler {
 		_ = handler.db.AddLogWithAttrs(level, sanitized, reqID, riskLevel)
 	}
 	handler.logFn = func(ctx context.Context, level, msg string) {
-		handler.auditSinkAttrs(level, msg, middleware.FromContext(ctx), services.RiskFromContext(ctx))
+		handler.auditSinkAttrs(level, msg, middleware.FromContext(ctx), audit.RiskFromContext(ctx))
 	}
 	if cfg.Service != nil {
 		// Reuse the externally-supplied AppService so background workers

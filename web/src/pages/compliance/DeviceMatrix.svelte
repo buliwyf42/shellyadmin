@@ -12,23 +12,12 @@
 <script lang="ts">
   import { devices } from '../../lib/stores';
   import type { Device } from '../../lib/types';
+  import ComplianceBadge from '../../components/ComplianceBadge.svelte';
 
   export let loading: boolean;
 
   $: compliantDevices = $devices.filter((device: Device) => device.compliant);
   $: nonCompliantDevices = $devices.filter((device: Device) => !device.compliant);
-
-  function complianceBadgeClass(device: Device): string {
-    return device.compliant ? 'bg-success' : 'bg-danger';
-  }
-
-  function complianceText(device: Device): string {
-    if (device.compliant) return 'Compliant';
-    if (device.compliance_issues && device.compliance_issues.length > 0) {
-      return device.compliance_issues[0];
-    }
-    return 'Non-compliant';
-  }
 </script>
 
 <div class="card bg-dark border-info">
@@ -71,9 +60,10 @@
                 <td>{device.ip}</td>
                 <td>Gen{device.gen}</td>
                 <td
-                  ><span class={`badge ${complianceBadgeClass(device)}`}
-                    >{complianceText(device)}</span
-                  ></td
+                  ><ComplianceBadge
+                    compliant={device.compliant}
+                    issues={device.compliance_issues}
+                  /></td
                 >
               </tr>
             {/each}

@@ -28,7 +28,6 @@
     "@typescript-eslint/eslint-plugin": "^8.62.1",
     "@typescript-eslint/parser": "^8.62.1",
     "@vitest/coverage-v8": "^4.1.10",
-    "@vitest/ui": "^4.1.8",
     "eslint": "^10.6.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-svelte": "^3.20.0",

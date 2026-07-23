@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { SvelteSet } from 'svelte/reactivity';
-  import { APIError, api } from '../lib/api';
+  import { api, toErrorDetails, toErrorMessage } from '../lib/api';
   import type { Credential, CredentialGroup, Device, ProvisionResult } from '../lib/types';
   import ErrorNotice from '../components/ErrorNotice.svelte';
   import SysForm from './provision/SysForm.svelte';
@@ -140,13 +140,8 @@
   let zigbeeOpsState: ZigbeeOpsState = createZigbeeOpsState();
 
   function captureError(err: unknown) {
-    if (err instanceof APIError) {
-      error = err.message;
-      errorDetails = `${err.method} ${err.path} -> ${err.status}\n${JSON.stringify(err.detail ?? {}, null, 2)}`;
-      return;
-    }
-    error = (err as Error).message;
-    errorDetails = String(err);
+    error = toErrorMessage(err);
+    errorDetails = toErrorDetails(err);
   }
 
   function clearTemplateLoadNotice() {

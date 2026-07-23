@@ -16,6 +16,7 @@ import (
 	"shellyadmin/internal/services/jobs"
 	"shellyadmin/internal/services/loginlock"
 	"shellyadmin/internal/services/logs"
+	mcpctl "shellyadmin/internal/services/mcp"
 	"shellyadmin/internal/services/provisioning"
 	"shellyadmin/internal/services/sessions"
 	servicessettings "shellyadmin/internal/services/settings"
@@ -82,13 +83,11 @@ type AppService struct {
 	// mcp owns the live MCP listener lifecycle when SetMCPParams has
 	// been called. nil for tests / callers that never wire MCP up;
 	// see internal/services/app_mcp.go for the controller type.
-	mcp *MCPController
+	mcp *mcpctl.Controller
 
-	// sessions owns server-side session row lifecycle (issue, revoke,
-	// validate). Extracted to internal/services/sessions in v0.3.0 (M7);
-	// delegators on AppService preserve the public surface — see
-	// internal/services/sessions.go.
-	sessions *sessions.Service
+	// Sessions owns server-side session row lifecycle (issue, revoke,
+	// validate). Extracted to internal/services/sessions in v0.3.0 (M7).
+	Sessions *sessions.Service
 
 	// creds owns credential + credential-group + per-device-assignment
 	// CRUD. Extracted to internal/services/credentials in v0.3.0 (M7);
@@ -215,7 +214,7 @@ func NewAppService(database Store, dataDir string, logf func(ctx context.Context
 		activeFirmware:  map[string]bool{},
 		ctx:             ctx,
 		cancel:          cancel,
-		sessions:        sessions.New(database),
+		Sessions:        sessions.New(database),
 		creds:           credentials.New(database),
 		lock:            loginlock.New(database),
 	}

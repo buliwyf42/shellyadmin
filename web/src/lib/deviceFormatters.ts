@@ -52,13 +52,6 @@ export function statusText(
   return value ? on : off;
 }
 
-/** Currently always false — placeholder for "device's MQTT is overridden
- * by Shelly Cloud management". Kept so the column can flip on later
- * without touching every callsite. */
-export function mqttManagedByCloud(_device: Device): boolean {
-  return false;
-}
-
 /** Formatted lat,lon pair or "n/a" when either is null. */
 export function formatCoords(device: Device): string {
   if (device.lat === null || device.lon === null) return 'n/a';

@@ -1,4 +1,4 @@
-package services
+package audit
 
 import (
 	"testing"
@@ -29,9 +29,9 @@ func TestShouldForwardRespectsLevelFloor(t *testing.T) {
 		{"warn", "info", true},
 	}
 	for _, tc := range cases {
-		got := shouldForward(tc.level, tc.minLevel)
+		got := ShouldForward(tc.level, tc.minLevel)
 		if got != tc.want {
-			t.Errorf("shouldForward(%q,%q) = %v, want %v", tc.level, tc.minLevel, got, tc.want)
+			t.Errorf("ShouldForward(%q,%q) = %v, want %v", tc.level, tc.minLevel, got, tc.want)
 		}
 	}
 }
@@ -52,10 +52,10 @@ func TestValidateWebhookURL(t *testing.T) {
 		{"https://", true}, // no host
 	}
 	for _, tc := range cases {
-		err := validateWebhookURL(tc.url)
+		err := ValidateWebhookURL(tc.url)
 		gotErr := err != nil
 		if gotErr != tc.wantErr {
-			t.Errorf("validateWebhookURL(%q) error = %v, wantErr = %v", tc.url, err, tc.wantErr)
+			t.Errorf("ValidateWebhookURL(%q) error = %v, wantErr = %v", tc.url, err, tc.wantErr)
 		}
 	}
 }

@@ -12,6 +12,7 @@ import (
 	"shellyadmin/internal/core/firmware"
 	"shellyadmin/internal/core/setters"
 	"shellyadmin/internal/models"
+	"shellyadmin/internal/services/audit"
 	"shellyadmin/internal/util"
 )
 
@@ -230,7 +231,7 @@ func (s *AppService) ExecuteDeviceAction(ctx context.Context, target, action str
 	// rows for action execution carry a structured risk_level alongside
 	// the free-text message body. ADR-0010 carve-out: lets compliance
 	// queries SELECT high-risk events directly.
-	ctx = WithRisk(ctx, def.risk)
+	ctx = audit.WithRisk(ctx, def.risk)
 	return def.apply(ctx, s, detail.Device, req)
 }
 

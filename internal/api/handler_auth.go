@@ -131,14 +131,14 @@ func (h *Handler) Login(c *gin.Context) {
 	// remained valid for its full 7-day MaxAge.
 	sessionID := RandomSecret()
 	session.Set("session_id", sessionID)
-	if _, err := h.service.IssueSession(sessionID, adminUser); err != nil {
+	if _, err := h.service.Sessions.Issue(sessionID, adminUser); err != nil {
 		h.logReq(c, "ERROR", fmt.Sprintf("login: issue session row failed: %v", err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "session persistence failed"})
 		return
 	}
 	if err := session.Save(); err != nil {
 		h.logReq(c, "ERROR", fmt.Sprintf("login: session save failed: %v", err))
-		_ = h.service.RevokeSession(sessionID)
+		_ = h.service.Sessions.Revoke(sessionID)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "session persistence failed"})
 		return
 	}
@@ -156,7 +156,7 @@ func (h *Handler) Login(c *gin.Context) {
 func (h *Handler) Logout(c *gin.Context) {
 	session := sessions.Default(c)
 	if sid, ok := session.Get("session_id").(string); ok && sid != "" && h.service != nil {
-		if err := h.service.RevokeSession(sid); err != nil {
+		if err := h.service.Sessions.Revoke(sid); err != nil {
 			h.logReq(c, "WARN", fmt.Sprintf("logout: revoke session failed: %v", err))
 		}
 	}

@@ -35,15 +35,6 @@ const (
 	firmwareInstallConcurrency         = jobs.FirmwareInstallConcurrency
 )
 
-// ParseScanPayload forwards to internal/services/jobs.ParseScanPayload.
-func ParseScanPayload(raw string) (ScanJobPayload, error) { return jobs.ParseScanPayload(raw) }
-
-// ParseScanResult forwards to internal/services/jobs.ParseScanResult.
-func ParseScanResult(raw string) (ScanJobResult, error) { return jobs.ParseScanResult(raw) }
-
-// ParseFirmwareResult forwards to internal/services/jobs.ParseFirmwareResult.
-func ParseFirmwareResult(raw string) (FirmwareJobResult, error) { return jobs.ParseFirmwareResult(raw) }
-
 // refreshProbeTimeout stays here so the non-job RefreshDevice path in
 // app.go can compute the per-device timeout the same way the job worker
 // would. Once RefreshDevice itself moves out, this can go.

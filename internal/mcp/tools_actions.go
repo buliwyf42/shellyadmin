@@ -8,6 +8,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"shellyadmin/internal/services"
+	"shellyadmin/internal/services/audit"
 )
 
 // confirmPolicy is appended verbatim to every state-changing tool's
@@ -30,10 +31,6 @@ type SimpleActionResult struct {
 	// Description is human-readable; the LLM is expected to surface this
 	// (or a paraphrase) to the operator before passing confirm=true.
 	Description string `json:"description"`
-	// JobID is set when the AppService method spawned a background job
-	// (scan / firmware_check / refresh-all). Operators can poll
-	// scan_status / firmware_status to follow progress.
-	JobID int64 `json:"job_id,omitempty"`
 	// DeviceCount is set when the action targets a quantifiable set of
 	// devices.
 	DeviceCount int `json:"device_count,omitempty"`
@@ -53,7 +50,7 @@ func actionTool[In, Out any](
 	fn func(context.Context, In) (Out, error),
 ) mcp.ToolHandlerFor[In, Out] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, in In) (*mcp.CallToolResult, Out, error) {
-		ctx = services.WithRisk(ctx, risk)
+		ctx = audit.WithRisk(ctx, risk)
 		confirmed := confirmedFn(in)
 		out, err := fn(ctx, in)
 		mode := "preview"

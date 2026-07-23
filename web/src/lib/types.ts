@@ -187,8 +187,6 @@ export interface AppSettings {
   mcp_managed_by_env?: boolean;
   /** True when an MCP listener goroutine is currently active. Surfaced in the API GET response so the UI can render a live status badge. Read-only — never persisted. */
   mcp_running?: boolean;
-  /** When true AND the operator has an active TOTP enrollment, the login handler refuses password-only auth. Non-enrolled operators can still log in password-only (escape hatch for the first-time enrollment flow). T1 in v0.3.0. */
-  totp_required?: boolean;
 }
 
 /** GET /api/totp/status response — drives the Settings 2FA card's

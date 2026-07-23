@@ -49,9 +49,6 @@ func TestRefreshAllDevicesPreviewVsConfirm(t *testing.T) {
 		if out.DeviceCount != 3 {
 			t.Errorf("device_count = %d, want 3", out.DeviceCount)
 		}
-		if out.JobID != 0 {
-			t.Errorf("job_id should be unset in preview, got %d", out.JobID)
-		}
 	})
 
 	t.Run("preview-confirm-false", func(t *testing.T) {

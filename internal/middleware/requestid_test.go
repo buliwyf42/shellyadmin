@@ -99,6 +99,29 @@ func TestRequestIDTruncatesLongInbound(t *testing.T) {
 	}
 }
 
+func TestSanitizeInbound(t *testing.T) {
+	cases := []struct {
+		in, want string
+	}{
+		{"", ""},
+		{"abc-123_def", "abc-123_def"},
+		{"   trim-me  ", "trim-me"},
+		{"has space", ""},
+		{"has/slash", ""},
+		{"has;semi", ""},
+	}
+	for _, tc := range cases {
+		if got := SanitizeInbound(tc.in); got != tc.want {
+			t.Errorf("SanitizeInbound(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+
+	long := strings.Repeat("a", maxInboundLen+16)
+	if got := SanitizeInbound(long); len(got) != maxInboundLen {
+		t.Errorf("SanitizeInbound truncation = %d chars, want %d", len(got), maxInboundLen)
+	}
+}
+
 func TestFromContextNilSafe(t *testing.T) {
 	var nilCtx context.Context
 	if FromContext(nilCtx) != "" {

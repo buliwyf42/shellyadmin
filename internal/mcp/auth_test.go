@@ -91,30 +91,3 @@ func TestSplitPathToken(t *testing.T) {
 		}
 	}
 }
-
-func TestSanitizeRequestID(t *testing.T) {
-	cases := []struct {
-		in, want string
-	}{
-		{"", ""},
-		{"abc-123_def", "abc-123_def"},
-		{"   trim-me  ", "trim-me"},
-		{"has space", ""},
-		{"has/slash", ""},
-		{"has;semi", ""},
-	}
-	for _, tc := range cases {
-		if got := sanitizeRequestID(tc.in); got != tc.want {
-			t.Errorf("sanitizeRequestID(%q) = %q, want %q", tc.in, got, tc.want)
-		}
-	}
-
-	long := make([]byte, 80)
-	for i := range long {
-		long[i] = 'a'
-	}
-	got := sanitizeRequestID(string(long))
-	if len(got) != 64 {
-		t.Errorf("sanitizeRequestID truncation = %d chars, want 64", len(got))
-	}
-}
