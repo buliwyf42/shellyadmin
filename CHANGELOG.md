@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Removed
+
+- Dead code and refactor debris flagged by a repo-wide ponytail-audit: unused
+  `TOTPRequired`/`JobID` fields, a single-caller `RequireAnyScope`, hand-rolled
+  `lastIndexByte`/`jsonMarshal` wrappers, `MCPBuilder`/`MCPController` aliases,
+  the single-implementation `GroupSaver` interface, duplicate request-ID
+  sanitizers between `mcp/server.go` and `middleware/requestid.go`, the M7
+  `risk_context.go`/`audit_webhook.go` re-export shims, and the `sessions.go`
+  trampoline methods (`AppService.Sessions` is now exported directly). On the
+  frontend: 8 duplicate `captureError` implementations collapse onto shared
+  `toErrorMessage`/`toErrorDetails` helpers, the always-false
+  `mqttManagedByCloud` placeholder and its dead branches are gone, the unused
+  `@vitest/ui` devDependency is dropped, and `DeviceMatrix.svelte` now reuses
+  the shared `ComplianceBadge` component instead of reimplementing it.
+
 ### Fixed
 
 - The Model column's marketing name (added in 0.6.1) never actually showed:
