@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.6.3] - 2026-07-23 — Fix Model-column marketing name + ponytail-audit cleanup
+
 ### Removed
 
 - Dead code and refactor debris flagged by a repo-wide ponytail-audit: unused
