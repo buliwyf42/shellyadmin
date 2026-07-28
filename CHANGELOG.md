@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Security
+
+- Bump `postcss` 8.5.16 → 8.5.23 (GHSA-r28c-9q8g-f849, path traversal in
+  `sourceMappingURL` auto-loading). Transitive dev-only dependency via vite —
+  build-time only, never shipped in the runtime image.
+
 ## [0.6.3] - 2026-07-23 — Fix Model-column marketing name + ponytail-audit cleanup
 
 ### Removed
