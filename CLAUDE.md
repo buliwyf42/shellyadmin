@@ -28,6 +28,14 @@ grep -E "^go " go.mod
 
 If anything in the top of that list outranks `go.mod`'s directive, either bump CI/Dockerfile/go.mod together (the v0.1.16 path) or pick an older version of the offending dep.
 
+### Dependabot groups are all-or-nothing (2026-08-01)
+
+`typescript` is excluded from the `npm-dev-dependencies` group in `.github/dependabot.yml`. Reason: a grouped PR merges as one unit, so a single incompatible member blocks every healthy update beside it. PR #89 bumped `typescript` to `^7.0.2` while `@typescript-eslint/eslint-plugin@8.65.0` still peer-requires `typescript >=4.8.4 <6.1.0` → `npm ERESOLVE`, and it took 10 unrelated dev bumps down with it. Because Dependabot rebuilds the group PR weekly, that was not a one-off but a recurring red PR.
+
+Only the bare `typescript` name is excluded (no wildcard), so `typescript-eslint` and `@typescript-eslint/*` stay in the group — they are not the problem, they are the constraint. `web/package.json` sits on `typescript: ^6.0.3`, and 6.0.3 is the last 6.x release, so the caret can never drift past the peer bound on its own.
+
+Re-add `typescript` to the group once a `typescript-eslint` release accepts TS 7; until then its solo PR stays red and is meant to be ignored.
+
 ### MCP server (HTTP + stdio, opt-in)
 
 Lives in `internal/mcp/`. Two transports share the same 21-tool surface:

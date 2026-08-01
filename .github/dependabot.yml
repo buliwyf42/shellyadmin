@@ -32,6 +32,9 @@ updates:
     groups:
       npm-dev-dependencies:
         dependency-type: development
+        # typescript bumps alone until typescript-eslint supports TS 7 — see CLAUDE.md
+        exclude-patterns:
+          - "typescript"
       npm-prod-dependencies:
         dependency-type: production
 
