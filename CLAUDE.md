@@ -34,7 +34,9 @@ If anything in the top of that list outranks `go.mod`'s directive, either bump C
 
 Only the bare `typescript` name is excluded (no wildcard), so `typescript-eslint` and `@typescript-eslint/*` stay in the group — they are not the problem, they are the constraint. `web/package.json` sits on `typescript: ^6.0.3`, and 6.0.3 is the last 6.x release, so the caret can never drift past the peer bound on its own.
 
-Re-add `typescript` to the group once a `typescript-eslint` release accepts TS 7; until then its solo PR stays red and is meant to be ignored.
+Re-add `typescript` to the group once a `typescript-eslint` release accepts TS 7 (check with `npm view @typescript-eslint/eslint-plugin@latest peerDependencies`); until then its solo PR is expected to stay red and is meant to be ignored.
+
+**Unverified as of 2026-08-02:** no solo `typescript` PR has appeared yet. Dependabot's docs say dependencies excluded from a group get individual PRs, but the only ungrouped npm run since the change started 12 seconds after the push and still treated `typescript` as grouped — so nothing has actually evaluated it standalone. If the next scheduled Monday run produces no solo PR either, then `exclude-patterns` drops the dependency from the update scope entirely rather than splitting it out, and the paragraph above is wrong: TypeScript would then need bumping by hand. A one-shot check is scheduled for 2026-08-03.
 
 ### MCP server (HTTP + stdio, opt-in)
 
