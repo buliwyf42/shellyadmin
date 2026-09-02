@@ -38,6 +38,10 @@ Re-add `typescript` to the group once a `typescript-eslint` release accepts TS 7
 
 **Resolved 2026-08-28:** `exclude-patterns` does split the dependency out — the 2026-08-03 run opened PR #95 (`typescript 6.0.3 → 7.0.2`) on its own, exactly as Dependabot documents. The 2026-08-02 "unverified" note is settled; TypeScript does not need bumping by hand. But that solo PR is unmergeable *and* rebuilt weekly, so it was the only recurring red run on `main`. An `ignore` rule (`typescript` `>=7`) in `.github/dependabot.yml` now stops it from coming back. Drop the ignore rule together with the group exclusion when TS 7 becomes installable.
 
+### Docker digest bumps look like major bumps (2026-09-02)
+
+`dependabot/fetch-metadata` has no version to compare on a digest-only bump — the tag is unchanged, only the `@sha256` pin moves — so it reports `update-type: version-update:semver-major` with `previous-version` = `` `<sha>` `` and `new-version` = the tag. The patch+minor gate in `.github/workflows/dependabot-auto-merge.yml` skipped those, and they sat green-but-open (PR #107 for a day). The gate now also accepts `package-ecosystem == 'docker' && contains(previous-version, '`')` — the backtick is fetch-metadata's own formatting for a digest, and a real major image bump (`26-alpine` → `27-alpine`) carries a plain version in both fields, so it still goes to manual review. If that formatting ever changes, digest bumps stop auto-merging (fails safe); the fallback is diffing the Dockerfile, which costs a checkout of the untrusted PR ref under `pull_request_target`.
+
 ### MCP server (HTTP + stdio, opt-in)
 
 Lives in `internal/mcp/`. Two transports share the same 21-tool surface:
