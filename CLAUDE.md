@@ -9,10 +9,10 @@ details, see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 ## Architecture
 
-- **Backend**: Go 1.25 (single binary, `cmd/shellyctl/main.go`). The Go floor moved from 1.24 → 1.25 in v0.1.16 — gin v1.12.0 pulls `quic-go/quic-go` for HTTP/3, which requires Go 1.25.0 in its `go.mod`. CI's `setup-go` and the Dockerfile backend stage use the **Go 1.26 toolchain** (bumped in v0.3.4); the `go.mod` directive stays `go 1.25.0` — the floor — and the newer toolchain builds it backward-compatibly. **The binary links quic-go but does NOT open any UDP/QUIC listener** — the HTTP server in main.go is plain `net/http` over TCP. Phase 2 (v0.2.11) verified this; the QUIC code paths in the binary are dead weight at runtime, not an attack surface.
+- **Backend**: Go 1.25 (single binary, `cmd/shellyctl/main.go`). The Go floor moved from 1.24 → 1.25 in v0.1.16 — gin v1.12.0 pulls `quic-go/quic-go` for HTTP/3, which requires Go 1.25.0 in its `go.mod`. CI's `setup-go` runs the **Go 1.26 toolchain** (bumped in v0.3.4), the Dockerfile backend stage the **Go 1.27 toolchain** (PR #105, 2026-08-28) — Dependabot bumps the base image but not `setup-go`, so the two no longer move together. The `go.mod` directive stays `go 1.25.0` — the floor — and both toolchains build it backward-compatibly. **The binary links quic-go but does NOT open any UDP/QUIC listener** — the HTTP server in main.go is plain `net/http` over TCP. Phase 2 (v0.2.11) verified this; the QUIC code paths in the binary are dead weight at runtime, not an attack surface.
 - **Frontend**: Svelte + TypeScript SPA (`web/src/`)
 - **Database**: SQLite via `modernc.org/sqlite` (no CGO required)
-- **Deployment**: Multi-stage Docker image — Node 26 builds frontend, Go 1.26 builds backend, Alpine 3.24 is the runtime (bumped from 3.23 in v0.5.5)
+- **Deployment**: Multi-stage Docker image — Node 26 builds frontend, Go 1.27 builds backend, Alpine 3.24 is the runtime (bumped from 3.23 in v0.5.5)
 - **Entry point**: `cmd/shellyctl/main.go` → `internal/services/app.go`
 
 The SPA is embedded into the Go binary at build time via `//go:embed`.
