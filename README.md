@@ -49,7 +49,7 @@ It is designed as a single-container deployment with:
 
 ## Status
 
-Under active development. Current release is `v0.5.5` (housekeeping: dependency roll-up incl. Alpine 3.24 runtime base + dead-code cleanup, no behaviour change). The last feature release was `v0.5.4` (Shelly firmware 2.0.0-beta3 support: read-only visibility of alternative firmware variants and secure-provisioning status); the UI/API baseline is otherwise unchanged since `v0.4.0`. The project follows pre-1.0 semver: minor versions may carry breaking changes. Semver guarantees apply from `v1.0.0`.
+Under active development. Current release is `v0.6.3` (fix for the Model-column marketing name plus a repo-wide dead-code cleanup, no behaviour change). The last feature release was `v0.6.2`, closing a run that added visibility for feature-frozen Shelly firmware lines and Shelly's marketing names next to model SKUs (`v0.6.0`–`v0.6.2`); the UI/API baseline is otherwise unchanged since `v0.4.0`. The project follows pre-1.0 semver: minor versions may carry breaking changes. Semver guarantees apply from `v1.0.0`.
 
 Intended posture:
 
@@ -193,8 +193,10 @@ docs                 Architecture, deployment, and ADR documentation
 
 Requirements:
 
-- Go 1.25+ (the `go.mod` floor; CI and the Docker build use the Go 1.26 toolchain)
-- Node 22+ (CI and the Docker build use Node 26)
+- Go 1.25+ (the `go.mod` floor)
+- Node 20.19+, 22.13+ or 24+ (the eslint and vite floors; odd-numbered releases are excluded by both)
+
+CI and the Docker build pin newer toolchains than these floors. The versions live in `docker/Dockerfile` and `.github/workflows/test.yml`, which the `Toolchain sync` check keeps in step — read them there rather than from prose.
 
 In two terminals:
 

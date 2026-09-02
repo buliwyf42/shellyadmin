@@ -49,7 +49,7 @@ Die Anwendung ist als Einzel-Container-Deployment ausgelegt mit:
 
 ## Status
 
-In aktiver Entwicklung. Aktuelles Release ist `v0.5.5` (Wartung: Dependency-Sammel-Update inkl. Alpine-3.24-Runtime-Base + Dead-Code-Cleanup, ohne Verhaltensänderung). Das letzte Feature-Release war `v0.5.4` (Shelly-Firmware-2.0.0-beta3-Unterstützung: read-only Sichtbarkeit alternativer Firmware-Varianten und des Secure-Provisioning-Status); die UI/API-Baseline ist ansonsten seit `v0.4.0` unverändert. Das Projekt folgt vor v1.0 dem SemVer-Schema mit Vorbehalt: Minor-Versionen können Breaking Changes enthalten. SemVer-Garantien gelten ab `v1.0.0`.
+In aktiver Entwicklung. Aktuelles Release ist `v0.6.3` (Korrektur des Marketing-Namens in der Model-Spalte plus repoweiter Dead-Code-Cleanup, ohne Verhaltensänderung). Das letzte Feature-Release war `v0.6.2` und schließt eine Reihe ab, die feature-eingefrorene Shelly-Firmware-Linien sichtbar macht und Shellys Marketing-Namen neben die Modell-SKUs stellt (`v0.6.0`–`v0.6.2`); die UI/API-Baseline ist ansonsten seit `v0.4.0` unverändert. Das Projekt folgt vor v1.0 dem SemVer-Schema mit Vorbehalt: Minor-Versionen können Breaking Changes enthalten. SemVer-Garantien gelten ab `v1.0.0`.
 
 Eingeplantes Einsatzprofil:
 
@@ -193,8 +193,10 @@ docs                 Architektur-, Deployment- und ADR-Dokumentation
 
 Voraussetzungen:
 
-- Go 1.25+ (`go.mod`-Floor; CI und Docker-Build nutzen die Go-1.26-Toolchain)
-- Node 22+ (CI und Docker-Build nutzen Node 26)
+- Go 1.25+ (`go.mod`-Floor)
+- Node 20.19+, 22.13+ oder 24+ (Floors von eslint und vite; ungerade Releases schließen beide aus)
+
+CI und Docker-Build nutzen neuere Toolchains als diese Floors. Die Versionen stehen in `docker/Dockerfile` und `.github/workflows/test.yml` und werden vom `Toolchain sync`-Check synchron gehalten — dort nachsehen, nicht in der Prosa.
 
 In zwei Terminals:
 
