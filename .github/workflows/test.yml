@@ -158,13 +158,30 @@ jobs:
       # CVEs — a fresh `net`/`net/http` advisory will flag any deployment
       # still on the previous patch release, but blocking CI on it would
       # turn every Go security release into an unrelated test failure
-      # for every PR until setup-go's "1.25" alias points to the new
-      # patch. The output is still surfaced in the job log; the Phase 2
-      # release checklist requires reviewing this output before tagging.
+      # for every PR until setup-go's minor alias picks up the new patch.
+      # The output is still surfaced in the job log; the Phase 2 release
+      # checklist requires reviewing this output before tagging.
+      #
+      # Pinned rather than @latest so the tool that feeds that checklist is
+      # the same one from run to run — an unpinned scanner changes its
+      # findings without a commit, which is precisely the wrong property for
+      # a report a human signs off on. Freshness is not what is being given
+      # up: govulncheck fetches the advisory database from vuln.go.dev at
+      # runtime, so a pinned binary still sees new CVEs. Only the analysis
+      # logic ages.
+      #
+      # Nothing bumps this automatically — Dependabot does not read `go
+      # install` lines. Bump by hand when the release notes warrant it, or
+      # check with:
+      #   curl -s https://proxy.golang.org/golang.org/x/vuln/@latest
+      # The alternative, a `tool` directive in go.mod so the gomod ecosystem
+      # tracks it, is deliberately not taken: it pulls x/vuln into the module
+      # graph, where its own `go` directive could raise this module's floor —
+      # the v0.1.14 trap documented in CLAUDE.md.
       - name: Run govulncheck (informational)
         continue-on-error: true
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
+          go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
           govulncheck ./...
 
   backend-lint:
