@@ -1,8 +1,9 @@
 name: Dependabot auto-merge
 
-# Enables GitHub auto-merge on Dependabot PRs for patch + minor bumps.
-# The merge only fires once required status checks (Test workflow) pass,
-# so this never bypasses CI. Major bumps are left for manual review.
+# Enables GitHub auto-merge on Dependabot PRs for patch + minor bumps and
+# Docker digest-only bumps. The merge only fires once required status checks
+# (Test workflow) pass, so this never bypasses CI. Real major bumps are left
+# for manual review.
 #
 # Prerequisites in repo Settings:
 #   - "Allow auto-merge" enabled (Settings → General → Pull Requests)
@@ -26,8 +27,19 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Enable auto-merge for patch + minor
-        if: steps.meta.outputs.update-type == 'version-update:semver-patch' || steps.meta.outputs.update-type == 'version-update:semver-minor'
+      # A Docker digest bump keeps the tag and only moves the @sha256 pin, so there
+      # is no version to compare: fetch-metadata reports semver-major with
+      # previous-version = `<sha>` (its own backtick formatting for a digest) while
+      # new-version stays the tag. A genuine major bump has a plain version in both.
+      # ponytail: string check instead of diffing the Dockerfile — checking out an
+      # untrusted PR ref under pull_request_target costs more than it buys, and if
+      # fetch-metadata ever drops the backticks these bumps just stop auto-merging.
+      - name: Enable auto-merge for patch + minor + docker digest
+        if: >-
+          steps.meta.outputs.update-type == 'version-update:semver-patch'
+          || steps.meta.outputs.update-type == 'version-update:semver-minor'
+          || (steps.meta.outputs.package-ecosystem == 'docker'
+          && contains(steps.meta.outputs.previous-version, '`'))
         run: gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
