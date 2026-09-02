@@ -4,6 +4,56 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **`Toolchain sync` CI gate.** A new required check in `test.yml`: every
+  `setup-go` / `setup-node` value must equal the `golang:` / `node:` tag in
+  `docker/Dockerfile`, and the `go.mod` directive must not outrank the
+  toolchain (the v0.1.14 trap). Built after `golang` reached `1.27-alpine`
+  via Dependabot while `setup-go` stayed on 1.26 for five days — Dependabot
+  bumps the base image but never the workflow, so the drift never surfaced
+  as itself, only as a `golangci-lint` panic in an unrelated PR. Required
+  checks on `main` 6 → 7. Being required is also what stops a Dependabot
+  toolchain bump from auto-merging as `semver-minor`, so no `ignore` rule
+  is needed in `.github/dependabot.yml`.
+
+### Changed
+
+- **Dependabot auto-merge now covers Docker digest bumps.** A digest-only
+  bump keeps the tag and moves just the `@sha256` pin, so there is no
+  version to compare and `fetch-metadata` reports
+  `version-update:semver-major` with `previous-version` = a backticked
+  digest. The patch/minor gate skipped those and they sat green-but-open.
+  The gate now also accepts the `docker` ecosystem when `previous-version`
+  is a digest rather than a version; genuine major image bumps carry a
+  plain version in both fields and still go to manual review.
+- **CI toolchains re-aligned to the Dockerfile.** `setup-go` 1.26 → 1.27
+  (the `go.mod` floor stays `go 1.25.0`); `golangci-lint` v2.12 → v2.13.2,
+  because v2.12 is built with Go 1.26 and panics on the 1.27 stdlib with
+  `file requires newer Go version go1.27` — the same failure mode v2.6 had
+  on the 1.26 stdlib one release earlier.
+- **`govulncheck` pinned to `v1.7.0`** instead of `@latest`. The step is
+  `continue-on-error`, so this is not about CI stability: the release
+  checklist requires a human to review its output, and an unpinned tool
+  changes its findings without a commit. Freshness is not given up — the
+  advisory database is fetched from `vuln.go.dev` at runtime, so only the
+  analysis logic is pinned. Nothing bumps it automatically; Dependabot does
+  not read `go install` lines.
+
+### Fixed
+
+- **Documentation claims that had gone stale.** Both READMEs advertised
+  `v0.5.5` as the current release, four releases behind `VERSION`;
+  `CONTRIBUTING.md` told contributors to install `golangci-lint@v2.6.0`,
+  the version documented elsewhere as panicking rather than linting;
+  `docs/ARCHITECTURE.md` still described the MCP server as read-only with
+  13 tools, when 8 of the 21 have changed device state (confirm-gated)
+  since v0.1.22; and the Node floor was stated as both "20+" and "22+"
+  when the real eslint/vite floors are 20.19+ / 22.13+ / 24+. Toolchain
+  versions are no longer repeated in prose — they are named once in
+  `docker/Dockerfile` and `test.yml`, where `Toolchain sync` keeps them
+  honest.
+
 ### Security
 
 - Bump `postcss` 8.5.16 → 8.5.23 (GHSA-r28c-9q8g-f849, path traversal in
