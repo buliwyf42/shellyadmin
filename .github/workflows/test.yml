@@ -31,6 +31,63 @@ jobs:
             exit 1
           fi
 
+  # S20's sibling: the Docker base images and CI's setup-go / setup-node are a
+  # pair that has to move together, and nothing enforced it. Dependabot bumps
+  # docker/Dockerfile but never touches this workflow, so golang went to
+  # 1.27-alpine in #105 while setup-go sat on 1.26 for five days — the drift
+  # only surfaced as a golangci-lint panic in an unrelated PR (#110).
+  #
+  # Being a *required* check is what makes this bite twice: a Dependabot
+  # toolchain bump fails here, so `gh pr merge --auto` never fires and the
+  # bump turns into a manual PR that moves both halves at once. That is why
+  # there is no `ignore` rule for golang in .github/dependabot.yml.
+  #
+  # Also re-checks the v0.1.14 trap (see CLAUDE.md): a dep bump can raise the
+  # go.mod directive past the toolchain CI actually runs.
+  toolchain-sync:
+    name: Toolchain sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Compare Dockerfile base images with setup-go / setup-node
+        run: |
+          set -euo pipefail
+          df=docker/Dockerfile
+          wf=.github/workflows/test.yml
+
+          img_go=$(sed -n 's/^FROM golang:\([0-9.]*\)-alpine.*/\1/p' "$df")
+          img_node=$(sed -n 's/^FROM node:\([0-9.]*\)-alpine.*/\1/p' "$df")
+          mod_go=$(sed -n 's/^go \([0-9.]*\)$/\1/p' go.mod)
+          ci_go=$(grep -oE "go-version: *'[^']+'" "$wf" | cut -d"'" -f2 | sort -u)
+          ci_node=$(grep -oE "node-version: *'[^']+'" "$wf" | cut -d"'" -f2 | sort -u)
+
+          # An empty capture means the format moved and the check silently
+          # passes on nothing — treat that as a failure, not a green tick.
+          for v in img_go img_node mod_go ci_go ci_node; do
+            eval "val=\$$v"
+            [ -n "$val" ] || { echo "::error::$v: nothing parsed — did the file format change?"; exit 1; }
+          done
+
+          echo "Dockerfile: golang=$img_go node=$img_node | go.mod: $mod_go"
+          echo "CI setup-go: $(echo $ci_go) | CI setup-node: $(echo $ci_node)"
+
+          fail=0
+          for v in $ci_go; do
+            [ "$v" = "$img_go" ] || { echo "::error::setup-go '$v' != golang:$img_go-alpine in $df"; fail=1; }
+          done
+          for v in $ci_node; do
+            [ "$v" = "$img_node" ] || { echo "::error::setup-node '$v' != node:$img_node-alpine in $df"; fail=1; }
+          done
+
+          # go.mod is the floor and may lag the toolchain, but never outrank it.
+          mm() { echo "$1" | cut -d. -f1,2; }
+          if [ "$(printf '%s\n%s\n' "$(mm "$mod_go")" "$(mm "$img_go")" | sort -V | head -1)" != "$(mm "$mod_go")" ]; then
+            echo "::error::go.mod directive $mod_go outranks the $img_go toolchain — bump go.mod/CI/Dockerfile together"
+            fail=1
+          fi
+
+          exit $fail
+
   backend:
     name: Go tests
     runs-on: ubuntu-latest
