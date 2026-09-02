@@ -1,6 +1,6 @@
 # ADR-0016: `shellyctl` Operator CLI (HTTP + PAT, Read-Only First)
 
-- Status: Accepted
+- Status: `Accepted`
 - Date: 2026-05-20
 
 ## Context
