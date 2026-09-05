@@ -50,6 +50,13 @@ Lives in `internal/mcp/`. Two transports share the same 21-tool surface:
 - **Stdio** (v0.2.3+, for Claude Desktop on the same host): `shellyctl mcp` subcommand. `cmd/shellyctl/mcp_stdio.go` opens the database, builds a minimal AppService (no background workers — query session, not server), and serves over `mcp.StdioTransport` via `internal/mcp.RunStdio`. No transport-level auth — the parent process spawning the binary IS the trust boundary; host filesystem permissions on the data dir are the remaining gate. Logs to stderr; stdout carries JSON-RPC frames. SQLite WAL mode handles concurrent readers if a long-running HTTP-mode container shares the same data dir.
 
 - **Surface (v0.2.3)**: 21 tools. **13 read-only**: list_devices, get_device, list_device_actions, scan_status, firmware_status, firmware_install_status, list_templates, get_template, list_credentials, get_settings, get_logs, export_device, compliance_summary. **8 state-changing, all confirm-gated**: refresh_device, refresh_all_devices, start_scan, confirm_scan, firmware_check, firmware_install, execute_device_action, bulk_action. All thin adapters over `services.AppService`. Hard exclusion: anything that mutates ShellyAdmin's *own* config (save_settings, save_credential, save_template, provision, clear_logs).
+- **`list_devices` has no paging and already exceeds MCP output caps at 44 devices (2026-09-05).**
+  The DeviceListView carries ~58 fields per device; the full fleet renders as ~61 KB, which the
+  client refuses and spills to a temp file — a `limit` input exists but the payload was oversized
+  before it could help. Consumers end up doing `jq` over a dump instead of calling the tool, which
+  defeats the point. Same treatment as `firmware_status` would fix it: a **field projection**
+  (`fields:` allowlist) matters more here than `offset`, since most callers want three or four
+  columns out of 58. Seam: the same view assembly in `internal/services/actions.go`.
 - **`firmware_status` paging (v0.2.3)**: optional `status` / `has_update` / `search` / `limit` / `offset` inputs; output adds `filtered_total` (post-filter) and `returned` (post-page) alongside the unchanged `running` / `done` / `total` job-level metrics. Matters past ~200 devices where the unfiltered payload approaches MCP per-tool output caps.
 - **Confirm-flow contract** (added v0.1.22, see `internal/mcp/tools_actions.go` `confirmPolicy`): every state-changing tool has a `Confirm bool` input. Without `confirm: true` the tool returns a typed preview (`SimpleActionResult.Preview=true` + per-tool fields like target counts, risk levels, per-target eligibility from `PreviewBulkAction`) and does NOT call the underlying AppService method. With `confirm: true` it executes. Each call audit-logs `mode=preview` or `mode=confirmed` so operators can pair them by request_id. `actionTool` wraps the context with `services.WithRisk(ctx, "low|medium|high")` so audit rows carry `risk_level`. The tool description includes a verbatim "OPERATOR APPROVAL REQUIRED" policy paragraph telling the LLM to summarize and ask before passing confirm=true.
 - **Secret hygiene**: `list_credentials` and `get_settings` route through `internal/mcp/redact.go`. Plaintext password and HA1 hashes never leave the process via MCP. New fields with secret material must add a redactor before they're exposed.
@@ -182,17 +189,27 @@ appeared for **no app at all**. Device-identifying query params (`id`, `uid`, `m
 do not change the answer. So a `url` install cannot pull a device forward; every reachable URL is either a
 downgrade or the build it already runs. **Do not re-derive this.**
 
-**Whether that means the rollout was paused is UNRESOLVED — do not assert either way.** Uptime dates the
-install (a firmware change reboots): no 2.0.0 device exceeds **132 h** uptime and the main block sits at
-**116 h** = 2026-07-17, i.e. the manual fleet-OTA session — *nothing* installed 2.0.0 in the three days
-after the 2026-07-13 release, and nothing has moved in the five nights since, though two devices poll
-`stage: stable` nightly. So on 2026-07-17 the stable channel served 2.0.0 and today it serves 1.7.5.
-That fits a withdrawal — but Shelly announced none, and the changelog still lists 2.0.0 as a phased
-rollout. The obvious live test does **not** separate the cases: a 2.0.0 device gets `{}` from
-`Shelly.CheckForUpdate` while a beta3 device gets `1.7.5`, which is equally consistent with per-device
-bucketing and with a global revert that deliberately pulls prerelease devices back onto the stable line.
-Settle it by **snapshotting the index over time**, not by reasoning from one reading: if 2.0.0 reappears
-under `stable`, it was a pause.
+**RESOLVED 2026-09-05: it was a pause, and the fleet has converged.** The index snapshot the earlier
+note asked for was taken 54 days later and answers it — every Gen3/Gen4 fleet app now serves stable
+`2.0.0` (build `20260710-…`, i.e. the *same* build the manual OTA installed) plus beta **`2.0.1-beta1`**
+(`20260819-…`). `2.0.0-beta3` is gone from the index entirely: the beta slot moved on. So the stable
+channel did serve 1.7.5 on 2026-07-22 and serves 2.0.0 today — a withdrawal-then-resume of the phased
+rollout, never announced either way. The census matches: **44 devices polled directly (`/shelly`, no auth
+needed for `ver`) → 40× `2.0.0`, 4× `1.7.5` (the frozen Plus line), 0× `2.0.0-beta3`.** All 44 now carry
+`fw_auto_update: stable` (two did on 2026-07-22), so the resumed stable channel carried them; no manual
+install was needed and none is documented.
+
+🩸 **Uptime stopped being able to date the install, and that is the transferable part.** The 2026-07-22
+reasoning leaned on "a firmware change reboots, so uptime dates the install" — sound only while reboots
+are otherwise rare. Since then a documented reboot campaign (2026-09-03, eight devices rebooted to unstick
+them from the wrong AP) overwrote exactly the clocks that carried the evidence: 24 of 44 devices now show
+an uptime younger than 2026-07-22, far more than the 13 that were on beta3, and nothing distinguishes an
+update-reboot from a maintenance-reboot. **A monotonic clock that any unrelated action resets is a dating
+method with a shelf life** — read it early or not at all. The version census needs no dating and settled it.
+
+🩸 **Positive control is mandatory on this endpoint** (same lesson as 2026-09-04): a freely invented app
+name answers `HTTP 404 (Unknown firmware application)` — byte-identical to a real app with a missing
+variant. Query a known-good app in the same run, or a dead endpoint reads as a finding.
 
 Where the index *is* worth using: it's the missing piece for the `premature end of data` failures above —
 fetch the ZIP once to a LAN host, serve it (`python3 -m http.server`), point `Shelly.Update{url}` at plain
@@ -202,6 +219,28 @@ interception lead. Not yet tried against a real failure — there has been nothi
 Second, unrelated use: **the index dates EOL hardware without trusting a vendor blog post.** `Plus1` and
 `Plus2PM` are the only fleet apps with **no `beta` key at all**, while every Gen3/Gen4 app carries
 `2.0.0-beta3` — independent confirmation that the Gen2 Plus line is frozen at 1.7.5.
+
+### The stored IP goes stale silently — `online: true` outlives reachability (2026-09-05)
+
+The Device row's `ip` is written by a **scan**, and nothing re-checks it between scans. When a DHCP lease
+wanders, the row keeps the old address and every later job talks to the wrong host. Measured on
+`shelly-strip4-02`: the firmware job logged `no route to host` for `192.168.211.117` while `/api/devices`
+still reported `online: true`, `last_refresh_error: ""` and a plausible `fw: 2.0.0` — all of it carried
+over from the scan of 2026-09-02. The device was fine the whole time at **`192.168.211.187`**, and Home
+Assistant never noticed because its Shelly entries are zeroconf-sourced and follow the name.
+
+🩸 **So a failing job and a healthy inventory row are not in contradiction here — they are reading
+different clocks.** `online`/`last_seen`/`fw` are scan-time snapshots; only `fw_checked_at` and a job's own
+error text are live. Ground truth for "where is this device now" is mDNS, not the DB:
+
+```bash
+dscacheutil -q host -a name shelly-<name>.local     # macOS; getent hosts on Linux
+curl -s http://<ip>/shelly | jq -c '{name,mac,ver}' # no auth needed for the version
+```
+
+A rescan repairs the row. Worth considering at the `firmware.TriggerUpdate*`/refresh seam: on a
+connection-level failure, re-resolve the device name before declaring the device unreachable — the fleet
+runs mDNS names that already resolve.
 
 ### OTA configuration on Gen2+ — implemented via `Schedule.*`, not `OTA.SetConfig`
 
