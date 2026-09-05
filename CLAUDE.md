@@ -242,10 +242,10 @@ A rescan repairs the row. Worth considering at the `firmware.TriggerUpdate*`/ref
 connection-level failure, re-resolve the device name before declaring the device unreachable — the fleet
 runs mDNS names that already resolve.
 
-### 🩸 Two ways the rescan repairs nothing — both look like success (2026-09-05)
+### 🩸 Three ways the rescan repairs nothing (or breaks something else) — all look like success (2026-09-05)
 
-Repairing the stale row above turned out to be booby-trapped twice over. Both traps are in the
-*normal* path, and neither announces itself.
+Repairing the stale row above turned out to be booby-trapped three times over. All three sit in the
+*normal* path, and none of them announces itself.
 
 **(1) `scan_status` serves the PREVIOUS scan's pending list, and it is indistinguishable from a
 fresh one.** No timestamp, no "stale" marker, `running: false` either way. Calling it before
@@ -263,7 +263,29 @@ inversion of the usual "never run a mass operation without an explicit ID list" 
 never confirm a scan that found fewer devices than the inventory holds, and count found-vs-total
 before confirming, not after.
 
-Both bit on the same run: the 2026-09-05 scan found **42 of 44** (`shelly-strip4-02` was in a
+**(3) ANY fleet-wide `UpsertDevices` silently discards the firmware-check cache — `ConfirmScan` is just the usual way to trigger one.**
+`UpsertDevices` writes the scan-probed `models.Device` wholesale, and a scan probe does not carry
+`FWAutoUpdate` / `FWCheckedAt` / `FWAvailableStable` / `FWAvailableBeta`. Measured on the successful
+2026-09-05 run: `fw_auto_update` went from **44× `stable` to 43× empty**, the only survivor being the
+one device the confirm did *not* register. Empty means "never read" (see ADR-0009), so the inventory
+afterwards claims auto-update was never configured on the whole fleet — while the devices themselves
+still hold their `Shelly.Update{stage:"stable"}` schedules, unchanged. It is a cache, and
+`firmware_check` repopulates it, but nothing tells the operator to run one. **Either follow every
+confirm with a firmware check, or — better — carry the four FW* fields over from the existing row in
+`UpsertDevices`, the same way `DeviceNum` and `FirstSeen` are already preserved
+(`internal/db/devices.go:100-107`).**
+
+**Corollary that only showed up because two sessions overlapped:** the FW cache is **not durable
+state**, it is whatever the last writer left. On 2026-09-05 a *second* session (audit `request_id`
+`b5556e06a73ef975`) ran `start_scan` at 11:12:06 and `confirm_scan` at 11:16:07, five minutes after
+this session's `firmware_check` (`cd5dfe64d61428a7`, 11:13:02) had repopulated 43 of 44 rows — and
+wiped all 44 again. Two lessons: **read `get_logs` filtered on `mcp action` before concluding that
+an unexplained write was yours** (the `request_id` separates actors cleanly, and a `confirm_scan`
+appearing with no preview in front of it is a different client); and **do not treat
+`fw_auto_update` as evidence of configuration** — for that, read `Schedule.List` on the device and
+look for `Shelly.Update` with `origin: "shelly_service"`, which is the durable truth.
+
+Both traps bit on the same run: the 2026-09-05 scan found **42 of 44** (`shelly-strip4-02` was in a
 scheduled power-off window, `shelly-hz2` was missed outright, see below), so it was correctly left
 **unconfirmed** — a confirm would have penalised two healthy rows and still not fixed the IP.
 
@@ -274,7 +296,10 @@ Two consecutive `192.168.211.0/24` scans (2026-09-02, 2026-09-05) came back with
 `/rpc/Shelly.GetStatus` with `200` in 30–200 ms. Its twin `hz1` (`.102`, same `SPEM-003CEBEU63`
 family, same subnet) is found every time. Not a device problem and not a timeout in any obvious
 sense — worth holding the probe path in `internal/core/scanner/scanner.go` (per-host timeout,
-parallelism, ordering) against that 30 ms. Until it is understood, every `ConfirmScan` costs hz2
+parallelism, ordering) against that 30 ms. **Ruled out already, do not re-walk it:** "it is the
+Ethernet-only devices" is wrong — `hz2` runs wired with `wifi.status: disconnected` and
+`sta_ip: 0.0.0.0`, but so do `hz1` (`.102`) and `pro-3em-workshop` (`.70`), and both are found on
+every sweep. Until it is understood, every `ConfirmScan` costs hz2
 an undeserved miss (see trap 2).
 
 ### OTA configuration on Gen2+ — implemented via `Schedule.*`, not `OTA.SetConfig`
