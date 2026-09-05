@@ -242,6 +242,41 @@ A rescan repairs the row. Worth considering at the `firmware.TriggerUpdate*`/ref
 connection-level failure, re-resolve the device name before declaring the device unreachable — the fleet
 runs mDNS names that already resolve.
 
+### 🩸 Two ways the rescan repairs nothing — both look like success (2026-09-05)
+
+Repairing the stale row above turned out to be booby-trapped twice over. Both traps are in the
+*normal* path, and neither announces itself.
+
+**(1) `scan_status` serves the PREVIOUS scan's pending list, and it is indistinguishable from a
+fresh one.** No timestamp, no "stale" marker, `running: false` either way. Calling it before
+starting a scan returned 43 devices with `shelly-strip4-02` at its **old** `.117` — confirming that
+list would have written the very defect back into the row that the rescan was supposed to fix. The
+repair tool would have re-introduced the bug and reported success. **Always `start_scan` first and
+re-read `scan_status` afterwards; compare a known-changed field before confirming.**
+
+**(2) `ConfirmScan(macs)` is not "register these" — `UpsertDevices` treats the argument as the
+COMPLETE scan result.** Every existing device *not* in the slice gets `LastRefreshOK=false`,
+`LastRefreshError="refresh timed out"`, `ConsecutiveMisses++`, and at ≥2 misses `Online=false`
+(`internal/db/devices.go:118-132`). So the intuitive move — confirm only the one MAC you came to
+fix — silently marks the other 43 as failing. **The narrow list is the dangerous one here**, the
+inversion of the usual "never run a mass operation without an explicit ID list" rule. Corollary:
+never confirm a scan that found fewer devices than the inventory holds, and count found-vs-total
+before confirming, not after.
+
+Both bit on the same run: the 2026-09-05 scan found **42 of 44** (`shelly-strip4-02` was in a
+scheduled power-off window, `shelly-hz2` was missed outright, see below), so it was correctly left
+**unconfirmed** — a confirm would have penalised two healthy rows and still not fixed the IP.
+
+### `shelly-hz2` is missed by the subnet scan while answering in 30 ms (2026-09-05, open)
+
+Two consecutive `192.168.211.0/24` scans (2026-09-02, 2026-09-05) came back without
+`FC:E8:C0:DB:19:50` / `192.168.211.47`, which answers `/shelly`, `/rpc/Shelly.GetDeviceInfo` and
+`/rpc/Shelly.GetStatus` with `200` in 30–200 ms. Its twin `hz1` (`.102`, same `SPEM-003CEBEU63`
+family, same subnet) is found every time. Not a device problem and not a timeout in any obvious
+sense — worth holding the probe path in `internal/core/scanner/scanner.go` (per-host timeout,
+parallelism, ordering) against that 30 ms. Until it is understood, every `ConfirmScan` costs hz2
+an undeserved miss (see trap 2).
+
 ### OTA configuration on Gen2+ — implemented via `Schedule.*`, not `OTA.SetConfig`
 
 The Shelly Gen2 API has **no `OTA.SetConfig` / `Sys.SetAutoUpdate` / dedicated OTA-config method**. The `OTA.*` methods that DO exist (`OTA.Start/Write/Data/Abort/Commit/Revert`) are byte-level chunked-upload plumbing, not configuration. Direct firmware update lives at:
