@@ -258,6 +258,17 @@ jobs:
         run: npm audit --omit=dev --audit-level=high
         working-directory: web
 
+      # Visibility only, same spirit as the govulncheck step: dev-dependency
+      # advisories must not fail a build over a transitive package no user
+      # ever ships, but they must not be invisible either. The gate above is
+      # `--omit=dev`, so GHSA-rgw5-rvv9-x895 sat in `brace-expansion` for
+      # days behind a green run. continue-on-error surfaces it as a step
+      # annotation instead of a red X.
+      - name: npm audit (all deps, informational)
+        run: npm audit --audit-level=high
+        continue-on-error: true
+        working-directory: web
+
       - name: Lint
         run: npm run lint
         working-directory: web
