@@ -431,18 +431,45 @@ Both traps bit on the same run: the 2026-09-05 scan found **42 of 44** (`shelly-
 scheduled power-off window, `shelly-hz2` was missed outright, see below), so it was correctly left
 **unconfirmed** — a confirm would have penalised two healthy rows and still not fixed the IP.
 
-### `shelly-hz2` is missed by the subnet scan while answering in 30 ms (2026-09-05, open)
+### `shelly-hz2` is missed by the subnet scan — it is the scanning host's vantage point, not the scanner (2026-09-12)
 
-Two consecutive `192.168.211.0/24` scans (2026-09-02, 2026-09-05) came back without
-`FC:E8:C0:DB:19:50` / `192.168.211.47`, which answers `/shelly`, `/rpc/Shelly.GetDeviceInfo` and
-`/rpc/Shelly.GetStatus` with `200` in 30–200 ms. Its twin `hz1` (`.102`, same `SPEM-003CEBEU63`
-family, same subnet) is found every time. Not a device problem and not a timeout in any obvious
-sense — worth holding the probe path in `internal/core/scanner/scanner.go` (per-host timeout,
-parallelism, ordering) against that 30 ms. **Ruled out already, do not re-walk it:** "it is the
-Ethernet-only devices" is wrong — `hz2` runs wired with `wifi.status: disconnected` and
-`sta_ip: 0.0.0.0`, but so do `hz1` (`.102`) and `pro-3em-workshop` (`.70`), and both are found on
-every sweep. Until it is understood, every `ConfirmScan` costs hz2
-an undeserved miss (see trap 2).
+Three consecutive `192.168.211.0/24` scans (2026-09-02, 09-05, 09-12) came back without
+`FC:E8:C0:DB:19:50` / `192.168.211.47`, while its twin `hz1` (`.102`, same `SPEM-003CEBEU63`,
+same subnet) is found every time. Until 2026-09-12 the suspicion pointed at the probe path in
+`internal/core/scanner/scanner.go`. **That is wrong — the scanner is exonerated.**
+
+The measurement that settled it: the *same* `ScanSubnets` code with the *same* production
+parameters (concurrency 64, timeout 2 s), run from a laptop on the same LAN, found **43 devices
+including `.47` in 8 s**. The production container, minutes earlier, found **41 without `.47`
+and took over 45 s** for the identical 254 addresses.
+
+Exonerated, in order, each by its own measurement — **do not re-walk these**:
+
+| Suspect | How it was cleared |
+| --- | --- |
+| Address enumeration | `ExpandCIDR("192.168.211.0/24")` yields 254 addresses and contains `.47` |
+| The "not a Shelly" skip (`mac == "" && gen == 0`) | `/shelly` returns a complete payload: `mac FCE8C0DB1950`, `gen 2`, in 32 ms |
+| Auth | `auth_en: false`; `Shelly.GetDeviceInfo` / `GetConfig` / `GetStatus` all `200` unauthenticated |
+| Reachability from the server | a targeted `refresh_device` from the *same container* succeeded minutes after the sweep missed it (`last_refresh_ok: true`), as did that day's `firmware_check` |
+| The sweep code itself | identical code + parameters find the device reliably from another host |
+| "it is the Ethernet-only devices" | `hz2` is wired with `wifi.status: disconnected`, but so are `hz1` and `pro-3em-workshop` (`.70`), both found every sweep |
+
+What is left is the **network position of the container** on the IoT VLAN. The 8 s vs 45 s for the
+same address range is the tell: on that path a large share of probes runs into the 2 s timeout, and
+whoever is marginal then drops out systematically rather than randomly — which is why it is always
+the same device.
+
+🩸 The transferable part: **"the code is the same" is not "the run is the same".** A sweep is a
+measurement of the network between the scanner and the target, and the scanning host is part of the
+apparatus. Reproducing from a second vantage point separated the two in one run, after two sessions
+had been looking in the wrong file.
+
+**Next A/B, in that order:** raise `scan_timeout` from 2 s to 4–5 s in Settings and rescan — if `.47`
+appears, the timeout is the knob and the container's path is the cause. It cannot be done over MCP
+(`save_settings` is deliberately excluded from the tool surface); it is one field in the UI. If the
+device still goes missing at 5 s, measure from inside the container (neighbour table, per-probe
+timing) rather than in the Go code. Until then, every `ConfirmScan` costs hz2 an undeserved miss
+(see trap 2).
 
 ### OTA configuration on Gen2+ — implemented via `Schedule.*`, not `OTA.SetConfig`
 
