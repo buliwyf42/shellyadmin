@@ -28,3 +28,4 @@ Status key:
 - [ADR-0015 Single-Instance-Only Operational Constraint](./0015-single-instance-constraint.md) (`Accepted`)
 - [ADR-0016 `shellyctl` Operator CLI (HTTP + PAT, Read-Only First)](./0016-shellyctl-cli.md) (`Accepted`)
 - [ADR-0017 First-Run Setup (operator login in the database)](./0017-first-run-setup.md) (`Accepted`)
+- [ADR-0018 The Stable API Surface Is Unversioned `/api/*` (T7)](./0018-api-surface-versioning.md) (`Proposed`)
