@@ -74,6 +74,34 @@ code 1` plus the tool's own output), and `gh run view --log` refuses while any j
 in progress. Verified on PR #120: API said `success`, log showed the audit reporting GHSA-rgw5-rvv9-x895
 and exiting 1 while the job stayed green — which is the intended behaviour, but is only visible in the log.
 
+### `gh pr merge --delete-branch` writes to your checkout — that reflog entry is yours (2026-09-12)
+
+`gh` (2.100.0) does not stop at the API call: after merging it checks the base branch out and runs
+`git pull --ff-only`. So a session that only ever types `fetch` + `merge --ff-only` still finds
+
+```
+09:36:59  checkout: moving from docs/session-lessons to main
+09:37:00  pull --ff-only origin main: Fast-forward      <- gh, not a human
+09:19:00  merge origin/main: Fast-forward               <- what this session's own updates look like
+```
+
+in its reflog, and `Fast-forward / CLAUDE.md | 44 +++` in the terminal — which reads like GitHub
+confirming the merge but is `gh` reporting a **write to the local worktree**.
+
+🩸 On 2026-09-12 that entry was taken as proof of a foreign actor in the worktree, on the reasoning
+"I don't use `pull`". True of everything typed by hand, and still wrong: **the list of commands you
+typed is not the list of commands that ran under your identity.** `gh`, hooks and IDE integrations
+all write as you. An unrecognised reflog entry is your own tooling first and a stranger second.
+
+**Concurrency, same hour, the part that nearly cost something.** A second Claude session was
+cleaning up the same worktree and deleted eleven stale local branches at 09:40:06; this session's
+own `git branch -d` ran 40 s later into "branch not found". Harmless — but its safety filter was
+"tip is contained in `main`", and two minutes earlier that filter would have waved through
+`docs/session-lessons`, whose commit (09:33:19, the whole content of PR #121) was not in `main` yet
+and not pushed. **A "merged into main" filter is blind to exactly one branch: the one someone is
+working on right now.** Before deleting branches in a worktree you do not own, check for a foreign
+`index.lock` / recent reflog activity, or just announce it first.
+
 ### MCP server (HTTP + stdio, opt-in)
 
 Lives in `internal/mcp/`. Two transports share the same 21-tool surface:
