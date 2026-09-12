@@ -21,7 +21,15 @@ RUN V=${VERSION:-$(cat VERSION 2>/dev/null || echo "dev")} && \
     go build -ldflags="-s -w -X main.AppVersion=${V} -X main.CommitHash=${VCS_REF}" -o /shellyadmin ./cmd/shellyctl
 
 FROM alpine:3.24@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
-RUN apk add --no-cache ca-certificates tzdata su-exec
+# `apk upgrade` before the install: the base image is digest-pinned, so it
+# freezes whatever package versions Alpine baked in at build time — and Alpine
+# does not rebuild a point-release image for every package CVE. v0.6.4's
+# publish run was blocked by the Trivy gate over CVE-2026-14456 (libcrypto3 /
+# libssl3 3.5.7-r0, fixed in 3.5.8-r0) while `alpine:3.24` still resolved to
+# the same digest pinned above, so there was no newer base image to move to.
+# Upgrading against the repo costs nothing in reproducibility that
+# `apk add --no-cache` did not already cost.
+RUN apk upgrade --no-cache && apk add --no-cache ca-certificates tzdata su-exec
 RUN addgroup -S shelly && adduser -S -G shelly -h /app shelly
 # S14 — initialise /data and /tmp as shelly-owned at build time so a named
 # volume inherits the right ownership on first attach. Operators bind-
