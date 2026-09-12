@@ -4,31 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed
-
-- **A failed firmware check is no longer written as a successful one.** The
-  job persisted the per-channel availability and `fw_checked_at`
-  unconditionally, so a check against an unreachable device blanked the
-  firmware cache and stamped a fresh check timestamp, while recording
-  nothing about reachability — the row kept reporting `online: true` with an
-  empty `last_refresh_error` even as every job against it failed with "no
-  route to host", and bulk actions (which gate on `online`) kept targeting
-  the dead address. The cache is now written only on success; a failure
-  records the error, and `firmware.Result.Unreachable` separates silence
-  (counts as a miss, offline on the second) from a refusal such as an auth
-  challenge (proves the device is alive, stays online).
-
-- **A confirmed scan no longer blanks the firmware cache or the TLS opt-out.**
-  `UpsertDevices` wrote the scan-probed device wholesale, and a scan probe
-  carries neither `fw_available_stable` / `fw_available_beta` /
-  `fw_checked_at` / `fw_auto_update` nor the operator-set
-  `tls_allow_insecure`. Every confirmed scan therefore reset all five
-  fleet-wide — measured on a 44-device fleet as `fw_auto_update` going from
-  44x `stable` to 43x empty, which made the inventory claim auto-update was
-  never configured while the devices still held their `Shelly.Update`
-  schedules. The five fields are now carried over from the existing row
-  next to `device_num` / `first_seen`, exactly as the refresh path
-  (`jobs/refresh.go`) has always done.
+## [0.6.4] - 2026-09-12 — Stop blanking the firmware cache + CI dependency visibility
 
 ### Added
 
@@ -75,6 +51,31 @@ All notable changes to this project will be documented in this file.
   not read `go install` lines.
 
 ### Fixed
+
+- **A failed firmware check is no longer written as a successful one.** The
+  job persisted the per-channel availability and `fw_checked_at`
+  unconditionally, so a check against an unreachable device blanked the
+  firmware cache and stamped a fresh check timestamp, while recording
+  nothing about reachability — the row kept reporting `online: true` with an
+  empty `last_refresh_error` even as every job against it failed with "no
+  route to host", and bulk actions (which gate on `online`) kept targeting
+  the dead address. The cache is now written only on success; a failure
+  records the error, and `firmware.Result.Unreachable` separates silence
+  (counts as a miss, offline on the second) from a refusal such as an auth
+  challenge (proves the device is alive, stays online).
+
+- **A confirmed scan no longer blanks the firmware cache or the TLS opt-out.**
+  `UpsertDevices` wrote the scan-probed device wholesale, and a scan probe
+  carries neither `fw_available_stable` / `fw_available_beta` /
+  `fw_checked_at` / `fw_auto_update` nor the operator-set
+  `tls_allow_insecure`. Every confirmed scan therefore reset all five
+  fleet-wide — measured on a 44-device fleet as `fw_auto_update` going from
+  44x `stable` to 43x empty, which made the inventory claim auto-update was
+  never configured while the devices still held their `Shelly.Update`
+  schedules. The five fields are now carried over from the existing row
+  next to `device_num` / `first_seen`, exactly as the refresh path
+  (`jobs/refresh.go`) has always done.
+
 
 - **Documentation claims that had gone stale.** Both READMEs advertised
   `v0.5.5` as the current release, four releases behind `VERSION`;
