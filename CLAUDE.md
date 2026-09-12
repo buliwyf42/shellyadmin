@@ -42,6 +42,38 @@ Re-add `typescript` to the group once a `typescript-eslint` release accepts TS 7
 
 `dependabot/fetch-metadata` has no version to compare on a digest-only bump — the tag is unchanged, only the `@sha256` pin moves — so it reports `update-type: version-update:semver-major` with `previous-version` = `` `<sha>` `` and `new-version` = the tag. The patch+minor gate in `.github/workflows/dependabot-auto-merge.yml` skipped those, and they sat green-but-open (PR #107 for a day). The gate now also accepts `package-ecosystem == 'docker' && contains(previous-version, '`')` — the backtick is fetch-metadata's own formatting for a digest, and a real major image bump (`26-alpine` → `27-alpine`) carries a plain version in both fields, so it still goes to manual review. If that formatting ever changes, digest bumps stop auto-merging (fails safe); the fallback is diffing the Dockerfile, which costs a checkout of the untrusted PR ref under `pull_request_target`.
 
+### A grouped PR inherits the HIGHEST update-type — one major blocks the whole group (2026-09-11)
+
+Same gate, third way it misleads. `fetch-metadata` reports **one** `update-type` for a grouped PR, the
+highest among its members, so a single major member makes the entire group read
+`version-update:semver-major` and the patch+minor gate skips it. PR #117 bundled six dev deps of which
+only `vitest`/`@vitest/coverage-v8` went 4.1.11 → 5.0.0; it sat green-but-open for four days.
+
+🩸 **The `previous-version` / `new-version` pair does not belong to the member that set the update-type.**
+#117's auto-merge run printed `update-type: version-update:semver-major` next to `previous-version: 8.68.0`
+/ `new-version: 8.69.0` — that is `@typescript-eslint/*`, a *minor*. Reading those two lines together says
+"the gate is broken"; it is not. Only the PR body's table names the actual major. Check the table, not the
+outputs, before touching the gate.
+
+This is working as intended — a major dev-dep bump *should* get eyes — so the fix is operational, not a
+code change: a green Dependabot PR that stays open is the gate, not a CI failure. Verify before merging by
+running the frontend gates on the PR branch (`npm ci && npm run lint && npm run test:coverage && npm run build`
+in a throwaway worktree); for #117 that was 88 tests green and coverage 36.38 % statements, unchanged from
+the 4.x baseline, so vitest 5's documented breaking changes (Node ≥ 22 / Vite ≥ 6.4 floors, `sequential`
+removed, mocks cleared per default, coverage glob matching, reporters moved to `.vitest/`) touched nothing
+here. Note the `Frontend build` job already runs `npm run test:coverage`, so a green check on such a PR is
+real evidence — the gate blocked on the *label*, never on an untested change.
+
+### `continue-on-error` steps report `conclusion: success` — the API cannot tell you they fired (2026-09-11)
+
+`.github/workflows/test.yml` has two informational steps (`govulncheck`, the all-deps `npm audit`). For
+both, `gh api repos/<o>/<r>/actions/jobs/<id> --jq '.steps[]'` shows `success` **even when the step exited
+non-zero** — GitHub rewrites the conclusion, so step conclusions are worthless for checking whether an
+informational step found anything. Ground truth is the job log (`##[error]Process completed with exit
+code 1` plus the tool's own output), and `gh run view --log` refuses while any job in the run is still
+in progress. Verified on PR #120: API said `success`, log showed the audit reporting GHSA-rgw5-rvv9-x895
+and exiting 1 while the job stayed green — which is the intended behaviour, but is only visible in the log.
+
 ### MCP server (HTTP + stdio, opt-in)
 
 Lives in `internal/mcp/`. Two transports share the same 21-tool surface:
@@ -192,12 +224,22 @@ downgrade or the build it already runs. **Do not re-derive this.**
 **RESOLVED 2026-09-05: it was a pause, and the fleet has converged.** The index snapshot the earlier
 note asked for was taken 54 days later and answers it — every Gen3/Gen4 fleet app now serves stable
 `2.0.0` (build `20260710-…`, i.e. the *same* build the manual OTA installed) plus beta **`2.0.1-beta1`**
-(`20260819-…`). `2.0.0-beta3` is gone from the index entirely: the beta slot moved on. So the stable
+(`20260819-…`; the beta slot moved on again to `2.0.1-beta2`, `20260910-125922`, checked 2026-09-11 — stable
+unchanged at `2.0.0`). `2.0.0-beta3` is gone from the index entirely: the beta slot moved on. So the stable
 channel did serve 1.7.5 on 2026-07-22 and serves 2.0.0 today — a withdrawal-then-resume of the phased
 rollout, never announced either way. The census matches: **44 devices polled directly (`/shelly`, no auth
 needed for `ver`) → 40× `2.0.0`, 4× `1.7.5` (the frozen Plus line), 0× `2.0.0-beta3`.** All 44 now carry
 `fw_auto_update: stable` (two did on 2026-07-22), so the resumed stable channel carried them; no manual
 install was needed and none is documented.
+
+**The 2.0.1 betas need no code work here (checked 2026-09-11, beta2).** Both `2.0.1-beta1` and `-beta2` are
+pure bugfix releases per Shelly's Gen2 changelog: no new RPC methods, no new `Shelly.GetStatus` /
+`CheckForUpdate` / `Schedule` fields, no breaking changes — so nothing at the `sysAltVariants()` /
+`firmware.*` seams moves. The one entry that looks like it touches us, *"Authentication: Echo digest
+`algorithm` only when the challenge carried it"*, is device-side: `shellyclient` parses `algorithm` out of
+the challenge and defaults to `MD5` when absent (`client.go:420`, `:441`), which stays RFC-7616-conform
+either way. Re-read the changelog per release rather than assuming this holds — 2.0.0 itself added
+`sys.alt` and `sys.provisioning`.
 
 🩸 **Uptime stopped being able to date the install, and that is the transferable part.** The 2026-07-22
 reasoning leaned on "a firmware change reboots, so uptime dates the install" — sound only while reboots
