@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Security
+
+- **Runtime image now upgrades its Alpine packages before installing.**
+  `docker/Dockerfile` runs `apk upgrade --no-cache` ahead of the
+  `ca-certificates tzdata su-exec` install. The base image is digest-pinned,
+  which freezes whatever package versions Alpine baked in — and Alpine does
+  not rebuild a point-release image for every package CVE. v0.6.4's publish
+  run was blocked by the Trivy gate over CVE-2026-14456 (`libcrypto3` /
+  `libssl3` 3.5.7-r0, DoS via unbounded memory growth in OpenSSL's QUIC
+  server; fixed in 3.5.8-r0) while `alpine:3.24` still resolved to the very
+  digest pinned in the Dockerfile, so no newer base image existed to move to.
+  Not believed exploitable here — the binary is a static Go build that never
+  links OpenSSL, and nothing in the image serves QUIC — but the gate checks
+  the package set, not the reachability argument.
+
 ## [0.6.4] - 2026-09-12 — Stop blanking the firmware cache + CI dependency visibility
 
 ### Added
