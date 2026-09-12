@@ -7,11 +7,17 @@ not commitments — scope and timing will shift as the project matures.
 For accepted architectural decisions see [adr/README.md](./adr/README.md). For the
 threat model and deployment expectations see [SECURITY.md](./SECURITY.md).
 
-## Now (v0.5.x)
+## Now (v0.6.x → v1.0.0)
 
 - Field-testing on a real fleet between increments; concrete bug reports
   still beat speculative additions. Production tracks the latest release —
-  currently v0.5.2.
+  the number lives on the Releases page, not in this file.
+- **The 1.0 cut is the active work item**, sequenced in
+  [plans/v1.0.0-release-cut.md](./plans/v1.0.0-release-cut.md). Behaviour has
+  been frozen since v0.6.3 — 45 commits without a line changed in
+  `internal/`, `cmd/` or `web/src/` — which is what makes a stability promise
+  possible. T7 is decided (ADR-0018), the firmware-cache and failed-check
+  defects are fixed, and the remaining gate items are documentation.
 
 ## Next (pre-v1)
 

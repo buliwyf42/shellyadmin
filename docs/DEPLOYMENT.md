@@ -174,6 +174,42 @@ Suggested pattern:
 - ShellyAdmin stays on plain HTTP inside the local environment
 - `COOKIE_SECURE=true` when served through TLS
 
+## Upgrading
+
+The ordinary upgrade is a pull and a recreate — the schema migrates itself on
+boot, forward-only, and the data volume is the only state:
+
+```bash
+docker compose pull
+docker compose up -d
+```
+
+Take the [pre-deploy snapshot](#pre-deploy-snapshot) first. Migrations do not
+run backwards, so the snapshot is the rollback path, not the previous image
+tag on its own.
+
+Two constraints worth knowing before an upgrade:
+
+- **One instance at a time.** A second container against the same SQLite file
+  refuses to boot (ADR-0015) and names the holder. A rolling restart that
+  briefly runs two containers will have the new one exit until the old one
+  releases the lock.
+- **The encryption key must come from the environment** (`SHELLYADMIN_ENCRYPTION_KEY`
+  or `…_KEY_FILE`) since v0.3.0. Upgrading from v0.2.x without it fails at
+  startup with the recovery recipe in the error message.
+
+### v0.6.x → v1.0.0
+
+Nothing to do beyond the pull above. v1.0.0 is a **promise, not a payload**:
+it carries no breaking change, no new migration, no configuration change and
+no data-format change — the schema applied by v1.0.0 is the same set v0.6.3
+already applied. What changes is what is guaranteed from then on: the HTTP API
+surface at `/api/*` becomes stable under the policy in
+[ARCHITECTURE.md](./ARCHITECTURE.md), with breaking changes reserved for a
+future `/api/v2/*` ([ADR-0018](./adr/0018-api-surface-versioning.md)).
+
+Operators pinning an image tag can move straight from any v0.6.x to v1.0.0.
+
 ## Backups
 
 Back up the persistent data volume, especially:

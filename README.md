@@ -49,7 +49,7 @@ It is designed as a single-container deployment with:
 
 ## Status
 
-Under active development. Current release is `v0.6.3` (fix for the Model-column marketing name plus a repo-wide dead-code cleanup, no behaviour change). The last feature release was `v0.6.2`, closing a run that added visibility for feature-frozen Shelly firmware lines and Shelly's marketing names next to model SKUs (`v0.6.0`–`v0.6.2`); the UI/API baseline is otherwise unchanged since `v0.4.0`. The project follows pre-1.0 semver: minor versions may carry breaking changes. Semver guarantees apply from `v1.0.0`.
+Under active development. The current release is the one listed on the [Releases page](https://github.com/buliwyf42/shellyadmin/releases) — this file deliberately does not repeat the number, because it has gone stale here four times. The UI/API baseline is unchanged since `v0.4.0`; releases since then have carried fixes, dependency and CI work. The project follows pre-1.0 semver: minor versions may carry breaking changes. Semver guarantees apply from `v1.0.0` ([ADR-0018](docs/adr/0018-api-surface-versioning.md) fixes what that covers).
 
 Intended posture:
 
@@ -59,6 +59,39 @@ Intended posture:
 - not yet positioned as a multi-user or HA-ready platform
 
 The target architecture is documented in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+
+## Known Issues
+
+Open defects and accepted limitations, so they are found here rather than in
+the field. Details and measurements live in `CLAUDE.md`.
+
+- **One device is missed by the subnet scan** (`shelly-hz2`, a wired
+  `SPEM-003CEBEU63`) while answering `/shelly` in 30 ms, across repeated
+  sweeps, where its identical twin on the same subnet is found every time.
+  Cause unknown; the obvious "it is the Ethernet-only devices" explanation is
+  ruled out. Workaround: none needed for inventory correctness — re-run the
+  scan, or add the device by IP.
+- **A device's stored IP is only written by a scan.** If a DHCP lease moves,
+  jobs keep talking to the old address until the next scan. Since v0.6.5 the
+  inventory no longer hides this — a failed job records the error and the
+  device goes offline after two consecutive silences — but the address is not
+  re-resolved automatically. A rescan repairs the row.
+- **Fleet OTA to firmware 2.0.0 can fail mid-download** with a device-side
+  `premature end of data`, at random progress percentages. The cause sits
+  between the device and `fwcdn.shelly.cloud` and is **not** understood; it is
+  not ShellyAdmin's polling and not the CDN. Retrying usually works, and
+  Shelly's own phased rollout updates devices regardless.
+- **mDNS discovery is off by default and unverified in the container.** The
+  scan resolves discovered `.local` names through the system resolver, and the
+  runtime image is Alpine/musl without `nss-mdns`. Subnet scanning is the
+  supported discovery path.
+- **The binary links a MongoDB driver it never uses**
+  ([#13](https://github.com/buliwyf42/shellyadmin/issues/13)). It arrives via
+  `gin`'s BSON binding. Accepted, not fixed: no code path reaches it — the
+  tree imports `gin/binding` nowhere and contains no `c.Bind*` call, every
+  handler decodes through a size-limited JSON decoder — and `gin` ships no
+  build tag to drop it.
 
 ## Goals
 
