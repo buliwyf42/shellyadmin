@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **`fields` allowlist on the MCP `list_devices` tool.** The device list
+  declares 59 keys per device, so an unfiltered fleet listing rendered about
+  50 KB at 44 devices — past the output cap of typical MCP clients, which
+  refuse it and spill to a temp file. Callers can now name the columns they
+  need (`fields: ["name","ip","fw","online"]`), measured at 49,765 B → 4,709 B
+  for the same fleet. `mac` is always included, and an unknown field name is
+  rejected with the list of valid ones instead of silently yielding an empty
+  column. A projection rather than an `offset` because most callers want a few
+  columns, not the first N rows.
+
 ## [1.0.0] - 2026-09-12 — The API surface is now stable
 
 ### Added

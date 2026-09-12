@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -47,18 +48,75 @@ func tool[In, Out any](svc *services.AppService, name string, fn func(context.Co
 // ----- list_devices / get_device / list_device_actions -----
 
 type ListDevicesInput struct {
-	Search string `json:"search,omitempty" jsonschema:"substring matched against name, MAC, IP, app, or model (case-insensitive)"`
-	Gen    int    `json:"gen,omitempty" jsonschema:"filter by device generation (2, 3, 4); 0 = all"`
-	Limit  int    `json:"limit,omitempty" jsonschema:"max devices returned; 0 = unlimited"`
+	Search string   `json:"search,omitempty" jsonschema:"substring matched against name, MAC, IP, app, or model (case-insensitive)"`
+	Gen    int      `json:"gen,omitempty" jsonschema:"filter by device generation (2, 3, 4); 0 = all"`
+	Limit  int      `json:"limit,omitempty" jsonschema:"max devices returned; 0 = unlimited"`
+	Fields []string `json:"fields,omitempty" jsonschema:"return only these keys per device (e.g. [\"name\",\"ip\",\"fw\"]); mac is always included. Empty = the full shape (up to 59 keys, ~50 KB for a 44-device fleet), which exceeds typical MCP output caps. Unknown names are rejected with the list of valid ones."`
 }
 
 type ListDevicesOutput struct {
-	// Devices is returned in the slim DeviceListView shape (M8 — drops
+	// Devices is the slim DeviceListView shape (M8 — drops
 	// supported_methods + batch + fw_id + consecutive_misses +
-	// mqtt_flags_na). Callers that need those fields should follow up
-	// with get_device, which still returns the full Device.
-	Devices []models.DeviceListView `json:"devices"`
-	Total   int                     `json:"total"`
+	// mqtt_flags_na), rendered as maps so the `fields` allowlist can drop
+	// keys. Callers that need the dropped fields follow up with
+	// get_device, which still returns the full Device.
+	Devices []map[string]any `json:"devices"`
+	Total   int              `json:"total"`
+}
+
+// projectViews renders the list views as maps, keeping only the requested
+// keys. The full view declares 59 keys per device (fewer render when
+// omitempty fields are unset), which is what makes an
+// unfiltered fleet listing overflow MCP output caps — most callers want three
+// or four of them. `mac` is always kept: a device list without its key is not
+// useful, and a caller that forgot it would otherwise get rows it cannot act
+// on. An unknown field name is an error rather than an empty column, so a typo
+// surfaces at the call instead of looking like missing data.
+func projectViews(views []models.DeviceListView, fields []string) ([]map[string]any, error) {
+	raw, err := json.Marshal(views)
+	if err != nil {
+		return nil, err
+	}
+	var rows []map[string]any
+	if err := json.Unmarshal(raw, &rows); err != nil {
+		return nil, err
+	}
+	wanted := map[string]bool{}
+	for _, f := range fields {
+		if f = strings.TrimSpace(f); f != "" {
+			wanted[f] = true
+		}
+	}
+	if len(wanted) == 0 {
+		return rows, nil
+	}
+	wanted["mac"] = true
+	if len(rows) > 0 {
+		var unknown []string
+		for f := range wanted {
+			if _, ok := rows[0][f]; !ok {
+				unknown = append(unknown, f)
+			}
+		}
+		if len(unknown) > 0 {
+			sort.Strings(unknown)
+			valid := make([]string, 0, len(rows[0]))
+			for k := range rows[0] {
+				valid = append(valid, k)
+			}
+			sort.Strings(valid)
+			return nil, fmt.Errorf("unknown field(s) %s; valid: %s",
+				strings.Join(unknown, ", "), strings.Join(valid, ", "))
+		}
+	}
+	for _, row := range rows {
+		for k := range row {
+			if !wanted[k] {
+				delete(row, k)
+			}
+		}
+	}
+	return rows, nil
 }
 
 func filterDevices(in []models.Device, q ListDevicesInput) []models.Device {
@@ -97,14 +155,18 @@ type ListDeviceActionsOutput struct {
 func registerDeviceTools(server *mcp.Server, svc *services.AppService) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "list_devices",
-		Description: "List Shelly devices known to ShellyAdmin. Optional search/gen/limit filters.",
+		Description: "List Shelly devices known to ShellyAdmin. Optional search/gen/limit filters, and a `fields` allowlist to return only the columns you need — the unfiltered shape runs to 59 keys per device (~50 KB for 44 devices) and overflows MCP output caps.",
 	}, tool(svc, "list_devices", func(_ context.Context, in ListDevicesInput) (ListDevicesOutput, error) {
 		devices, err := svc.GetDevices()
 		if err != nil {
 			return ListDevicesOutput{}, err
 		}
 		filtered := filterDevices(devices, in)
-		return ListDevicesOutput{Devices: models.ToListViews(filtered), Total: len(filtered)}, nil
+		rows, perr := projectViews(models.ToListViews(filtered), in.Fields)
+		if perr != nil {
+			return ListDevicesOutput{}, perr
+		}
+		return ListDevicesOutput{Devices: rows, Total: len(filtered)}, nil
 	}))
 
 	mcp.AddTool(server, &mcp.Tool{
