@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.6.5] - 2026-09-12 — Alpine package upgrade for CVE-2026-14456
+
 ### Security
 
 - **Runtime image now upgrades its Alpine packages before installing.**
