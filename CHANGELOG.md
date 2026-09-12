@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-09-12 — Device selection reacts again on Provision and Groups
+
 ### Fixed
 
 - **Device selection on the Provision and Groups pages did nothing.** Ticking a
