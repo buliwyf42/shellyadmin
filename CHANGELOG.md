@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-09-12 — Field projection for the MCP device list
+
 ### Added
 
 - **`fields` allowlist on the MCP `list_devices` tool.** The device list
