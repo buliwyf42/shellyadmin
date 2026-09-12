@@ -340,10 +340,16 @@ before confirming, not after.
 one device the confirm did *not* register. Empty means "never read" (see ADR-0009), so the inventory
 afterwards claims auto-update was never configured on the whole fleet — while the devices themselves
 still hold their `Shelly.Update{stage:"stable"}` schedules, unchanged. It is a cache, and
-`firmware_check` repopulates it, but nothing tells the operator to run one. **Either follow every
-confirm with a firmware check, or — better — carry the four FW* fields over from the existing row in
-`UpsertDevices`, the same way `DeviceNum` and `FirstSeen` are already preserved
-(`internal/db/devices.go:100-107`).**
+`firmware_check` repopulates it, but nothing tells the operator to run one.
+
+**FIXED (2026-09-12).** `UpsertDevices` now carries the four `FW*` fields over from the existing
+row, alongside `DeviceNum` / `FirstSeen` — the recommended option, not the "run a firmware check
+afterwards" workaround. **`TLSAllowInsecure` was blanked by the same line and is carried too**: it is
+operator-set and no scan probe reports it, so every confirmed scan silently reset the TLS opt-out.
+The specification was the sibling path — `jobs/refresh.go` had been carrying exactly these five since
+it was written, and only the scan path was missing them; a defect found by comparing two callers of
+the same write, not by reading the failing one. Guarded by
+`TestUpsertDevicesPreservesFirmwareCacheAndTLSOptOut`, which fails on all five without the fix.
 
 **Corollary that only showed up because two sessions overlapped:** the FW cache is **not durable
 state**, it is whatever the last writer left. On 2026-09-05 a *second* session (audit `request_id`

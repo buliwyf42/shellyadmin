@@ -131,3 +131,77 @@ func TestUpsertDevicesReturnsErrorOnClosedDB(t *testing.T) {
 		t.Fatal("UpsertDevices on closed DB returned nil error, want error")
 	}
 }
+
+// A scan probe carries none of the firmware-cache fields nor the operator's
+// TLS opt-out, so UpsertDevices must take them from the existing row. Before
+// the fix a confirmed scan blanked all five fleet-wide — measured on a real
+// fleet as fw_auto_update going from 44x "stable" to 43x empty.
+func TestUpsertDevicesPreservesFirmwareCacheAndTLSOptOut(t *testing.T) {
+	database := openTestDB(t)
+	allowInsecure := true
+	seeded := models.Device{
+		MAC: "AA:BB:CC:DD:EE:01", IP: "192.168.1.10", Name: "alpha", Gen: 2,
+		FWAvailableStable: "2.0.1", FWAvailableBeta: "2.0.2-beta1",
+		FWCheckedAt: "2026-09-12T08:00:00Z", FWAutoUpdate: "stable",
+		TLSAllowInsecure: &allowInsecure,
+	}
+	if err := database.UpsertDevices([]models.Device{seeded}); err != nil {
+		t.Fatalf("seed UpsertDevices: %v", err)
+	}
+
+	// Second scan of the same device: the probe reports none of the five.
+	rescanned := models.Device{MAC: seeded.MAC, IP: "192.168.1.10", Name: "alpha", Gen: 2}
+	if err := database.UpsertDevices([]models.Device{rescanned}); err != nil {
+		t.Fatalf("rescan UpsertDevices: %v", err)
+	}
+
+	got, err := database.ListDevices()
+	if err != nil {
+		t.Fatalf("ListDevices: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("device count = %d, want 1", len(got))
+	}
+	d := got[0]
+	if d.FWAvailableStable != seeded.FWAvailableStable {
+		t.Errorf("FWAvailableStable = %q, want %q", d.FWAvailableStable, seeded.FWAvailableStable)
+	}
+	if d.FWAvailableBeta != seeded.FWAvailableBeta {
+		t.Errorf("FWAvailableBeta = %q, want %q", d.FWAvailableBeta, seeded.FWAvailableBeta)
+	}
+	if d.FWCheckedAt != seeded.FWCheckedAt {
+		t.Errorf("FWCheckedAt = %q, want %q", d.FWCheckedAt, seeded.FWCheckedAt)
+	}
+	if d.FWAutoUpdate != seeded.FWAutoUpdate {
+		t.Errorf("FWAutoUpdate = %q, want %q", d.FWAutoUpdate, seeded.FWAutoUpdate)
+	}
+	if d.TLSAllowInsecure == nil || !*d.TLSAllowInsecure {
+		t.Errorf("TLSAllowInsecure = %v, want true", d.TLSAllowInsecure)
+	}
+}
+
+// A device seen for the first time has nothing to carry forward: the probed
+// zero values must land as-is rather than inheriting another row's cache.
+func TestUpsertDevicesLeavesFirmwareCacheEmptyForNewDevice(t *testing.T) {
+	database := openTestDB(t)
+	if err := database.UpsertDevices([]models.Device{
+		{MAC: "AA:BB:CC:DD:EE:01", IP: "192.168.1.10", Gen: 2, FWAutoUpdate: "stable", FWCheckedAt: "2026-09-12T08:00:00Z"},
+	}); err != nil {
+		t.Fatalf("seed UpsertDevices: %v", err)
+	}
+	if err := database.UpsertDevices([]models.Device{
+		{MAC: "AA:BB:CC:DD:EE:01", IP: "192.168.1.10", Gen: 2},
+		{MAC: "AA:BB:CC:DD:EE:02", IP: "192.168.1.11", Gen: 2},
+	}); err != nil {
+		t.Fatalf("second UpsertDevices: %v", err)
+	}
+	got, err := database.ListDevices()
+	if err != nil {
+		t.Fatalf("ListDevices: %v", err)
+	}
+	for _, d := range got {
+		if d.MAC == "AA:BB:CC:DD:EE:02" && (d.FWAutoUpdate != "" || d.FWCheckedAt != "") {
+			t.Errorf("new device inherited firmware cache: auto=%q checked=%q", d.FWAutoUpdate, d.FWCheckedAt)
+		}
+	}
+}
