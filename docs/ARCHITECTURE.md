@@ -119,13 +119,14 @@ Provisioning safety constraints:
 
 ## API Versioning Policy
 
-Pre-v1.0 release lines (current: 0.x) ship without API version
-guarantees. The HTTP API surface is documented under the
-`info.version: "v1"` field in the OpenAPI spec served at
-`/api/openapi/v1.json`, but breaking changes between minor releases
-are reserved until the explicit pre-1.0 line clears.
+From v1.0.0 the HTTP API surface carries a stability guarantee. It is
+documented under the `info.version: "v1"` field in the OpenAPI spec
+served at `/api/openapi/v1.json`; that field names the contract
+generation, not a URL prefix. (Before v1.0.0 the 0.x lines shipped
+without any such guarantee — breaking changes between minor releases
+were explicitly reserved.)
 
-When v1.0 lands, the policy hardens to:
+The policy in force:
 
 - **`/api/*`** stays stable — the unversioned prefix *is* generation 1
   of the contract, per [ADR-0018](./adr/0018-api-surface-versioning.md).

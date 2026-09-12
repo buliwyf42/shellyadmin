@@ -1,7 +1,7 @@
 # ADR-0018: The Stable API Surface Is Unversioned `/api/*` (T7)
 
-- Status: `Proposed`
-- Date: 2026-09-12
+- Status: `Accepted`
+- Date: 2026-09-12 (accepted at the v1.0.0 cut)
 
 ## Context
 

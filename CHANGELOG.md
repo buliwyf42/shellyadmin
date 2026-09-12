@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-09-12 — The API surface is now stable
+
+### Added
+
+- **API stability guarantee.** From this release the HTTP surface at `/api/*`
+  is stable: routes may gain optional query parameters and optional response
+  fields, existing required fields may not rename or change shape, and a
+  breaking generation ships under `/api/v2/*` with the previous routes kept
+  for one full release line behind a `Deprecation: true` header. Decided in
+  [ADR-0018](docs/adr/0018-api-surface-versioning.md), which is accepted with
+  this cut, and stated in `docs/ARCHITECTURE.md`.
+
+  **This release carries no code change**: no new migration, no configuration
+  change, no data-format change. Upgrading from any v0.6.x is a pull and a
+  recreate (`docs/DEPLOYMENT.md`). What 1.0.0 ships is the promise — the
+  behaviour it covers has been unchanged since v0.6.3.
+
 ### Changed
 
 - **Documentation pass ahead of the 1.0 cut** (step 5 of the release plan): a

@@ -49,7 +49,7 @@ It is designed as a single-container deployment with:
 
 ## Status
 
-Under active development. The current release is the one listed on the [Releases page](https://github.com/buliwyf42/shellyadmin/releases) — this file deliberately does not repeat the number, because it has gone stale here four times. The UI/API baseline is unchanged since `v0.4.0`; releases since then have carried fixes, dependency and CI work. The project follows pre-1.0 semver: minor versions may carry breaking changes. Semver guarantees apply from `v1.0.0` ([ADR-0018](docs/adr/0018-api-surface-versioning.md) fixes what that covers).
+Under active development. The current release is the one listed on the [Releases page](https://github.com/buliwyf42/shellyadmin/releases) — this file deliberately does not repeat the number, because it has gone stale here four times. The UI/API baseline is unchanged since `v0.4.0`; releases since then have carried fixes, dependency and CI work. Since `v1.0.0` the project follows semver, and the HTTP API at `/api/*` is stable: routes may gain optional parameters and optional response fields, breaking changes are reserved for a future `/api/v2/*` ([ADR-0018](docs/adr/0018-api-surface-versioning.md)).
 
 Intended posture:
 
