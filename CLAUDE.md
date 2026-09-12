@@ -154,13 +154,15 @@ Lives in `internal/mcp/`. Two transports share the same 21-tool surface:
 - **Stdio** (v0.2.3+, for Claude Desktop on the same host): `shellyctl mcp` subcommand. `cmd/shellyctl/mcp_stdio.go` opens the database, builds a minimal AppService (no background workers — query session, not server), and serves over `mcp.StdioTransport` via `internal/mcp.RunStdio`. No transport-level auth — the parent process spawning the binary IS the trust boundary; host filesystem permissions on the data dir are the remaining gate. Logs to stderr; stdout carries JSON-RPC frames. SQLite WAL mode handles concurrent readers if a long-running HTTP-mode container shares the same data dir.
 
 - **Surface (v0.2.3)**: 21 tools. **13 read-only**: list_devices, get_device, list_device_actions, scan_status, firmware_status, firmware_install_status, list_templates, get_template, list_credentials, get_settings, get_logs, export_device, compliance_summary. **8 state-changing, all confirm-gated**: refresh_device, refresh_all_devices, start_scan, confirm_scan, firmware_check, firmware_install, execute_device_action, bulk_action. All thin adapters over `services.AppService`. Hard exclusion: anything that mutates ShellyAdmin's *own* config (save_settings, save_credential, save_template, provision, clear_logs).
-- **`list_devices` has no paging and already exceeds MCP output caps at 44 devices (2026-09-05).**
-  The DeviceListView carries ~58 fields per device; the full fleet renders as ~61 KB, which the
-  client refuses and spills to a temp file — a `limit` input exists but the payload was oversized
-  before it could help. Consumers end up doing `jq` over a dump instead of calling the tool, which
-  defeats the point. Same treatment as `firmware_status` would fix it: a **field projection**
-  (`fields:` allowlist) matters more here than `offset`, since most callers want three or four
-  columns out of 58. Seam: the same view assembly in `internal/services/actions.go`.
+- **`list_devices` field projection (v1.0.1).** The DeviceListView declares 59 keys per device, so
+  an unfiltered fleet listing rendered ~50 KB at 44 devices — the client refused it and spilled to a
+  temp file, and consumers went back to `jq` over a dump instead of calling the tool. A `limit` input
+  existed but the payload was oversized before it could help. Fixed with a `fields:` allowlist
+  (`projectViews` in `internal/mcp/tools.go`) rather than `offset`, because most callers want three
+  or four columns, not the first N rows: measured 49,765 B → 4,709 B for the same 44 devices at
+  four requested fields. `mac` is always kept — a row without its key cannot be acted on — and an
+  unknown field name is an error listing the valid ones, so a typo surfaces at the call instead of
+  looking like missing data.
 - **`firmware_status` paging (v0.2.3)**: optional `status` / `has_update` / `search` / `limit` / `offset` inputs; output adds `filtered_total` (post-filter) and `returned` (post-page) alongside the unchanged `running` / `done` / `total` job-level metrics. Matters past ~200 devices where the unfiltered payload approaches MCP per-tool output caps.
 - **Confirm-flow contract** (added v0.1.22, see `internal/mcp/tools_actions.go` `confirmPolicy`): every state-changing tool has a `Confirm bool` input. Without `confirm: true` the tool returns a typed preview (`SimpleActionResult.Preview=true` + per-tool fields like target counts, risk levels, per-target eligibility from `PreviewBulkAction`) and does NOT call the underlying AppService method. With `confirm: true` it executes. Each call audit-logs `mode=preview` or `mode=confirmed` so operators can pair them by request_id. `actionTool` wraps the context with `services.WithRisk(ctx, "low|medium|high")` so audit rows carry `risk_level`. The tool description includes a verbatim "OPERATOR APPROVAL REQUIRED" policy paragraph telling the LLM to summarize and ask before passing confirm=true.
 - **Secret hygiene**: `list_credentials` and `get_settings` route through `internal/mcp/redact.go`. Plaintext password and HA1 hashes never leave the process via MCP. New fields with secret material must add a redactor before they're exposed.
