@@ -6,6 +6,11 @@ read before opening the first PR against a release block. These files
 are kept for historical context; current planning lives in
 `docs/roadmap.md` and in the issue tracker.
 
+## Planned
+
+- [v1.0.0 Release Cut](./v1.0.0-release-cut.md)
+  (API stability guarantee, T7 decision, known-issue disposition)
+
 ## Shipped
 
 - [Phase 4b — Services Split + Frontend Refactor](./phase-4b-refactor-block.md)
