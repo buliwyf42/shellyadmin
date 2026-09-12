@@ -21,8 +21,10 @@ threat model and deployment expectations see [SECURITY.md](./SECURITY.md).
   - **`shellyctl` CLI write commands** (optional) — read-only shipped in
     v0.3.6; write ops (refresh/scan/firmware-install) would slot behind the
     existing `*:write` PAT scopes if fleet-op scripting is ever wanted.
-  - **`/api/v1/*` prefix (T7)** — v1.0-gated; pure plumbing with no payoff
-    until a breaking `/api/v2` exists.
+  - **`/api/v1/*` prefix (T7)** — **resolved, not planned**
+    ([ADR-0018](./adr/0018-api-surface-versioning.md)): the unversioned
+    `/api/*` is generation 1 of the contract, and `/api/v2/*` is
+    reserved for the first breaking generation. No prefix is mounted.
   - **Dropped:** WebAuthn/passkeys (T2 — needs HTTPS, LAN-HTTP setup) and the
     HSM/PKCS11 key provider (T4 — no value without HSM hardware).
 - Periodic dependency pin review on a regular cadence (next pass: ~2026-08,
