@@ -102,6 +102,50 @@ and not pushed. **A "merged into main" filter is blind to exactly one branch: th
 working on right now.** Before deleting branches in a worktree you do not own, check for a foreign
 `index.lock` / recent reflog activity, or just announce it first.
 
+### A digest-pinned base image freezes package CVEs, and the pin may already be the newest tag (2026-09-12)
+
+The `v0.6.4` publish run was blocked by the Trivy gate in `publish-image.yml`
+(`severity: HIGH,CRITICAL`, `ignore-unfixed: true`, `exit-code: 1`) over
+CVE-2026-14456 — `libcrypto3` / `libssl3` 3.5.7-r0, fixed in 3.5.8-r0.
+
+🩸 **The reflex fix does not work here: bump the base-image digest.** The pinned
+`alpine:3.24@sha256:28bd5fe8…` **was** the current digest of the `3.24` tag on
+Docker Hub — Alpine does not rebuild a point-release image for every package
+CVE, so there was no newer base image to move to. Check that before reaching for
+a bump, it costs one registry call:
+
+```bash
+T=$(curl -s "https://auth.docker.io/token?service=registry.docker.io&scope=repository:library/alpine:pull" | python3 -c "import sys,json;print(json.load(sys.stdin)['token'])")
+curl -sI -H "Authorization: Bearer $T" -H "Accept: application/vnd.oci.image.index.v1+json" \
+  https://registry-1.docker.io/v2/library/alpine/manifests/3.24 | grep -i docker-content-digest
+```
+
+The fix is `apk upgrade --no-cache` ahead of the `apk add` in the runtime stage
+(v0.6.5). It gives up nothing that `apk add --no-cache` had not already given
+up — package versions were always resolved against the repo, only the base layer
+is pinned. Verify the repo actually carries the fix first, rather than hoping:
+fetch `https://dl-cdn.alpinelinux.org/alpine/v3.24/main/x86_64/APKINDEX.tar.gz`
+and read the `P:`/`V:` pairs. A `.trivyignore` was the alternative and was
+rejected — the "not exploitable here" argument (static Go binary, never links
+OpenSSL, no QUIC server in the image) is sound but is an argument, and the gate
+checks the package set.
+
+🩸 **A failed publish run can still have published something.** `publish-image`
+is one job: build+push, sign, scan, extract notes, create Release. The Trivy
+failure came *after* push and sign, so `v0.6.4` ended up in GHCR — tagged,
+`latest` moved onto it, cosign signature and Rekor entry present — while the
+release-notes and Release steps were skipped. The run's conclusion says
+`failure` and tells you nothing about which half landed. **Read the step list
+(`gh api repos/<o>/<r>/actions/jobs/<id> --jq '.steps[]'`), not the run
+conclusion.**
+
+Recovering that state by hand-creating the Release would publish exactly what
+the project's own gate rejected. v0.6.5 was cut instead with the fix as its only
+content, which also moved `latest` off the unscanned image; the orphaned v0.6.4
+image and its `.sig` were deleted from GHCR afterwards. Note that the delete
+needs `delete:packages` on the `gh` token (the usual `repo, workflow, read:org,
+gist` set is not enough) — otherwise it is a browser job.
+
 ### MCP server (HTTP + stdio, opt-in)
 
 Lives in `internal/mcp/`. Two transports share the same 21-tool surface:
