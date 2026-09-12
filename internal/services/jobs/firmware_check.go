@@ -65,23 +65,7 @@ func (s *Service) runFirmwareJob(jobID int64, devices []models.Device) {
 		}
 		result := firmware.CheckOneWithOptions(shutdown, device, s.host.FirmwareOptions(device, 10*time.Second))
 		results = append(results, result)
-		// Persist the per-channel cache so the channel selector on the
-		// Update page is purely a display filter and other pages (Devices,
-		// etc.) can surface availability without a fresh check. Also write
-		// back the running version (from GetDeviceInfo) so out-of-band
-		// upgrades stop leaving Device.FW stale.
-		if result.CurrentVer != "" {
-			device.FW = result.CurrentVer
-		}
-		if result.Batch != "" {
-			device.Batch = result.Batch
-		}
-		if result.FWID != "" {
-			device.FWID = result.FWID
-		}
-		device.FWAvailableStable = result.StableVer
-		device.FWAvailableBeta = result.BetaVer
-		device.FWCheckedAt = result.CheckedAt
+		applyCheckResult(&device, result)
 		if mode, autoErr := firmware.ReadAutoUpdate(shutdown, device.IP, device.Gen, s.host.FirmwareOptions(device, 5*time.Second)); autoErr == nil {
 			device.FWAutoUpdate = mode
 		}
@@ -212,4 +196,62 @@ func (s *Service) FirmwareUpdate(ctx context.Context, macs []string, stage strin
 		}
 	}
 	return results, nil
+}
+
+// applyCheckResult folds one firmware.Result into the device row.
+//
+// The rule that matters: a FAILED check must not be written as if it had
+// succeeded. Before this existed the job persisted `result.StableVer` /
+// `BetaVer` / `CheckedAt` unconditionally, so a check against an unreachable
+// device blanked the firmware cache and stamped a fresh "checked at" — the
+// row then looked freshly verified while the job had in fact reached nothing.
+// Reachability was never recorded at all, which is how a device with a stale
+// IP kept reporting `online: true` and an empty `last_refresh_error` while
+// every job against it failed with "no route to host" (and bulk actions,
+// which gate on Online, happily targeted the dead address).
+//
+// Persist the cache only on success; on failure record what was actually
+// learned — that the device refused, or that it did not answer. The
+// reachability semantics mirror the refresh path: an answer that refuses
+// keeps the device online, silence counts as a miss and takes it offline on
+// the second one.
+func applyCheckResult(device *models.Device, result firmware.Result) {
+	// Opportunistic identity metadata is a real observation whenever it
+	// arrives, including on a partially failed check.
+	if result.CurrentVer != "" {
+		device.FW = result.CurrentVer
+	}
+	if result.Batch != "" {
+		device.Batch = result.Batch
+	}
+	if result.FWID != "" {
+		device.FWID = result.FWID
+	}
+
+	switch result.Status {
+	case "error":
+		device.LastRefreshOK = false
+		device.LastRefreshError = result.Note
+		if result.Unreachable {
+			device.ConsecutiveMisses++
+			if device.ConsecutiveMisses >= 2 {
+				device.Online = false
+			}
+		} else {
+			// It answered — refused, but answered.
+			device.ConsecutiveMisses = 0
+			device.Online = true
+		}
+	case "na":
+		// Not applicable (gen1). Says nothing about the device; leave the
+		// row untouched beyond the identity fields above.
+	default:
+		device.FWAvailableStable = result.StableVer
+		device.FWAvailableBeta = result.BetaVer
+		device.FWCheckedAt = result.CheckedAt
+		device.LastRefreshOK = true
+		device.LastRefreshError = ""
+		device.ConsecutiveMisses = 0
+		device.Online = true
+	}
 }

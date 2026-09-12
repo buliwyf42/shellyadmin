@@ -33,6 +33,12 @@ type Result struct {
 	// onto the Device row alongside the per-channel firmware cache.
 	Batch string `json:"batch,omitempty"`
 	FWID  string `json:"fw_id,omitempty"`
+	// Unreachable distinguishes "the device did not answer at all" from
+	// "it answered and refused" (auth required, lockout). Only the former
+	// says anything about reachability, and the caller cannot tell them
+	// apart from Note without matching on prose. Set alongside
+	// Status == "error".
+	Unreachable bool `json:"unreachable,omitempty"`
 }
 
 type UpdateResult struct {
@@ -131,6 +137,7 @@ func CheckOneOnClient(ctx context.Context, client *shellyclient.Client, d models
 	if err != nil {
 		res.Status = "error"
 		res.Note = friendlyRPCError(err)
+		res.Unreachable = isUnreachable(err)
 		return res
 	}
 	if stable, ok := payload["stable"].(map[string]any); ok {
@@ -264,6 +271,30 @@ func stringValue(v any) string {
 		return s
 	}
 	return ""
+}
+
+// isUnreachable reports whether the error means the device never answered,
+// as opposed to answering with a refusal. An auth challenge or a lockout is
+// proof the device is alive and must not count as a miss; a timeout, a
+// refused connection, an unroutable address or a failed name lookup is the
+// opposite. Kept next to friendlyRPCError because both classify the same
+// error set and must stay in step.
+func isUnreachable(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, shellyclient.ErrAuthRequired) || errors.Is(err, shellyclient.ErrAuthLockout) {
+		return false
+	}
+	low := strings.ToLower(err.Error())
+	return strings.Contains(low, "context deadline exceeded") ||
+		strings.Contains(low, "client.timeout") ||
+		strings.Contains(low, "i/o timeout") ||
+		strings.Contains(low, "connection refused") ||
+		strings.Contains(low, "no route to host") ||
+		strings.Contains(low, "no such host") ||
+		strings.Contains(low, "network is unreachable") ||
+		strings.Contains(low, "host is down")
 }
 
 // friendlyRPCError condenses the raw network/RPC error into a short phrase
