@@ -100,6 +100,18 @@ func (db *DB) UpsertDevices(scanned []models.Device) error {
 		if old, ok := known[d.MAC]; ok {
 			d.DeviceNum = old.DeviceNum
 			d.FirstSeen = old.FirstSeen
+			// A scan probe does not read firmware availability or the
+			// operator's TLS opt-out, so writing the probed device wholesale
+			// blanks both. Carry them forward exactly as the refresh path
+			// does (jobs/refresh.go) — otherwise a confirmed scan wipes the
+			// firmware cache fleet-wide and the inventory then claims
+			// auto-update was never configured, while the devices still hold
+			// their Shelly.Update schedules.
+			d.FWAvailableStable = old.FWAvailableStable
+			d.FWAvailableBeta = old.FWAvailableBeta
+			d.FWCheckedAt = old.FWCheckedAt
+			d.FWAutoUpdate = old.FWAutoUpdate
+			d.TLSAllowInsecure = old.TLSAllowInsecure
 		} else {
 			maxNum++
 			d.DeviceNum = maxNum

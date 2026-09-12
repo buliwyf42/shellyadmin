@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A confirmed scan no longer blanks the firmware cache or the TLS opt-out.**
+  `UpsertDevices` wrote the scan-probed device wholesale, and a scan probe
+  carries neither `fw_available_stable` / `fw_available_beta` /
+  `fw_checked_at` / `fw_auto_update` nor the operator-set
+  `tls_allow_insecure`. Every confirmed scan therefore reset all five
+  fleet-wide — measured on a 44-device fleet as `fw_auto_update` going from
+  44x `stable` to 43x empty, which made the inventory claim auto-update was
+  never configured while the devices still held their `Shelly.Update`
+  schedules. The five fields are now carried over from the existing row
+  next to `device_num` / `first_seen`, exactly as the refresh path
+  (`jobs/refresh.go`) has always done.
+
 ### Added
 
 - **Informational `npm audit` over all frontend deps.** The existing gate is
