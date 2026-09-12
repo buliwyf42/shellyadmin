@@ -433,7 +433,7 @@ Both traps bit on the same run: the 2026-09-05 scan found **42 of 44** (`shelly-
 scheduled power-off window, `shelly-hz2` was missed outright, see below), so it was correctly left
 **unconfirmed** — a confirm would have penalised two healthy rows and still not fixed the IP.
 
-### `shelly-hz2` is missed by the subnet scan — it is the scanning host's vantage point, not the scanner (2026-09-12)
+### `shelly-hz2` is missed by the subnet scan — something degrades in the long-running container, not the scanner (2026-09-12)
 
 Three consecutive `192.168.211.0/24` scans (2026-09-02, 09-05, 09-12) came back without
 `FC:E8:C0:DB:19:50` / `192.168.211.47`, while its twin `hz1` (`.102`, same `SPEM-003CEBEU63`,
@@ -466,12 +466,35 @@ measurement of the network between the scanner and the target, and the scanning 
 apparatus. Reproducing from a second vantage point separated the two in one run, after two sessions
 had been looking in the wrong file.
 
-**Next A/B, in that order:** raise `scan_timeout` from 2 s to 4–5 s in Settings and rescan — if `.47`
-appears, the timeout is the knob and the container's path is the cause. It cannot be done over MCP
-(`save_settings` is deliberately excluded from the tool surface); it is one field in the UI. If the
-device still goes missing at 5 s, measure from inside the container (neighbour table, per-probe
-timing) rather than in the Go code. Until then, every `ConfirmScan` costs hz2 an undeserved miss
-(see trap 2).
+**The A/B was run the same evening, and it killed the timeout hypothesis:**
+
+| Run | `scan_timeout` | Container | Result |
+| --- | --- | --- | --- |
+| 13:35 | 2 s | v0.6.0, 8 days uptime | 41 found, `.47` **missing** |
+| ~20:10 | 5 s | v1.1.1, minutes old | 44 found, `.47` **present** |
+| ~20:15 | 2 s (restored) | v1.1.1, minutes old | 44 found, `.47` **present** |
+
+At the original 2 s the fresh container finds it too, so the timeout is not the knob. The scanner
+code is excluded as well: the whole `internal/core/scanner` diff from v0.6.0 to v1.1.1 is the removal
+of a one-line `jsonMarshal` wrapper.
+
+🩸 **The trap in that sequence is worth more than the finding.** Changing `scan_timeout` 2 → 5
+produced exactly the expected result, and the conclusion "the timeout was it" would have been wrong:
+a redeploy had happened between the 13:35 run and the evening ones, so the two measurements differed
+in **two** variables, not one. Only setting the value back and re-running exposed it. **When an
+experiment confirms your hypothesis on the first try, check what else moved since the baseline — and
+run the A/B/A, not the A/B.** The previous revision of this section said "the container's network
+position", which was already too coarse: the same position works when the container is fresh.
+
+**What is left**: something degrades inside the long-running container. Unmeasured candidates —
+neighbour/ARP cache in its netns, conntrack pressure, socket/fd exhaustion after days of 254-probe
+sweeps plus a 60 s refresh cycle. Do not write any of these down as the cause without measuring.
+
+**Falsifiable prediction, and the cheapest next step:** if uptime is the driver, the miss comes back
+as the container ages. Re-run a scan in a few weeks **changing nothing** — if `.47` goes missing
+again, it is confirmed and the fix is operational (restart on a schedule, or find the exhausted
+resource). If it stays found, the deploy fixed it for some other reason and this note needs a fourth
+revision. Until then, every `ConfirmScan` costs hz2 an undeserved miss (see trap 2).
 
 ### OTA configuration on Gen2+ — implemented via `Schedule.*`, not `OTA.SetConfig`
 
