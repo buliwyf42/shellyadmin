@@ -6,6 +6,14 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **Informational `npm audit` over all frontend deps.** The existing gate is
+  `npm audit --omit=dev --audit-level=high`, so a high-severity advisory in a
+  transitive *dev* dependency never shows up: GHSA-rgw5-rvv9-x895 in
+  `brace-expansion` sat behind green runs until a manual `npm audit` found
+  it. The new step runs the unfiltered audit with `continue-on-error`, the
+  same visibility-without-gating pattern `govulncheck` already uses — a
+  dev-only advisory annotates the job instead of failing it.
+
 - **`Toolchain sync` CI gate.** A new required check in `test.yml`: every
   `setup-go` / `setup-node` value must equal the `golang:` / `node:` tag in
   `docker/Dockerfile`, and the `go.mod` directive must not outrank the
