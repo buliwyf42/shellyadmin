@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **Documentation pass ahead of the 1.0 cut** (step 5 of the release plan): a
+  `Known Issues` section in the README naming the open defects and accepted
+  limitations (the device the subnet scan misses, the scan-written device IP,
+  the Shelly-side OTA truncation, mDNS being off and unverified in the
+  container, and the unused MongoDB driver from gin's BSON binding); an
+  `Upgrading` section in `docs/DEPLOYMENT.md` including the `v0.6.x → v1.0.0`
+  path — pull and recreate, no migration, no config change; and the roadmap's
+  "Now" section, four releases stale, rewritten around the 1.0 cut. The
+  README's Status paragraph no longer names a version number at all: it had
+  gone stale there four times, so it now points at the Releases page.
+
 ## [0.6.5] - 2026-09-12 — Alpine package upgrade for CVE-2026-14456
 
 ### Security
