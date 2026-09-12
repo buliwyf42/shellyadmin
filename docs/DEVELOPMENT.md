@@ -285,6 +285,47 @@ builds receive `--build-arg VERSION=` from the git tag.
 
 VERSION + `web/package.json` + lockfile bump together on every release. Tag is lightweight (`git tag vX.Y.Z`, no `-a`); push needs `git push origin main vX.Y.Z` because `--follow-tags` only auto-pushes annotated tags. CHANGELOG header convention is `## [X.Y.Z] - YYYY-MM-DD — em-dash subtitle`; the publish-image workflow extracts the subtitle for the auto-created GitHub Release title.
 
+### Post-release verification
+
+A tag push is not the end of the release — `publish-image` can fail *after* it
+has already pushed and signed (the v0.6.4 Trivy block did exactly that, see
+`CLAUDE.md`). Check the four things the workflow cannot check for you:
+
+```bash
+# 1. which steps actually ran — the run conclusion does not say which half landed
+gh run view <run-id> --json jobs --jq '.jobs[0].databaseId' \
+  | xargs -I{} gh api repos/buliwyf42/shellyadmin/actions/jobs/{} --jq '.steps[] | "\(.conclusion)\t\(.name)"'
+
+# 2. release notes == the CHANGELOG section they were lifted from
+diff <(gh release view vX.Y.Z --json body --jq .body | grep -v '^$') \
+     <(awk '/^## \[X.Y.Z\]/{f=1;next} /^## \[/{f=0} f' CHANGELOG.md | grep -v '^$')
+
+# 3. the moving tag actually moved
+T=$(curl -s "https://ghcr.io/token?scope=repository:buliwyf42/shellyadmin:pull&service=ghcr.io" | python3 -c "import sys,json;print(json.load(sys.stdin)['token'])")
+for tag in vX.Y.Z latest; do curl -sI -H "Authorization: Bearer $T" \
+  -H "Accept: application/vnd.oci.image.index.v1+json" \
+  "https://ghcr.io/v2/buliwyf42/shellyadmin/manifests/$tag" | grep -i docker-content-digest; done
+
+# 4. signature — identity must name THIS tag, and the commit must be the release commit
+cosign verify --certificate-identity-regexp 'https://github.com/buliwyf42/shellyadmin/' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  ghcr.io/buliwyf42/shellyadmin:vX.Y.Z
+```
+
+**Expect exactly two signatures**, one per tag the workflow signs (`vX.Y.Z`
+and `latest`) at the same digest. v0.6.4 and v0.6.5 carry **three**, because
+`metadata-action` emitted `latest` twice until the duplicate `type=raw` line
+was removed. The next release after that fix is the first one that proves it —
+count them, and if it is still three the raw line is back or `flavor.latest`
+changed. `cosign verify` prints one JSON object per signature.
+
+`cosign` is not installed on the dev machine; download the pinned release and
+check it against sigstore's own signed checksums before trusting it (identity
+`keyless@projectsigstore.iam.gserviceaccount.com`, issuer
+`https://accounts.google.com` — *not* a GitHub Actions identity). If it fails
+with `docker-credential-desktop not found`, point `DOCKER_CONFIG` at an empty
+directory so it falls back to anonymous pulls.
+
 ## CI Gates & Branch Protection (v0.3.4)
 
 The repo is on a GitHub Pro personal account — Pro is what makes branch protection + native auto-merge enforceable on a private repo (on Free they can be created but are not enforced); on public repos these features are free. The `main` branch is protected:
