@@ -6,6 +6,18 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- **A failed firmware check is no longer written as a successful one.** The
+  job persisted the per-channel availability and `fw_checked_at`
+  unconditionally, so a check against an unreachable device blanked the
+  firmware cache and stamped a fresh check timestamp, while recording
+  nothing about reachability — the row kept reporting `online: true` with an
+  empty `last_refresh_error` even as every job against it failed with "no
+  route to host", and bulk actions (which gate on `online`) kept targeting
+  the dead address. The cache is now written only on success; a failure
+  records the error, and `firmware.Result.Unreachable` separates silence
+  (counts as a miss, offline on the second) from a refusal such as an auth
+  challenge (proves the device is alive, stays online).
+
 - **A confirmed scan no longer blanks the firmware cache or the TLS opt-out.**
   `UpsertDevices` wrote the scan-probed device wholesale, and a scan probe
   carries neither `fw_available_stable` / `fw_available_beta` /

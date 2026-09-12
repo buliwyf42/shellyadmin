@@ -308,9 +308,31 @@ dscacheutil -q host -a name shelly-<name>.local     # macOS; getent hosts on Lin
 curl -s http://<ip>/shelly | jq -c '{name,mac,ver}' # no auth needed for the version
 ```
 
-A rescan repairs the row. Worth considering at the `firmware.TriggerUpdate*`/refresh seam: on a
-connection-level failure, re-resolve the device name before declaring the device unreachable — the fleet
-runs mDNS names that already resolve.
+A rescan repairs the row.
+
+**PARTLY FIXED (2026-09-12): the row no longer lies, the IP still is not re-resolved.** Reading the
+code showed the harm was mostly not the stale IP but how a failed check was written:
+`runFirmwareJob` persisted `result.StableVer` / `BetaVer` / `CheckedAt` **unconditionally**, so a
+check against an unreachable device blanked the firmware cache *and* stamped a fresh `fw_checked_at`
+— the row looked freshly verified precisely when nothing had been reached — while reachability was
+never touched at all. That is the whole `online: true` + empty `last_refresh_error` symptom above,
+and it also fed `device_surface.go`, whose bulk actions gate on `Online` and therefore kept firing at
+the dead address. `applyCheckResult` (`internal/services/jobs/firmware_check.go`) now writes the
+cache only on success and records what was actually learned on failure, with `firmware.Result.Unreachable`
+separating silence from a refusal — an auth challenge or lockout proves the device is alive and must
+not count as a miss. Reachability semantics mirror the refresh path: second consecutive silence takes
+it offline.
+
+🩸 **The mDNS re-resolve was deliberately NOT built, and the reason is worth keeping.** Two things
+have to hold before it is worth a line of code, and neither was measured: (1) this deployment runs
+`enable_mdns: false` — the whole mDNS path is switched off, so a re-resolve built on it would be dead
+code here; (2) `scanner.ScanMDNS` browses by raw multicast (`browseMDNS`, own `dnsmessage` packets)
+but then resolves the discovered `.local` name with **`net.DefaultResolver`** — the system resolver —
+and the runtime image is `alpine` + musl with no `nss-mdns`, where `.local` goes to the configured
+unicast DNS and may simply NXDOMAIN. If the mDNS scan path is ever wanted in the container, measure
+that resolve first (`getent hosts shelly-x.local` inside the running container); if it fails, the fix
+is to read the A record out of the mDNS answer that `browseMDNS` already receives, not to add an mDNS
+dependency.
 
 ### 🩸 Three ways the rescan repairs nothing (or breaks something else) — all look like success (2026-09-05)
 
