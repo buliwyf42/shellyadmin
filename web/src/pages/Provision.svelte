@@ -180,9 +180,20 @@
     jsonText = JSON.stringify(buildTemplate(), null, 2);
   });
 
+  // Reassign instead of mutating: `selected` is a plain `let`, and these
+  // components compile in legacy mode (`export let` props, `$:` statements).
+  // A SvelteSet mutation (`add`/`delete`/`clear`) keeps the same identity, so
+  // it never invalidates the binding and neither this component nor
+  // IPListPanel re-renders — the footer stayed at "0 of N selected" and rows
+  // could not be deselected at all (v1.0.0, reported 2026-09-12). Measured in
+  // the running app: `selectAll`, which already reassigned, updated fine while
+  // the mutating paths did nothing. The deeper fix is converting these pages
+  // to runes mode; until then every write to `selected` must be an assignment.
   function toggle(mac: string, checked: boolean) {
-    if (checked) selected.add(mac);
-    else selected.delete(mac);
+    const next = new SvelteSet(selected);
+    if (checked) next.add(mac);
+    else next.delete(mac);
+    selected = next;
   }
 
   function selectAll() {
@@ -190,7 +201,7 @@
   }
 
   function selectNone() {
-    selected.clear();
+    selected = new SvelteSet();
   }
 
   function selectedDevices() {
