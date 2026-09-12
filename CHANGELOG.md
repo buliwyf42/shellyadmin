@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Device selection on the Provision and Groups pages did nothing.** Ticking a
+  row left the footer at "0 of N selected", the `Provision N` button at 0, and
+  rows could not be deselected at all — the only working control was "All".
+  Both pages hold the selection in a `SvelteSet` and compile in legacy mode, so
+  a mutation (`add` / `delete` / `clear`) keeps the binding's identity, never
+  invalidates it, and neither the page nor `IPListPanel` re-renders. `selectAll`
+  happened to reassign, which is why exactly that one button worked. Every write
+  to the selection is now an assignment. Measured in the running v1.0.0 UI
+  before the fix: `All` updated the counter, `None` and the row checkboxes did
+  not. The same defect was present on the Groups page, which nobody had
+  reported.
+
 ## [1.1.0] - 2026-09-12 — Field projection for the MCP device list
 
 ### Added
