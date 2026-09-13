@@ -536,15 +536,75 @@ VM 114 during sweeps: neighbour table (`table_fulls 0`, `forced_gc_runs 0`, `unr
 105 entries against `gc_thresh1 128`), conntrack (**1413 of 262144**), fd/sockets (175 sockets
 against a 1024 soft limit). None is saturated. The exhaustion story was wrong.
 
-**What is NOT yet proven**: that raising the budget removes the miss. The decisive experiment is
-`scan_timeout` **2 → 5 s**, then **≥ 6 sweeps** against today's 4/6 baseline — and it is now
-well-founded rather than a guess, because the observed excursion is 2.078 s against a 2 s budget.
-`scan_concurrency` 64 → 32 is the alternative knob on the same mechanism. **Both need the Settings
-page** (`save_settings` is deliberately absent from the MCP), and that needs an interactive login —
-there is no 1Password item for `shellyadmin.home.lan`, so this step belongs to the operator.
+**What was NOT yet proven at that point**: that raising the budget removes the miss. The decisive
+experiment was `scan_timeout` **2 → 5 s**, then **≥ 6 sweeps** against the 4/6 baseline. It has now
+been run — see below. `scan_concurrency` 64 → 32 is the alternative knob on the same mechanism.
+**Both need the Settings page** (`save_settings` is deliberately absent from the MCP), and that needs
+an interactive login — there is no 1Password item for `shellyadmin.home.lan`, so that step belongs to
+the operator.
 
-Until the budget is raised, every `ConfirmScan` still costs hz2 an undeserved miss (see trap 2) —
-now with a known probability of roughly two thirds, not an unexplained one.
+### 2026-09-13, same day: the 5 s budget was set and measured — the miss is halved, not gone
+
+The operator set `scan_timeout` **2 → 5 s** via the Settings page. Read back before measuring:
+`scan_timeout 5`, `scan_concurrency` unchanged at **64**, same container (`StartedAt
+2026-09-12T18:04:10Z`, `RestartCount 0`) — **one variable moved**, which is what the 2026-09-12 A/B
+failed to guarantee. Seven sweeps, 14:10–14:24, no `confirm_scan`, no active probing of the twins:
+
+| Sweep | Found | `.47` | Sweep finished within |
+| --- | --- | --- | --- |
+| 1 | 44 | present | ≤ 90 s (not timed) |
+| 2 | 44 | present | — |
+| 3 | 43 | **missing** | — |
+| 4 | 44 | present | ≤ 32 s |
+| 5 | 44 | present | ≤ 27 s |
+| 6 | 43 | **missing** | ≤ 27 s |
+| 7 | 44 | present | ≤ 27 s |
+
+**2 misses in 7, against 4 in 6 at 2 s.** The rate roughly halved, and the device is still missed.
+
+🩸 **Say what that does and does not establish.** Against the baseline read as a *fixed* rate of
+2/3 — which the 09-02 / 09-05 / 09-12 history also supports — P(≤ 2 misses in 7) = 99/2187 ≈ **4.5 %**,
+so the improvement is real at the very edge of significance. Against the baseline read as what it
+actually is, **a six-run sample**, Fisher's exact on 5/7 vs 2/6 hits gives **p ≈ 0.21** — nothing at
+all. **Both readings are honest, and the weaker one is the fairer one**; more sweeps at 5 s cannot
+fix that, because the power is capped by the six-run baseline, not by the new arm. The one outcome
+that would have settled it on this design was **zero** misses in six ((1/3)^6 ≈ 0.14 %), and it did
+not occur.
+
+**The mechanism is now measured directly on the wire, not inferred.** `tcpdump` on VM 114
+(`ens19`, passive, no extra load on the devices) during sweep 7, SYN **and** SYN-ACK:
+
+```
+0.00 -> SYN     :51094      <- the sweep probe
+1.05 -> SYN     :51094      retransmit, unanswered
+2.08 -> SYN     :51094      retransmit, unanswered   (a 2 s budget dies here)
+3.10 -> SYN     :51094
+3.10 <- SYN-ACK :80         handshake completes after 3.10 s
+```
+
+`.47` answered the sweep's **TCP handshake alone** after **3.10 s** — above the old 2 s budget,
+inside the new 5 s one, and that sweep found the device. **This is the single cleanest confirmation
+the whole investigation has produced**: the excursion is where the timeout sits, and the 2.078 s
+figure from the HTTP-level timing was an *underestimate* of it, not the ceiling. In the two sweeps
+that missed, `.47` had connection attempts retransmitting unanswered for **6.3 s and 11.2 s**
+(`.102`, same sweep, same capture: answered on the first SYN). So the remaining misses are the part
+of the tail that reaches past 5 s.
+
+**The feared price did not materialise — and the model behind it was wrong.** Every timed sweep
+finished within ~30 s, against "over 45 s" measured at 2 s on 2026-09-12. Reason, from the same
+captures: of 254 addresses only **105 ever emit a TCP SYN at all**; the other 149 have no ARP answer
+and fail before any HTTP timeout can apply, and of the 105, the ~61 non-Shelly hosts answer on the
+first SYN. **"23 dead addresses × 5 s" was arithmetic over a set that does not reach the timeout.**
+Raising the budget further is therefore close to free, which is the relevant input for the next
+decision — it is the operator's, not the scanner's.
+
+Until the tail is covered, every `ConfirmScan` still costs hz2 an undeserved miss (see trap 2) — now
+with a measured probability of roughly **two in seven** rather than two in three.
+
+🩸 **Method note that outlives this bug: `tcpdump` on the scanning host is the only complete record
+of what a sweep did.** `get_logs` is not (see below), `shellyctl.log` carries no `[scan]` lines at
+all (`grep -c scan` → 0), and `scan_status` reports the *verdict* without the evidence. One passive
+capture answered in a single sweep what eight days of application-level timing could not.
 
 🩸 **Tool trap found while measuring this: `get_logs` is not a complete record of a sweep.** It
 returned no `[scan]` line at all for `.47` from the six sweeps run on 2026-09-13 — neither the
