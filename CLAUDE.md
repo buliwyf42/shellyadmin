@@ -433,7 +433,7 @@ Both traps bit on the same run: the 2026-09-05 scan found **42 of 44** (`shelly-
 scheduled power-off window, `shelly-hz2` was missed outright, see below), so it was correctly left
 **unconfirmed** — a confirm would have penalised two healthy rows and still not fixed the IP.
 
-### `shelly-hz2` is missed by the subnet scan — something degrades in the long-running container, not the scanner (2026-09-12)
+### `shelly-hz2` is missed by the subnet scan — a tail-latency event against the 2 s `scan_timeout` (2026-09-13)
 
 Three consecutive `192.168.211.0/24` scans (2026-09-02, 09-05, 09-12) came back without
 `FC:E8:C0:DB:19:50` / `192.168.211.47`, while its twin `hz1` (`.102`, same `SPEM-003CEBEU63`,
@@ -456,17 +456,16 @@ Exonerated, in order, each by its own measurement — **do not re-walk these**:
 | The sweep code itself | identical code + parameters find the device reliably from another host |
 | "it is the Ethernet-only devices" | `hz2` is wired with `wifi.status: disconnected`, but so are `hz1` and `pro-3em-workshop` (`.70`), both found every sweep |
 
-What is left is the **network position of the container** on the IoT VLAN. The 8 s vs 45 s for the
-same address range is the tell: on that path a large share of probes runs into the 2 s timeout, and
-whoever is marginal then drops out systematically rather than randomly — which is why it is always
-the same device.
+What is left is the **latency tail of the device itself**, not the network position — see the
+2026-09-13 measurement below. The 8 s vs 45 s for the same address range is a real difference
+between the two vantage points, but it is not what drops `.47`.
 
 🩸 The transferable part: **"the code is the same" is not "the run is the same".** A sweep is a
 measurement of the network between the scanner and the target, and the scanning host is part of the
 apparatus. Reproducing from a second vantage point separated the two in one run, after two sessions
 had been looking in the wrong file.
 
-**The A/B was run the same evening, and it killed the timeout hypothesis:**
+**The A/B that was run the same evening — and why its conclusion does not hold:**
 
 | Run | `scan_timeout` | Container | Result |
 | --- | --- | --- | --- |
@@ -474,27 +473,88 @@ had been looking in the wrong file.
 | ~20:10 | 5 s | v1.1.1, minutes old | 44 found, `.47` **present** |
 | ~20:15 | 2 s (restored) | v1.1.1, minutes old | 44 found, `.47` **present** |
 
-At the original 2 s the fresh container finds it too, so the timeout is not the knob. The scanner
-code is excluded as well: the whole `internal/core/scanner` diff from v0.6.0 to v1.1.1 is the removal
-of a one-line `jsonMarshal` wrapper.
+🩸 **The trap in that sequence is still worth more than its finding.** Changing `scan_timeout` 2 → 5
+produced exactly the expected result, and concluding "the timeout was it" would have been wrong on
+the evidence available: a redeploy had happened between the 13:35 run and the evening ones, so the
+two measurements differed in **two** variables, not one. **When an experiment confirms your
+hypothesis on the first try, check what else moved since the baseline — and run the A/B/A, not the
+A/B.**
 
-🩸 **The trap in that sequence is worth more than the finding.** Changing `scan_timeout` 2 → 5
-produced exactly the expected result, and the conclusion "the timeout was it" would have been wrong:
-a redeploy had happened between the 13:35 run and the evening ones, so the two measurements differed
-in **two** variables, not one. Only setting the value back and re-running exposed it. **When an
-experiment confirms your hypothesis on the first try, check what else moved since the baseline — and
-run the A/B/A, not the A/B.** The previous revision of this section said "the container's network
-position", which was already too coarse: the same position works when the container is fresh.
+🩸 **But the A/B/A's own conclusion — "at 2 s the fresh container finds it too, so the timeout is
+not the knob" — does not survive either, and the reason is the same class of error one level up:
+every cell in that table has n = 1, and the fault is intermittent at roughly 2 of 3.** Three single
+draws from a coin that lands "found" about a third of the time are consistent with pure chance in
+both directions. **A single run per cell cannot support a conclusion about an intermittent fault —
+not a positive one, and not a negative one.** The "container uptime" successor hypothesis rested
+entirely on those two evening runs.
 
-**What is left**: something degrades inside the long-running container. Unmeasured candidates —
-neighbour/ARP cache in its netns, conntrack pressure, socket/fd exhaustion after days of 254-probe
-sweeps plus a 60 s refresh cycle. Do not write any of these down as the cause without measuring.
+### 2026-09-13: it is a tail-latency event, measured with a control
 
-**Falsifiable prediction, and the cheapest next step:** if uptime is the driver, the miss comes back
-as the container ages. Re-run a scan in a few weeks **changing nothing** — if `.47` goes missing
-again, it is confirmed and the fix is operational (restart on a schedule, or find the exhausted
-resource). If it stays found, the deploy fixed it for some other reason and this note needs a fourth
-revision. Until then, every `ConfirmScan` costs hz2 an undeserved miss (see trap 2).
+Six sweeps in 15 minutes, **nothing changed** (`scan_timeout` 2 s, `scan_concurrency` 64, container
+v1.1.1 at ~15 h uptime, no `confirm_scan`):
+
+| Sweep | Found | `.47` |
+| --- | --- | --- |
+| 1 | 44 | present |
+| 2 | 43 | **missing** |
+| 3 | 43 | **missing** |
+| 4 | 44 | present |
+| 5 | 43 | **missing** |
+| 6 | 42 | **missing** (plus `.218`) |
+
+That settles two things at once. **The uptime hypothesis is dead** — the miss is fully present at
+15 h, minutes after a sweep that found the device — and **the miss rate is high enough (4/6) that
+any future A/B needs n ≈ 6 per cell**, which is the first time this question has had a usable
+baseline.
+
+The mechanism, each step measured:
+
+| Step | Measurement |
+| --- | --- |
+| `.47` carries the highest baseline load in the fleet | 60 s capture of `/debug/log` on both twins: **12 RPC/min on `.47` vs 4 on `.102`** — `.47` is evcc's Verbrauchsmessung, `.102` is not |
+| A Pro 3EM serialises HTTP and degrades under concurrency | 6 parallel `/shelly` GETs, no sweep running: **30 ms single-shot → 1.0–1.1 s max** on all three Pro 3EMs |
+| The sweep probe collides with the 60 s refresh | device log during a sweep: 6 refresh RPCs and 2 sweep RPCs from `192.168.211.88` inside **one second** |
+| The tail crosses the timeout — and only on `.47` | `/shelly` timed from a third host throughout one sweep: `.47` **max 2.078 s**, `.102` **max 1.064 s**; medians identical at **31 ms**, p90 54 vs 50 ms |
+
+`scan_timeout` is **2 s**. `.47`'s tail reaches **2.078 s**; its identical twin under the identical
+sweep tops out at 1.064 s and is never missed. The distributions differ **only** in the tail, which
+is exactly where the timeout sits.
+
+🩸 **This is why every measurement since 2026-09-05 found nothing.** The "`.47` answers in 30 ms"
+figure that anchored the whole investigation is the **median**, and it was never in conflict with
+the miss — the median and the p90 are healthy on the device that drops out. **A timeout is a
+statement about the tail; a median, however many times you repeat it, cannot refute one.** The
+44/44 `curl` sweep of 2026-09-12 measured the same median from the same wrong angle.
+
+🩸 **The probe changed the finding, and that was the confirmation.** Sweep 6 ran while two latency
+loops were hitting the twins, and it lost a **second** device (`.218`). More load → more misses is
+a dose-response, so read the absolute tail figures as *including* this session's own ~12 req/s, not
+as pristine values.
+
+**Measured and rejected** — the three candidates the previous revision listed as unmeasured, all on
+VM 114 during sweeps: neighbour table (`table_fulls 0`, `forced_gc_runs 0`, `unresolved_discards 0`,
+105 entries against `gc_thresh1 128`), conntrack (**1413 of 262144**), fd/sockets (175 sockets
+against a 1024 soft limit). None is saturated. The exhaustion story was wrong.
+
+**What is NOT yet proven**: that raising the budget removes the miss. The decisive experiment is
+`scan_timeout` **2 → 5 s**, then **≥ 6 sweeps** against today's 4/6 baseline — and it is now
+well-founded rather than a guess, because the observed excursion is 2.078 s against a 2 s budget.
+`scan_concurrency` 64 → 32 is the alternative knob on the same mechanism. **Both need the Settings
+page** (`save_settings` is deliberately absent from the MCP), and that needs an interactive login —
+there is no 1Password item for `shellyadmin.home.lan`, so this step belongs to the operator.
+
+Until the budget is raised, every `ConfirmScan` still costs hz2 an undeserved miss (see trap 2) —
+now with a known probability of roughly two thirds, not an unexplained one.
+
+🩸 **Tool trap found while measuring this: `get_logs` is not a complete record of a sweep.** It
+returned no `[scan]` line at all for `.47` from the six sweeps run on 2026-09-13 — neither the
+successes nor the misses — while continuing to serve older `[scan]` lines for the same device from
+the periodic refresh minutes earlier. Those lines are in **neither** `/docker/shellyadmin/shellyctl.log`
+(`grep -c '211\.47'` → **0**) **nor** `docker logs shellyadmin`, so `get_logs` serves some other
+buffer, and it drops entries under sweep load. Mechanism not established — but the operational rule
+is: **the absence of a `[scan]` line in `get_logs` is not evidence that an address was not probed.**
+Ground truth for what a sweep saw is the `pending` list of `scan_status`, nothing else. Two earlier
+sessions could have been misled by this in the opposite direction.
 
 ### OTA configuration on Gen2+ — implemented via `Schedule.*`, not `OTA.SetConfig`
 
