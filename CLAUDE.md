@@ -569,7 +569,8 @@ actually is, **a six-run sample**, Fisher's exact on 5/7 vs 2/6 hits gives **p �
 all. **Both readings are honest, and the weaker one is the fairer one**; more sweeps at 5 s cannot
 fix that, because the power is capped by the six-run baseline, not by the new arm. The one outcome
 that would have settled it on this design was **zero** misses in six ((1/3)^6 ≈ 0.14 %), and it did
-not occur.
+not occur. **It did occur on 2026-09-14 — at 10 s / 32, with both knobs moved at once, so it settles
+the comparison against 2 s and nothing about 5 s vs 10 s. See that section before citing this one.**
 
 **The mechanism is now measured directly on the wire, not inferred.** `tcpdump` on VM 114
 (`ens19`, passive, no extra load on the devices) during sweep 7, SYN **and** SYN-ACK:
@@ -615,6 +616,51 @@ buffer, and it drops entries under sweep load. Mechanism not established — but
 is: **the absence of a `[scan]` line in `get_logs` is not evidence that an address was not probed.**
 Ground truth for what a sweep saw is the `pending` list of `scan_status`, nothing else. Two earlier
 sessions could have been misled by this in the opposite direction.
+
+### 2026-09-14: zero misses in six at 10 s / 32 — but two knobs moved, so the cause is not attributable
+
+Read back from `get_settings` before measuring: `scan_timeout` **10** (was 5), `scan_concurrency`
+**32** (was 64). Both were changed by the operator between 09-13 and 09-14, and nothing records why.
+Six sweeps, `start_scan` each time, `scan_status` read only *after* `running: false`, no
+`confirm_scan`, no active probing of the twins:
+
+| Sweep | Found | `.47` |
+| --- | --- | --- |
+| 1-6 | 44 each | **present in all six** |
+
+**0 misses in 6**, against 2 in 7 at 5 s and 4 in 6 at 2 s.
+
+🩸 **This is the outcome the 09-13 section named as decisive — and it still does not decide what the
+previous revision hoped it would.** Against the baseline read as a fixed 2/3 miss rate, `(1/3)^6 ≈
+0.14 %`, and against the 2 s arm directly Fisher's exact gives **p ≈ 0.061 two-tailed** (0.030
+one-tailed): the run is clearly better than 2 s. Against the **5 s** arm it is worth nothing —
+Fisher on 0/6 vs 2/7 gives **p ≈ 0.27**, and `(5/7)^6 ≈ 13 %` of six-sweep runs at the 5 s rate
+would show zero misses by chance. So "10 s fixed what 5 s did not" is exactly the claim this data
+cannot carry.
+
+🩸 **And the attribution is gone regardless of the statistics, because `scan_timeout` AND
+`scan_concurrency` moved together.** Halving the concurrency reduces the self-inflicted load the
+09-13 capture showed colliding with the 60 s refresh; doubling the budget covers more of the tail.
+Either alone could produce this table. **The 2026-09-12 A/B was retracted for this exact reason and
+the same error is now baked into the 10 s arm** — a one-knob run is the only thing that would fix
+it, and nobody has run one. Note this is the *second* time the fix and the measurement were applied
+in the same step; if the budget gets raised again, move one knob.
+
+🩸 **New trap, and it invalidates the yardstick every earlier table in this section used: `found: 44`
+is no longer "all".** The inventory holds **45** devices (`list_devices` → `total: 45`);
+`shelly-strip4-02` (`48:F6:EE:DD:47:8C`, `.187`) is absent from all six `pending` lists while
+`/api/devices` reports it `online: true`. It is **not** a scanner miss and **not** the stale-IP bug
+— verified with a positive control from a host outside the container: `.187` gives no HTTP answer at
+all (`000` after 4 s) and **does not resolve over mDNS**, while `.47` and `.102` answer in ~30 ms and
+`shelly-strip4-01` resolves normally. No HTTP *and* no mDNS, with the controls live, is a powered-off
+device — its documented scheduled power-off window (see the 09-05 note). So the six sweeps found all
+44 *reachable* devices.
+
+**The transferable part: a sweep result is a fraction, and this section spent twelve days writing
+down only the numerator.** `44` meant "complete" on 2026-09-02 and means "one short" on 2026-09-14,
+without either number changing its appearance. Read `list_devices` → `total` in the same run, and say
+"44 of 45, one verifiably powered off" — never a bare count. This also re-arms trap 2 above: a
+`ConfirmScan` on any of these six sweeps would have penalised `strip4-02` for being switched off.
 
 ### OTA configuration on Gen2+ — implemented via `Schedule.*`, not `OTA.SetConfig`
 
