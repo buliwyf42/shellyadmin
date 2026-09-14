@@ -146,6 +146,35 @@ image and its `.sig` were deleted from GHCR afterwards. Note that the delete
 needs `delete:packages` on the `gh` token (the usual `repo, workflow, read:org,
 gist` set is not enough) — otherwise it is a browser job.
 
+### A run-failure list is an archive, not a state (2026-09-14)
+
+`gh run list --status failure` returns every run that ever failed — forever, including one whose
+**very next commit on the same PR** fixed it. The GitHub notification inbox shows the same archive.
+Two "unread failed runs" reported from a sweep of this repo were both settled history:
+
+- **`ci/go-1.27` is a branch name, not a check name.** It is PR #110: commit `24d4c352` failed at
+  12:35 Z on 2026-09-02 with `panic: file requires newer Go version go1.27 (application built with
+  go1.26)` (golangci-lint v2.12.2 — the stdlib-lag trap documented in `docs/DEVELOPMENT.md`), commit
+  `d4e51788` bumped golangci-lint to v2.13.2 and went green at 12:39 Z, and the PR **merged at
+  12:43 Z**. The branch is gone. Eight minutes of red, preserved indefinitely.
+- **`v0.6.4`** is the Trivy-gate failure described two sections above, superseded by v0.6.5.
+
+Read the state, not the archive: `gh run list --branch <b>` (newest run wins) plus
+`gh pr list --state open`. Three traps came with this one:
+
+🩸 **The count was the window edge, not a finding.** "Exactly two failures" came from `--limit 10`;
+`--limit 20` returns 20, back to 2026-07-22. A limit reads like a result.
+
+🩸 **A branch name reads like a check name.** The required checks are in
+`gh api repos/<o>/<r>/branches/main/protection` — currently `Release-file version sync`, `Go tests`,
+`Go vulnerability check`, `Go lint`, `Frontend build`, `Docker image build`, `Toolchain sync`. None is
+named after a branch, so the hypothesis "that red check is silently blocking Dependabot auto-merge"
+was structurally impossible before it was worth measuring (and there were zero open PRs anyway).
+
+🩸 **Read this file before reaching for `gh`.** Both causes were already written down here and in
+`docs/DEVELOPMENT.md`; the sweep that raised the alarm had not read either, and handed a settled
+state on as an open item. The repo memory is the first query, the API the second.
+
 ### MCP server (HTTP + stdio, opt-in)
 
 Lives in `internal/mcp/`. Two transports share the same 21-tool surface:
