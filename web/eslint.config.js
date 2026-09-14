@@ -14,6 +14,7 @@ export default [
       '*.config.ts',
       'scripts/**',
       'e2e/**',
+      'coverage/**',
       'test-results/**',
       'playwright-report/**',
     ],
