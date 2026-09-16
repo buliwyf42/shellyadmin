@@ -47,6 +47,12 @@ type ScanStatus struct {
 	Total   int              `json:"total"`
 	Done    int              `json:"done"`
 	Pending []map[string]any `json:"pending"`
+	// JobID / StartedAt identify WHICH scan this status describes. Scans have
+	// two triggers (the MCP tool and the SPA), so a caller polling its own
+	// sweep can otherwise be served a foreign one with nothing to tell them
+	// apart — `running: false` is true of both. Zero when no scan job exists.
+	JobID     int64  `json:"job_id"`
+	StartedAt string `json:"started_at"`
 }
 
 // FirmwareStatus is the polling shape for the periodic check job.

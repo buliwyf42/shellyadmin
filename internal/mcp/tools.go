@@ -220,6 +220,11 @@ type ScanStatusOutput struct {
 	Total   int               `json:"total"`
 	Done    int               `json:"done"`
 	Pending []ScanPendingItem `json:"pending"`
+	// Identifies which scan produced this result. Without it a client cannot
+	// tell its own sweep from one the SPA started, and a stale pending list
+	// is indistinguishable from a fresh one.
+	JobID     int64  `json:"job_id"`
+	StartedAt string `json:"started_at"`
 }
 
 // FirmwareStatusInput adds filter + paging knobs over services.FirmwareStatus
@@ -308,18 +313,20 @@ func slimScanPending(in []map[string]any) []ScanPendingItem {
 func registerJobStatusTools(server *mcp.Server, svc *services.AppService) {
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "scan_status",
-		Description: "Status of the current/last network scan job (running flag, progress, pending discoveries). Pending entries are slim summaries — call get_device for full state.",
+		Description: "Status of the current/last network scan job (running flag, progress, pending discoveries). Pending entries are slim summaries — call get_device for full state. job_id / started_at identify WHICH scan this describes: the SPA can start scans too, so a pending list may belong to someone else's sweep. When polling your own scan, check that job_id matches the one you saw after start_scan before trusting the result.",
 	}, tool(svc, "scan_status", func(_ context.Context, _ emptyInput) (ScanStatusOutput, error) {
 		raw, err := svc.ScanStatus()
 		if err != nil {
 			return ScanStatusOutput{}, err
 		}
 		return ScanStatusOutput{
-			Running: raw.Running,
-			Found:   raw.Found,
-			Total:   raw.Total,
-			Done:    raw.Done,
-			Pending: slimScanPending(raw.Pending),
+			Running:   raw.Running,
+			Found:     raw.Found,
+			Total:     raw.Total,
+			Done:      raw.Done,
+			Pending:   slimScanPending(raw.Pending),
+			JobID:     raw.JobID,
+			StartedAt: raw.StartedAt,
 		}, nil
 	}))
 

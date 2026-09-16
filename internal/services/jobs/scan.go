@@ -152,11 +152,13 @@ func (s *Service) ScanStatus() (ScanStatus, error) {
 		pending = append(pending, raw)
 	}
 	return ScanStatus{
-		Running: job.Status == "running",
-		Found:   len(result.Pending),
-		Total:   job.Total,
-		Done:    job.Done,
-		Pending: pending,
+		Running:   job.Status == "running",
+		Found:     len(result.Pending),
+		Total:     job.Total,
+		Done:      job.Done,
+		Pending:   pending,
+		JobID:     job.ID,
+		StartedAt: job.CreatedAt,
 	}, nil
 }
 
