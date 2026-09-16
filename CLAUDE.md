@@ -691,6 +691,69 @@ without either number changing its appearance. Read `list_devices` → `total` i
 "44 of 45, one verifiably powered off" — never a bare count. This also re-arms trap 2 above: a
 `ConfirmScan` on any of these six sweeps would have penalised `strip4-02` for being switched off.
 
+### 2026-09-14/15: the one-knob run at 10 s / 64 — and why its headline number must not be quoted
+
+The missing arm. `scan_concurrency` was set back to **64** with `scan_timeout` left at **10**, so this
+run differs from the 5 s arm in the timeout alone and from the 10 s / 32 arm in the concurrency alone.
+Read back from `get_settings` before the first sweep (`scan_timeout 10`, `scan_concurrency 64`) — and
+read back again after an earlier attempt showed **32**, i.e. the operator's first save had not reached
+the server. **Read the setting back; do not measure on the assumption that a save landed.**
+
+Twelve sweeps, exclusive access, no `confirm_scan`:
+
+| Sweep | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `.47` | ✓ | ✓ | ✗ | ✓ | ✓ | ✓ | ✓ | ✗ | ✗ | ✗ | ✗ | ✗ |
+
+🩸 **6 of 12 is not a rate, and quoting it as one is the mistake this section exists to prevent.**
+The series is **not stationary**: sweeps 1-7 carry **one** miss, sweeps 8-12 carry **five, consecutively**.
+A run of five at the series-wide rate of 0.5 has probability ≈ 3 %, and the break sits cleanly between 7
+and 8. Two supporting observations: **only `.47` degrades** — never a second device in any of the five,
+so a general network or container saturation is ruled out — and `.47` answered **10 of 10** direct probes
+at 30-46 ms immediately afterwards, with the `.102` control identical. The device is healthy at rest;
+the median still cannot see the tail (same lesson as 09-13).
+
+**The most likely cause is the measurement itself.** Thirteen sweeps of 254 addresses at concurrency 64,
+roughly every two minutes for 25 minutes, on top of the 60 s refresh and evcc's 12 RPC/min — and a Pro 3EM
+serialises HTTP (measured 09-13: 6 parallel GETs → 1.0-1.1 s). Cumulative load fits the time course.
+**Not measured** — that needs a `tcpdump` during the late sweeps, which is the obvious next step.
+
+**Consequence for every comparison in this section: arms of different lengths are not comparable.**
+Arm A ran 7 sweeps, the 10 s / 32 arm 6, this one 12. If the miss rate climbs with series length, a
+longer arm partly measures its own length. Restricted to the first seven sweeps — comparable in both
+count and elapsed time:
+
+| Arm | `scan_timeout` | `scan_concurrency` | Misses |
+| --- | --- | --- | --- |
+| A (09-13) | 5 s | 64 | 2 in 7 |
+| B (09-14) | 10 s | 32 | 0 in 6 |
+| C (09-14/15) | 10 s | 64 | 1 in 7 |
+
+Fisher's exact on every pair: **nothing significant** (C vs A and C vs B both p ≈ 1.0). So the one-knob
+run that was supposed to isolate the timeout shows **no timeout effect** — and cannot rule one out either.
+The honest summary is not "10 s does not help" but **"this experimental design cannot answer the question,
+and now we know which variable broke it."** A future run must hold the sweep count, the cadence and the
+elapsed time equal across arms, or interleave the arms rather than running them back to back.
+
+🩸 **Method: `scan_status` cannot tell you whose scan it is reporting, and that cost this session a wrong
+conclusion.** A first attempt at this arm ran while the operator still had the ShellyAdmin UI open. Scans
+have exactly two triggers — `internal/mcp/tools_actions.go` (MCP) and `internal/api/handler_scan_firmware.go`
+(the SPA); there is no scheduler. A foreign scan starting between a `scan_status` read and the next
+`start_scan` produces `scan already running`, which reads exactly like "your own previous sweep is still
+going" — and was misread that way here, discarding a valid sweep and crediting a foreign sweep's miss to
+this series. `ScanStatus()` and `StartScan()` both read `GetLatestJob("scan")`, so they cannot disagree
+about the *same* job; a disagreement means a *new* job appeared. The protocol that survives this:
+**take exclusive access first**, then per sweep `start_scan` → wait → `scan_status` → and use the *next*
+`start_scan` as the freshness proof — if it is rejected, discard that sweep rather than counting it.
+`running: false` is not a freshness proof (see trap 1 above).
+
+**On the inventory count:** the 09-14 note above cites 45 devices. Do not carry that number forward — a
+hardware swap was in progress during these runs, and the fleet size moves. **The count is a snapshot; the
+ground truth is the comparison against the inventory in the same run** (`list_devices` → `total`), together
+with a reachability check for anything missing. Two devices were legitimately absent across these series —
+one in a scheduled power-off window, one switched off mid-series — and both were confirmed powered off by
+the no-HTTP-plus-no-mDNS control, not assumed.
+
 ### OTA configuration on Gen2+ — implemented via `Schedule.*`, not `OTA.SetConfig`
 
 The Shelly Gen2 API has **no `OTA.SetConfig` / `Sys.SetAutoUpdate` / dedicated OTA-config method**. The `OTA.*` methods that DO exist (`OTA.Start/Write/Data/Abort/Commit/Revert`) are byte-level chunked-upload plumbing, not configuration. Direct firmware update lives at:
