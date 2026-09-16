@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-09-16 — scan_status names the scan it is describing
+
+### Added
+
+- **`job_id` and `started_at` on `scan_status`** (MCP tool and the
+  `/api/scan/status` payload behind it). Scans have exactly two triggers — the
+  MCP tool and the SPA — and the status payload described *a* scan without
+  saying which one. A client polling its own sweep could be served a foreign
+  one with nothing in the payload to tell them apart: `running: false` is
+  equally true of your finished scan and of someone else's whose row has not
+  flipped yet. That is not hypothetical — it cost a measurement series a valid
+  sweep on 2026-09-14, when a `scan already running` from a foreign SPA sweep
+  read exactly like the caller's own scan still being in flight. Both values
+  were already in the job row (`job.ID`, `job.CreatedAt`); this is pass-through,
+  and the tool description now tells callers to check `job_id` against the
+  value seen after `start_scan` before trusting a result. Guarded by
+  `TestScanStatusIdentifiesTheJobItDescribes`. Two added optional response
+  fields, so within the [ADR-0018](docs/adr/0018-api-surface-versioning.md)
+  stability guarantee.
+
+### Changed
+
+- **Dependency bumps.** Go: the `go-dependencies` group, 5 modules. Frontend:
+  the `npm-dev-dependencies` group. `web/coverage/` is now excluded from
+  eslint, which had been linting generated report output.
+
 ## [1.1.1] - 2026-09-12 — Device selection reacts again on Provision and Groups
 
 ### Fixed
