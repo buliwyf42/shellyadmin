@@ -175,6 +175,47 @@ was structurally impossible before it was worth measuring (and there were zero o
 `docs/DEVELOPMENT.md`; the sweep that raised the alarm had not read either, and handed a settled
 state on as an open item. The repo memory is the first query, the API the second.
 
+### Deploying a release to the running container — measured, 2026-09-16 (v1.2.0)
+
+A merge is not a deploy. The instance runs a published image, so `main` moving changes nothing
+about it; v1.2.0's fix sat on `main` for a day while the container kept serving v1.1.1 and the
+defect with it.
+
+**For a pure image update, use the container manager's one-step update action** (Dockhand
+`batch_update_containers`), not `down_stack` + `start_stack`. The down/up pair is what
+`docs/DEVELOPMENT.md` used to prescribe and what went wrong on this container on 2026-07-22 — it
+stayed down for minutes and did not come back reliably. The one-step update pulls, recreates and
+starts in one go: measured 2026-09-16, the new container was `running` + `healthy` within ~6 s,
+`RestartCount 0`, ports, caps, bind mount and Traefik labels preserved. `start_stack` on a running
+stack remains a no-op that pulls nothing.
+
+🩸 **Verify against the container's `ImageID`, never the tool's return value and never the
+container's own labels.** `batch_update_containers` returns `{"success": true}` for a no-op as
+readily as for a real swap; it also returns a **new container id**, so keep reading the one it
+names. And the recreated container's `Config.Labels` still advertised
+`org.opencontainers.image.version: v0.6.0` — stale by two releases, as it had been while v1.1.1 ran.
+The chain that actually holds: container `Image` → `list_images` entry with that id → its
+`repoDigests` → the manifest digest GHCR serves for the tag. On 2026-09-16 that was
+`97c0e766…` → `@sha256:bfe15089…` = the digest of both `v1.2.0` and `latest`, image label
+`version: v1.2.0`, `revision: 596b7e95…` (the release commit).
+
+🩸 **The image is not the point — the answer is.** A green build proves the build. Finish with a
+read-only call that exercises the new code: for v1.2.0 that was `scan_status` returning `job_id` /
+`started_at`, absent before the deploy and present after. No scan needs to be started for this.
+
+🩸 **An MCP client's session dies with the container it was talking to, and the error looks like an
+outage.** After the recreate, every `scan_status` through the already-connected MCP client returned
+`Session terminated` while the server was demonstrably fine (container `healthy`, log line
+`MCP server starting addr 0.0.0.0:8081`). That is a client-side Streamable-HTTP session pointing at
+a process that no longer exists; it needs a client reconnect, not a fix on the server. A fresh HTTP
+session against the same listener answered immediately. **Check the service first — `RestartCount`,
+health, the startup log — before concluding the deploy broke something.**
+
+**Release path itself** is `docs/DEVELOPMENT.md`; the one addition from this cut: with the auto-mode
+guard active, a direct release push to `main` is refused as a CI bypass. Routing the release commit
+through a PR (squash, the repo's usual shape) runs the seven required checks over it and lands the
+same content — strictly stricter than the admin bypass the docs allow, and the better default.
+
 ### MCP server (HTTP + stdio, opt-in)
 
 Lives in `internal/mcp/`. Two transports share the same 21-tool surface:
@@ -197,6 +238,7 @@ Lives in `internal/mcp/`. Two transports share the same 21-tool surface:
 - **Secret hygiene**: `list_credentials` and `get_settings` route through `internal/mcp/redact.go`. Plaintext password and HA1 hashes never leave the process via MCP. New fields with secret material must add a redactor before they're exposed.
 - **Audit**: every tool call logs through `service.LogCtx(ctx, ...)`; `X-Request-ID` is honored on the request and echoed back. Audit rows show in `/api/logs` with `mcp ` prefix, filterable by request_id.
 - **Why a separate port** (not `/mcp` on `:8080`): the MCP auth path stays off the cookie + CSRF middleware chain that protects the SPA, and an MCP listener bind failure is isolated from the main UI.
+- **`scan_status` carries `job_id` / `started_at` (v1.2.0)** so a caller can tell its own sweep from one the SPA started. Scans have two triggers and no scheduler, and `running: false` is equally true of your finished scan and of a foreign one whose row has not flipped — see the measurement-protocol note further down. Pass-through from the job row, no new state. A new tool that reports on a job should carry the same two fields rather than leaving the caller to guess whose job it is.
 - **`scan_status` returns slim pending entries** (`{mac, ip, name, model, gen, app}` only, not full `models.Device`) — full payload was ~63 KB on a 44-device fleet and tripped MCP client output caps. The SPA shape is unchanged. If you add another tool that returns lists keyed off `models.Device`, follow the same pattern (`internal/mcp/tools.go` `slimScanPending` / `ScanPendingItem`).
 - **Target resolution** for `get_device` / `list_device_actions` / `export_device` accepts MAC, IP, **or device name** (`services.GetDeviceDetail`). Don't reintroduce a MAC/IP-only check there — the tool descriptions advertise all three.
 - **MCP token in settings is encrypted at rest** via `internal/core/secretbox`. `services.SaveSettings` seals; `services.GetSettings` opens. The API GET handler in `internal/api/handler.go` re-redacts to `services.MCPTokenRedacted` (`"<set>"`) before sending to the SPA. When the SPA round-trips settings unchanged, sending `"<set>"` back means "keep the existing token" (the magic value to preserve, not a literal token). Don't expose plaintext `MCPToken` over any new API surface — add a redactor first.
@@ -746,6 +788,14 @@ about the *same* job; a disagreement means a *new* job appeared. The protocol th
 **take exclusive access first**, then per sweep `start_scan` → wait → `scan_status` → and use the *next*
 `start_scan` as the freshness proof — if it is rejected, discard that sweep rather than counting it.
 `running: false` is not a freshness proof (see trap 1 above).
+
+**FIXED in v1.2.0 (2026-09-16):** `scan_status` now returns `job_id` and `started_at` — the job row's
+`ID` / `CreatedAt`, passed straight through `jobs.ScanStatus` and `mcp.ScanStatusOutput`. The protocol
+above still holds, but it now has a cheap check instead of a discipline: read `job_id` after
+`start_scan`, and compare it on every poll. A different id means a foreign sweep, and `job_id: 0` means
+no scan job exists at all. Guarded by `TestScanStatusIdentifiesTheJobItDescribes`. **Only true against a
+deployed v1.2.0+** — the fix sat on `main` for a day while the container kept running v1.1.1 and the
+failure mode with it; a merge is not a deploy.
 
 **On the inventory count:** the 09-14 note above cites 45 devices. Do not carry that number forward — a
 hardware swap was in progress during these runs, and the fleet size moves. **The count is a snapshot; the
