@@ -212,19 +212,31 @@ UI on the Docker host. The stack files live on the host under
    no-ops on an already-running stack; `restart_stack` is `docker compose
    restart`, which restarts the *existing* container. Both return
    `{"success": true}` while the container keeps its old `ImageID` and its
-   uptime — the return value says nothing about what happened. Via the MCP
-   server, what actually works is:
+   uptime — the return value says nothing about what happened.
 
-   ```
-   pull_image(image="ghcr.io/buliwyf42/shellyadmin:latest")
-   down_stack(name="shellyadmin")     # brief downtime; bind mount survives
-   start_stack(name="shellyadmin")
-   ```
+   **Use the container manager's one-step update action** for a pure image
+   update — via the MCP server that is `batch_update_containers` with the
+   `shellyadmin` container id. It pulls, recreates and starts in one call and
+   preserves ports, caps, the `/data` bind mount and the Traefik labels.
+   Measured on the v1.2.0 deploy (2026-09-16): `running` + `healthy` within
+   about six seconds, `RestartCount 0`.
 
-   Then **verify against the container, not the tool output**: its `ImageID`
-   must have changed, and `GET /api/settings` must show a field only the new
-   version has. `update_stack_compose(restart: true)` reportedly recreates
-   without going down first — untested here.
+   **Do not use `down_stack` + `start_stack` for this.** It was the recipe
+   here until v1.2.0 and it went wrong on this very container on 2026-07-22 —
+   the stack stayed down for minutes and did not come back reliably. Keep it
+   for a compose-file change, where the container has to be recreated from new
+   configuration anyway.
+
+   Then **verify against the container, not the tool output** — the update
+   call returns `{"success": true}` for a no-op just as readily, and it hands
+   back a *new* container id, so read the one it names. The container's own
+   `Config.Labels` are not evidence either: after the v1.2.0 recreate they
+   still said `org.opencontainers.image.version: v0.6.0`. The chain that
+   holds is container `Image` → the `list_images` entry with that id → its
+   `repoDigests` → the digest GHCR serves for the tag. Finish with a
+   read-only call that exercises the new code (for v1.2.0: `scan_status`
+   returning `job_id` / `started_at`) — a green build proves the build, not
+   the answer the service gives.
 
 ### Stack shape
 
