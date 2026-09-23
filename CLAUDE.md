@@ -386,6 +386,14 @@ the challenge and defaults to `MD5` when absent (`client.go:420`, `:441`), which
 either way. Re-read the changelog per release rather than assuming this holds — 2.0.0 itself added
 `sys.alt` and `sys.provisioning`.
 
+**2.0.1 went stable on 2026-09-23 and holds the same verdict.** The final changelog carries only *Fixed*
+and *Local web → Fixed* — no Added / Changed / Breaking section, no new RPC method or config/status field.
+The auth entry above shipped as-is, plus a device-side nonce-table slot leak on TTL expiry; the rest is
+HTTP hardening (chunked-encoding overflow, use-after-free under flood), ADE7953 / Pro3EM / ProEM metering,
+BLE/Matter and per-model fixes. Index the same day: `Mini1PMG3` and `PlugSG3` serve stable `2.0.1`
+(`20260923-…/2.0.1-ge1a198b`), `Plus1` stays at `1.7.5`. The operator triggered the fleet update the same
+day; the version census, not the click, is what says it landed.
+
 🩸 **Uptime stopped being able to date the install, and that is the transferable part.** The 2026-07-22
 reasoning leaned on "a firmware change reboots, so uptime dates the install" — sound only while reboots
 are otherwise rare. Since then a documented reboot campaign (2026-09-03, eight devices rebooted to unstick
@@ -406,6 +414,12 @@ interception lead. Not yet tried against a real failure — there has been nothi
 Second, unrelated use: **the index dates EOL hardware without trusting a vendor blog post.** `Plus1` and
 `Plus2PM` are the only fleet apps with **no `beta` key at all**, while every Gen3/Gen4 app carries
 `2.0.0-beta3` — independent confirmation that the Gen2 Plus line is frozen at 1.7.5.
+
+🩸 **That signal has a shelf life too: a missing `beta` key is not a frozen line.** On 2026-09-23, right
+after 2.0.1 went stable, `Mini1PMG3` and `PlugSG3` answered with **no `beta` key either** — the beta slot is
+simply empty between cycles. Read on that day, the check above would have declared current Gen3 hardware
+EOL. `firmware.IsFeatureFrozen` is a static SKU allowlist and never depended on it; keep it that way, and
+treat an absent beta only as corroboration taken while the Gen3/Gen4 apps *do* carry one.
 
 ### The stored IP goes stale silently — `online: true` outlives reachability (2026-09-05)
 
