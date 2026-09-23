@@ -323,6 +323,55 @@ the fastest way to see what an OTA is actually doing.
 reboot. Keep it — the version cannot change during the download, so polling then buys
 nothing — but it is hygiene, **not** a fix for the failures above.
 
+### 2026-09-23 (2.0.0 → 2.0.1): the persistent failures sat behind the one mesh AP
+
+The first measured cause for part of the `premature end of data` failures above, and the one change
+that removed them. It explains the *persistent* cases, not every abort. Keep it framed that way.
+
+After the first fleet install job, 11 of 46 devices were still on 2.0.0. Two retries, with a reboot of
+every laggard in front of the second (all six back in 17 s, uptime reset), fixed four of them. Three
+devices, `.145`, `.153` and `.64`, stayed stuck or slow. **All three sat on
+`ap-unifi-08 (Küche)`**, a UALR6v2 on firmware 6.7.58. It is the only AP whose UniFi `uplink.type` is
+`wireless`, meshed to `ap-unifi-02 (Living Room)`, while every other AP is wired at 1–2.5 Gbit/s. The
+Shellys report its BSSID as `6a:d7:9a:15:bb:32`, which is not its device MAC `68:d7:9a:45:bb:31`. Map
+BSSID → AP in the controller, not by string match.
+
+| Measurement | Mesh AP active | Kitchen AP disabled, same devices |
+| --- | --- | --- |
+| Ping loss, 40 × 0.25 s | `.145` 22.5 %, `.153` 30 %, `.64` 25 % | `.145` 0 %, `.153` 5 %, `.64` 0 % |
+| `.153` OTA | aborted twice, `Received 1807700 bytes of 3438850` after 4:44 | 100 % in ~1 min |
+| `.145` OTA | stuck at 80 % for 7+ min | 4.0 MB in ~77 s, `Update succeeded` |
+
+On the AP itself: the 2.4 GHz radio (channel 6, where the Shellys live) showed `tx_retries 750` against
+`tx_packets 766`, and the 5 GHz radio carrying the mesh backhaul sat at `cu_total 67`. With the AP
+disabled, all eight of its clients roamed to wired APs, some at weaker RSSI (down to −71), and the
+fleet reached **46 of 46 on 2.0.1**, verified per device via `/shelly`.
+
+🩸 **RSSI was the wrong axis again, and that is the transferable part.** `.232` at −72/−73 dBm on a
+wired AP finished. `.153` at −59 on the mesh AP failed twice. What predicted failure was packet loss
+on the path, which a ten-second `ping -c 40` measures and which `Wifi.GetStatus` does not report at
+all. The 2026-07-17 notes above lean on RSSI (`.59` at −78). Read them with that in mind.
+
+What this does **not** establish:
+- **Not every abort.** Round 1 also lost `.92`, `.207` and `.218` on wired APs, and a plain retry fixed
+  them. Those are still the unexplained intermittent kind.
+- **Not the AP alone.** `.129` and `.139` on the same mesh AP showed 0 % loss and updated first time.
+  The mesh hop makes a weak client link fatal; it does not break every client.
+- **Not the reboot.** Three of six succeeding after reboot + retry has no retry-without-reboot control,
+  and `.153` failed immediately after a fresh reboot. Do not write "reboot before OTA" down as a fix.
+- **Not the TLS-interception lead.** Wired-AP devices download from the same `fwcdn.shelly.cloud` fine,
+  so nothing here argues for it, and the LAN-served `url` route further down would not have helped.
+  The bottleneck was the two radio hops, not the internet path.
+
+🩸 **The install job's `unknown` is not "failed".** Its detail `device still on 2.0.0 after 5 min
+(expected 2.0.1)` also hit `.64`, which was simply slower than the job's patience and reported 2.0.1
+minutes later. Before retrying or diagnosing, read the version on the device.
+
+Operational rule: **before a fleet OTA, check which devices sit on a wirelessly-uplinked AP** (UniFi
+`list_devices` → `uplink.type`), and ping-test those first. Fix or temporarily disable the mesh AP
+rather than retrying into it. As of 2026-09-23 the kitchen AP is disabled. If it comes back, it needs
+a cable.
+
 ### Update availability is a version comparison, not a string compare
 
 `firmware.IsNewer` (x/mod/semver, `internal/core/firmware/firmware.go`) decides
@@ -410,6 +459,8 @@ Where the index *is* worth using: it's the missing piece for the `premature end 
 fetch the ZIP once to a LAN host, serve it (`python3 -m http.server`), point `Shelly.Update{url}` at plain
 `http://`, and the device never touches `fwcdn.shelly.cloud`. That sidesteps the whole untested TLS-
 interception lead. Not yet tried against a real failure — there has been nothing to install since.
+It would **not** have helped with the 2026-09-23 mesh-AP failures (see that section above), because
+that bottleneck was on the LAN side of the path.
 
 Second, unrelated use: **the index dates EOL hardware without trusting a vendor blog post.** `Plus1` and
 `Plus2PM` are the only fleet apps with **no `beta` key at all**, while every Gen3/Gen4 app carries
