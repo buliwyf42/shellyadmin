@@ -925,7 +925,7 @@ filter widened to `.102` as the positive control. Useful designs: `scan_timeout`
 argument directly — the prediction is that no 8-SYN miss can occur, only a ≥ 9-SYN one), or
 `scan_concurrency` **32** at 10 s (tests the burst argument).
 
-**Closed by the operator, 2026-09-25 — do not reopen.** After this run the operator set 
+**Closed by the operator, 2026-09-25 — do not reopen.** After this run the operator set `scan_timeout`
 **12 s** (concurrency 64 unchanged) and stopped the follow-up series after 2 of 15 planned sweeps (both
 found `.47`), in their words: "wir lassen es so und wenn hz2 hin und wieder nicht antwortet dann ist das
 eben so". **There is no measured result for 12 s** — only the step argument above, which predicts the
