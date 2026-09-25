@@ -869,6 +869,70 @@ with a reachability check for anything missing. Two devices were legitimately ab
 one in a scheduled power-off window, one switched off mid-series — and both were confirmed powered off by
 the no-HTTP-plus-no-mDNS control, not assumed.
 
+### 2026-09-25: the stretched run at 10 s / 64 — 1 miss in 15, and the tail is quantised by the kernel
+
+The operator chose **`scan_timeout` 10 s, `scan_concurrency` 64, sweep cadence unchanged** (2026-09-25,
+from four options). That is the arm-C configuration, already live: read back from `get_settings` before
+the first sweep and again after the last (`scan_timeout 10`, `scan_concurrency 64` both times), so this
+run moved **no** knob. What it changed is the design flaw the 09-14/15 section named: arm C ran 13 sweeps
+about two minutes apart and its miss rate climbed with series length. Arm D spaces them **10 minutes**
+apart.
+
+**Fixed before the first sweep (08:40 CEST), not after:** n = 15, 10-minute spacing, no `confirm_scan`,
+no active probing of the twins, per sweep `job_id` + `started_at` + `found` against `list_devices` →
+`total`, passive `tcpdump` on VM 114 (`ens19`, `host .47 and port 80`, SYN and SYN-ACK only).
+Decision rule: **0 misses in 15 → the point is closed** ((5/7)^15 ≈ 0.6 % at the 5 s rate); **≥ 1 miss →
+not fixed**; fewer than 15 valid sweeps → no statement.
+
+Sweeps 08:40–11:02 CEST, jobs 16985–17006 (gaps in the id sequence are other job types — every
+`started_at` matches this run's own `start_scan`), inventory **46**, all 46 reachable throughout:
+
+| Sweep | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `.47` | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✗ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| SYNs until SYN-ACK | 4 | 1 | 4 | 4 | 1 | 1 | 1 | 4 | **8** | 6 | 6 | 2 | 1 | 1 | 1 |
+| handshake (s) | 3.09 | 0 | 3.06 | 3.08 | 0 | 0 | 0 | 3.11 | **11.19** | 5.12 | 5.19 | 1.05 | 0 | 0 | 0 |
+
+**1 miss in 15 → by the rule fixed in advance, not fixed.** Against the 2 s baseline (4/6) Fisher gives
+p ≈ 0.011, so 10 s is clearly better than 2 s. Against the 5 s arm (2/7) p ≈ 0.23 — still not
+distinguishable, even with the longer arm. No run in this section has yet separated 5 s from 10 s.
+Unlike arm C, the series did **not** degrade: the one miss is isolated, and sweeps 10–15 are clean.
+The two-minute cadence was the likely cause of arm C's late cluster (still not proven directly).
+
+🩸 **The tail is not continuous — it is quantised by the kernel's SYN retransmit schedule.** In the
+container's network namespace `net.ipv4.tcp_syn_linear_timeouts = 4`, `tcp_syn_retries = 6` (kernel
+7.0.0). The capture shows the SYNs leaving at **0 · 1 · 2 · 3 · 4 · 5 · 7 · 11 s** after the first, and
+`.47` answers *a SYN*, never "late": every handshake above ends within ~10 ms of a retransmit. So the only
+possible handshake times are those steps, and **a `scan_timeout` between two steps is worth exactly as
+much as the lower step**: 10 s buys nothing over 7.2 s, and the miss in sweep 9 answered on the 8th SYN at
+11.19 s — the same 11.2 s figure the 09-13 capture recorded. **The next budget that covers one more
+step is ≥ 12 s**; the step after that is not observed. Whoever tunes this knob should pick it just above a
+step, not a round number.
+
+🩸 **And the SYN loss belongs to the sweep, not to the device.** Across the whole capture (1700
+connections to `.47`, mostly the 30 s refresh plus evcc) only **9** needed ≥ 4 SYNs — and **8 of those 9
+started within 1 s of a sweep's start** (7 sweep probes, one refresh that happened to coincide with
+sweep 5). Outside that first second `.47` answers the first SYN in the overwhelming majority of cases
+(1571 of 1700 connections needed a single SYN). Every sweep probe hits `.47` at its most vulnerable
+moment, because it arrives with the burst. **Not measured:** what in the burst costs the SYNs (candidates:
+the ARP/SYN storm of 254 addresses at concurrency 64 at the sweep's start; `.102` was not in the capture
+filter). This matters for the choice of knob: the timeout treats the symptom step by step, while
+concurrency or a staggered start would act on the cause. That choice belongs to the operator, not this
+section.
+
+**Re-open condition:** the next change is one knob, then again ≥ 15 sweeps 10 min apart, with the capture
+filter widened to `.102` as the positive control. Useful designs: `scan_timeout` **12 s** (tests the step
+argument directly — the prediction is that no 8-SYN miss can occur, only a ≥ 9-SYN one), or
+`scan_concurrency` **32** at 10 s (tests the burst argument).
+
+**Closed by the operator, 2026-09-25 — do not reopen.** After this run the operator set `scan_timeout`
+**12 s** (concurrency 64 unchanged) and stopped the follow-up series after 2 of 15 planned sweeps (both
+found `.47`), in their words: "wir lassen es so und wenn hz2 hin und wieder nicht antwortet dann ist das
+eben so". **There is no measured result for 12 s** — only the step argument above, which predicts the
+11.2 s step is now covered. The occasional miss is accepted residual risk. Practical consequence: before a
+`confirm_scan` that would drop devices, check that `.47` is in `pending`. Re-open only if a miss starts
+having consequences, or if the scanner's probing is reworked for other reasons.
+
 ### OTA configuration on Gen2+ — implemented via `Schedule.*`, not `OTA.SetConfig`
 
 The Shelly Gen2 API has **no `OTA.SetConfig` / `Sys.SetAutoUpdate` / dedicated OTA-config method**. The `OTA.*` methods that DO exist (`OTA.Start/Write/Data/Abort/Commit/Revert`) are byte-level chunked-upload plumbing, not configuration. Direct firmware update lives at:
