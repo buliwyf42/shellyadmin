@@ -3,7 +3,7 @@ module shellyadmin
 go 1.26.0
 
 require (
-	github.com/gin-contrib/sessions v1.1.1
+	github.com/gin-contrib/sessions v1.1.2
 	github.com/gin-gonic/gin v1.12.0
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	golang.org/x/crypto v0.57.0
