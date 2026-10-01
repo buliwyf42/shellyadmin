@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-10-01 — devalue security fix and refreshed base images
+
+### Security
+
+- **`devalue` 5.9.2 → 5.9.4** (frontend, pulled in by `svelte`). Six advisories
+  published 2026-10-01 cover `<= 5.9.2`, among them GHSA-j22f-vq7h-c4qm (high),
+  and turned the production `npm audit` gate red on every PR. Lockfile-only:
+  `svelte`'s own range (`^5.9.2`) already admits the fixed release.
+- **Base images re-pinned** to current digests of `node:26-alpine`,
+  `golang:1.27-alpine` and `alpine:3.24` — same tags, newer builds.
+
+### Changed
+
+- **Dependency bumps.** Go: `modernc.org/sqlite` 1.58.0 → 1.59.0,
+  `github.com/gin-contrib/sessions` 1.1.1 → 1.1.2. Frontend: `svelte` 5.57.1 and
+  the `npm-dev-dependencies` group (vite, eslint, vitest coverage,
+  typescript-eslint, jsdom, prettier). CI: the `github-actions` group.
+
 ## [1.2.0] - 2026-09-16 — scan_status names the scan it is describing
 
 ### Added
