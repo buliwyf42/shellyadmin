@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **`Docs lint` CI gate.** A new required check in `test.yml` runs
+  `.claude/skills/doku-sync-shellyadmin/lint.sh`: dead relative links,
+  backticked paths that no longer exist, ADR and plan index vs files,
+  `VERSION` vs the top CHANGELOG release, "Now"/"Planned" entries naming a
+  version that already shipped, the MCP tool count vs the code, and the
+  `README.md` / `README.de.md` structure. Built after a manual pass found 17
+  such drifts at once, among them 13 links that resolved nowhere on GitHub and
+  a roadmap still describing the 1.0 cut three releases after it landed.
+  Required checks on `main` 7 → 8. The script's branch-protection check
+  needs admin read access, which `GITHUB_TOKEN` lacks; it skips in CI with a
+  warning and only runs locally.
+
 ## [1.2.1] - 2026-10-01 — devalue security fix and refreshed base images
 
 ### Security
