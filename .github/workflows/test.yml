@@ -31,6 +31,20 @@ jobs:
             exit 1
           fi
 
+  # Docs drift: dead relative links, backticked paths that no longer exist,
+  # ADR/plan index vs files, VERSION vs CHANGELOG, stale "Now"/"Planned"
+  # versions, MCP tool count vs code, README EN/DE structure. Same script the
+  # /doku-sync-shellyadmin skill runs locally. Not a required check.
+  # Its check 9 reads branch protection, which GITHUB_TOKEN cannot — it
+  # prints a WARN and skips here; that half only runs on an operator machine.
+  docs-lint:
+    name: Docs lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Lint docs
+        run: bash .claude/skills/doku-sync-shellyadmin/lint.sh
+
   # S20's sibling: the Docker base images and CI's setup-go / setup-node are a
   # pair that has to move together, and nothing enforced it. Dependabot bumps
   # docker/Dockerfile but never touches this workflow, so golang went to
