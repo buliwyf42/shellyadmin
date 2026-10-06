@@ -1,6 +1,6 @@
 ---
-name: doku-sync
-description: shellyadmin-Doku nach Änderungen nachziehen — Lint (Links, ADR-/Plan-Index, VERSION↔CHANGELOG, README-Zwilling, MCP-Toolzahl, Required Checks), CLAUDE.md-Lektionen, Roadmap. Aufrufen nach Code-/Release-/Betriebsarbeit an shellyadmin oder mit „/doku-sync".
+name: doku-sync-shellyadmin
+description: shellyadmin-Doku nach Änderungen nachziehen — Lint (Links, ADR-/Plan-Index, VERSION↔CHANGELOG, README-Zwilling, MCP-Toolzahl, Required Checks), CLAUDE.md-Lektionen, Roadmap. Aufrufen nach Code-/Release-/Betriebsarbeit an shellyadmin oder mit „/doku-sync-shellyadmin".
 ---
 
 Ziehe die shellyadmin-Doku auf den Ist-Zustand nach. **Die Doku ist Englisch und das Repo
@@ -21,7 +21,7 @@ vollständige aussieht). Volle Ausgabe lesen oder in eine Datei schreiben und `g
    Fremde Commits von heute oder fremde Worktrees mit frischem Reflog → parallele Session;
    nichts löschen/umbenennen, was ihr gehören könnte (CLAUDE.md §„`gh pr merge --delete-branch`").
 
-2. **Lint:** `bash .claude/skills/doku-sync/lint.sh` — Exit 1 bei Fund. Prüft:
+2. **Lint:** `bash .claude/skills/doku-sync-shellyadmin/lint.sh` — Exit 1 bei Fund. Prüft:
    tote relative `.md`-Links · Backtick-Pfade in Living Docs, die es nicht gibt · ADR-Index ↔
    `docs/adr/*.md` inkl. Status · `docs/plans/README.md` ↔ Dateien · `VERSION` = oberster
    CHANGELOG-Release, `[Unreleased]` vorhanden, Kopf mit `— Untertitel` · `roadmap.md` „Now" /
@@ -81,6 +81,6 @@ vollständige aussieht). Volle Ausgabe lesen oder in eine Datei schreiben und `g
 
     `--only` statt `git add -A`: committet nur die genannten Pfade, auch wenn eine Parallelsession
     etwas gestaget hat. Unerwartete Änderungen im Baum melden, nicht mitnehmen. Danach
-    `bash .claude/skills/doku-sync/lint.sh` erneut: **0 Funde und Exit 0** ist die Abnahme.
+    `bash .claude/skills/doku-sync-shellyadmin/lint.sh` erneut: **0 Funde und Exit 0** ist die Abnahme.
     Skill und `lint.sh` sind versioniert (`.claude/skills/`); der Rest von `.claude/` bleibt
     gitignored. Eine Nachschärfung aus Schritt 9 geht also über denselben PR.
