@@ -7,19 +7,16 @@ not commitments — scope and timing will shift as the project matures.
 For accepted architectural decisions see [adr/README.md](./adr/README.md). For the
 threat model and deployment expectations see [SECURITY.md](./SECURITY.md).
 
-## Now (v0.6.x → v1.0.0)
+## Now (post-v1.0)
 
-- Field-testing on a real fleet between increments; concrete bug reports
-  still beat speculative additions. Production tracks the latest release —
-  the number lives on the Releases page, not in this file.
-- **The 1.0 cut is the active work item**, sequenced in
-  [plans/v1.0.0-release-cut.md](./plans/v1.0.0-release-cut.md). Behaviour has
-  been frozen since v0.6.3 — 45 commits without a line changed in
-  `internal/`, `cmd/` or `web/src/` — which is what makes a stability promise
-  possible. T7 is decided (ADR-0018), the firmware-cache and failed-check
-  defects are fixed, and the remaining gate items are documentation.
+- **v1.0.0 is cut** (2026-09-12) and the API contract is frozen: semver
+  applies, `/api/*` is generation 1 ([ADR-0018](./adr/0018-api-surface-versioning.md)).
+  The cut is recorded in [plans/v1.0.0-release-cut.md](./plans/v1.0.0-release-cut.md).
+- Field-testing on a real fleet continues; concrete bug reports still beat
+  speculative additions. Production tracks the latest release — the number
+  lives on the Releases page, not in this file.
 
-## Next (pre-v1)
+## Next
 
 - Largely **field-driven from here** — the core feature set is complete for a
   single-operator trusted-LAN deployment. The post-v0.4.0 backlog was triaged
@@ -38,9 +35,24 @@ threat model and deployment expectations see [SECURITY.md](./SECURITY.md).
 
 ## Recently shipped
 
-> Per-release detail for **v0.2.8 → v0.3.4** lives in
-> [CHANGELOG.md](../CHANGELOG.md). Highlights below; older entries kept
-> for narrative continuity.
+> Per-release detail lives in [CHANGELOG.md](../CHANGELOG.md). Highlights
+> below; older entries kept for narrative continuity.
+
+### 2026-06-10 → 2026-10-01 (v0.5.3 → v1.2.1)
+
+One line per release; the CHANGELOG has the rest.
+
+- **v1.2.1** (2026-10-01) — `devalue` security fix, base images re-pinned.
+- **v1.2.0** (2026-09-16) — `scan_status` carries `job_id` / `started_at`.
+- **v1.1.1** (2026-09-12) — device selection reacts again on Provision and Groups.
+- **v1.1.0** (2026-09-12) — `fields` projection on MCP `list_devices`.
+- **v1.0.0** (2026-09-12) — API surface declared stable (ADR-0018).
+- **v0.6.5** / **v0.6.4** (2026-09-12) — Alpine package upgrade for
+  CVE-2026-14456; stop blanking the firmware cache on a failed check.
+- **v0.6.0 → v0.6.3** (2026-07-22/23) — feature-frozen firmware lines,
+  marketing names next to model SKUs.
+- **v0.5.3** (2026-06-10) — hardening release (June review items 1–8),
+  including `shellyctl rotate-key`.
 
 ### 2026-05-29
 
@@ -326,6 +338,8 @@ threat model and deployment expectations see [SECURITY.md](./SECURITY.md).
 - Per-device bulk-action audit fidelity
 
 ## v1.0.0 Gate
+
+Met with v1.0.0 (2026-09-12); kept as the record of what the cut promised.
 
 - API stability guarantee: semver applies from v1.0.0 onward. v0.x remains subject
   to breaking changes.

@@ -8,11 +8,13 @@ are kept for historical context; current planning lives in
 
 ## Planned
 
-- [v1.0.0 Release Cut](./v1.0.0-release-cut.md)
-  (API stability guarantee, T7 decision, known-issue disposition)
+None.
 
 ## Shipped
 
+- [v1.0.0 Release Cut](./v1.0.0-release-cut.md)
+  (API stability guarantee, T7 decision, known-issue disposition) —
+  landed 2026-09-12 across v0.6.4 → v1.0.0
 - [Phase 4b — Services Split + Frontend Refactor](./phase-4b-refactor-block.md)
   (M7, M8, M2, M6) — landed across v0.2.x → v0.3.x
 - [Phase 4c — Auth Strategics](./phase-4c-auth-strategics.md)

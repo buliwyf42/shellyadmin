@@ -48,8 +48,8 @@ These live in the SQLite `settings` row, not env vars, but are worth knowing dur
 
 The repo includes:
 
-- [docker/Dockerfile](docker/Dockerfile)
-- [docker/docker-compose.yml](docker/docker-compose.yml)
+- [docker/Dockerfile](../docker/Dockerfile)
+- [docker/docker-compose.yml](../docker/docker-compose.yml)
 
 Current expected flows:
 

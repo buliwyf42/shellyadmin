@@ -66,21 +66,23 @@ The target architecture is documented in [docs/ARCHITECTURE.md](docs/ARCHITECTUR
 Open defects and accepted limitations, so they are found here rather than in
 the field. Details and measurements live in `CLAUDE.md`.
 
-- **One device is missed by the subnet scan** (`shelly-hz2`, a wired
-  `SPEM-003CEBEU63`) while answering `/shelly` in 30 ms, across repeated
-  sweeps, where its identical twin on the same subnet is found every time.
-  Cause unknown; the obvious "it is the Ethernet-only devices" explanation is
-  ruled out. Workaround: none needed for inventory correctness — re-run the
-  scan, or add the device by IP.
+- **A heavily polled device can be missed by the subnet scan.** Measured on
+  one Pro 3EM (`shelly-hz2`): its median answer is 30 ms, but under the burst
+  of a sweep its TCP handshake occasionally takes several seconds (up to
+  ~11 s captured) — past the default 2 s `scan_timeout`. Raising
+  `scan_timeout` in Settings covers most of that tail; an occasional miss
+  remains. **Before confirming a scan, check that every known device is in the
+  pending list** — confirming treats a missing device as a failed refresh.
 - **A device's stored IP is only written by a scan.** If a DHCP lease moves,
   jobs keep talking to the old address until the next scan. Since v0.6.5 the
   inventory no longer hides this — a failed job records the error and the
   device goes offline after two consecutive silences — but the address is not
   re-resolved automatically. A rescan repairs the row.
-- **Fleet OTA to firmware 2.0.0 can fail mid-download** with a device-side
-  `premature end of data`, at random progress percentages. The cause sits
-  between the device and `fwcdn.shelly.cloud` and is **not** understood; it is
-  not ShellyAdmin's polling and not the CDN. Retrying usually works, and
+- **Fleet OTA to firmware 2.0.x can fail mid-download** with a device-side
+  `premature end of data`, at random progress percentages. It is not
+  ShellyAdmin's polling and not the CDN. Devices that failed *repeatedly* were
+  traced to packet loss behind a wirelessly meshed access point; the occasional
+  one-off abort elsewhere is still unexplained. Retrying usually works, and
   Shelly's own phased rollout updates devices regardless.
 - **mDNS discovery is off by default and unverified in the container.** The
   scan resolves discovered `.local` names through the system resolver, and the

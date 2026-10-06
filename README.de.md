@@ -49,7 +49,7 @@ Die Anwendung ist als Einzel-Container-Deployment ausgelegt mit:
 
 ## Status
 
-In aktiver Entwicklung. Aktuelles Release ist `v0.6.3` (Korrektur des Marketing-Namens in der Model-Spalte plus repoweiter Dead-Code-Cleanup, ohne Verhaltensänderung). Das letzte Feature-Release war `v0.6.2` und schließt eine Reihe ab, die feature-eingefrorene Shelly-Firmware-Linien sichtbar macht und Shellys Marketing-Namen neben die Modell-SKUs stellt (`v0.6.0`–`v0.6.2`); die UI/API-Baseline ist ansonsten seit `v0.4.0` unverändert. Das Projekt folgt vor v1.0 dem SemVer-Schema mit Vorbehalt: Minor-Versionen können Breaking Changes enthalten. SemVer-Garantien gelten ab `v1.0.0`.
+In aktiver Entwicklung. Das aktuelle Release steht auf der [Releases-Seite](https://github.com/buliwyf42/shellyadmin/releases) — diese Datei wiederholt die Nummer bewusst nicht, weil sie hier schon mehrfach veraltet ist. Die UI/API-Baseline ist seit `v0.4.0` unverändert; Releases seither brachten Fixes sowie Dependency- und CI-Arbeit. Seit `v1.0.0` folgt das Projekt SemVer, und die HTTP-API unter `/api/*` ist stabil: Routen können optionale Parameter und optionale Antwortfelder hinzubekommen, Breaking Changes sind einem künftigen `/api/v2/*` vorbehalten ([ADR-0018](docs/adr/0018-api-surface-versioning.md)).
 
 Eingeplantes Einsatzprofil:
 
@@ -59,6 +59,43 @@ Eingeplantes Einsatzprofil:
 - noch nicht als Multi-User- oder HA-fähige Plattform positioniert
 
 Die Ziel-Architektur ist in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) dokumentiert.
+
+## Bekannte Probleme
+
+Offene Fehler und bewusst akzeptierte Einschränkungen — damit man sie hier
+findet und nicht erst im Betrieb. Details und Messungen stehen in `CLAUDE.md`.
+
+- **Ein stark gepolltes Gerät kann vom Subnetz-Scan übersehen werden.**
+  Gemessen an einem Pro 3EM (`shelly-hz2`): Der Median liegt bei 30 ms, aber
+  während eines Sweeps dauert sein TCP-Handshake gelegentlich mehrere Sekunden
+  (bis ~11 s mitgeschnitten) — länger als der Standard-`scan_timeout` von 2 s.
+  Ein höherer `scan_timeout` in den Einstellungen deckt den Großteil davon ab;
+  ein gelegentlicher Ausfall bleibt. **Vor dem Bestätigen eines Scans prüfen,
+  dass jedes bekannte Gerät in der Pending-Liste steht** — das Bestätigen
+  wertet ein fehlendes Gerät als fehlgeschlagenen Refresh.
+- **Die gespeicherte IP eines Geräts schreibt nur ein Scan.** Wandert ein
+  DHCP-Lease, sprechen Jobs bis zum nächsten Scan mit der alten Adresse. Seit
+  v0.6.5 verschleiert das Inventar das nicht mehr — ein fehlgeschlagener Job
+  hält den Fehler fest, und nach zwei aufeinanderfolgenden Funkstillen geht das
+  Gerät offline —, aber die Adresse wird nicht automatisch neu aufgelöst. Ein
+  erneuter Scan repariert den Eintrag.
+- **Flotten-OTA auf Firmware 2.0.x kann mitten im Download abbrechen**, mit
+  geräteseitigem `premature end of data` bei zufälligem Fortschritt. Es liegt
+  weder am Polling von ShellyAdmin noch am CDN. Geräte, die *wiederholt*
+  scheiterten, ließen sich auf Paketverlust hinter einem drahtlos vermaschten
+  Access Point zurückführen; der gelegentliche Einzelabbruch anderswo ist
+  weiter ungeklärt. Ein erneuter Versuch klappt meist, und Shellys eigener
+  stufenweiser Rollout aktualisiert die Geräte ohnehin.
+- **mDNS-Discovery ist standardmäßig aus und im Container ungeprüft.** Der Scan
+  löst gefundene `.local`-Namen über den System-Resolver auf, und das
+  Runtime-Image ist Alpine/musl ohne `nss-mdns`. Der Subnetz-Scan ist der
+  unterstützte Discovery-Weg.
+- **Das Binary linkt einen MongoDB-Treiber, den es nie benutzt**
+  ([#13](https://github.com/buliwyf42/shellyadmin/issues/13)). Er kommt über
+  `gin`s BSON-Binding herein. Akzeptiert, nicht behoben: Kein Codepfad erreicht
+  ihn — der Baum importiert `gin/binding` nirgends und enthält keinen
+  `c.Bind*`-Aufruf, jeder Handler dekodiert über einen größenbegrenzten
+  JSON-Decoder —, und `gin` bietet kein Build-Tag, um ihn wegzulassen.
 
 ## Ziele
 
