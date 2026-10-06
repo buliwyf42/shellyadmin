@@ -34,7 +34,7 @@ jobs:
   # Docs drift: dead relative links, backticked paths that no longer exist,
   # ADR/plan index vs files, VERSION vs CHANGELOG, stale "Now"/"Planned"
   # versions, MCP tool count vs code, README EN/DE structure. Same script the
-  # /doku-sync-shellyadmin skill runs locally. Not a required check.
+  # /doku-sync-shellyadmin skill runs locally. Required since 2026-10-06.
   # Its check 9 reads branch protection, which GITHUB_TOKEN cannot — it
   # prints a WARN and skips here; that half only runs on an operator machine.
   docs-lint:

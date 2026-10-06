@@ -167,7 +167,8 @@ Read the state, not the archive: `gh run list --branch <b>` (newest run wins) pl
 
 🩸 **A branch name reads like a check name.** The required checks are in
 `gh api repos/<o>/<r>/branches/main/protection` — currently `Release-file version sync`, `Go tests`,
-`Go vulnerability check`, `Go lint`, `Frontend build`, `Docker image build`, `Toolchain sync`. None is
+`Go vulnerability check`, `Go lint`, `Frontend build`, `Docker image build`, `Toolchain sync`, plus
+`Docs lint` since 2026-10-06. None is
 named after a branch, so the hypothesis "that red check is silently blocking Dependabot auto-merge"
 was structurally impossible before it was worth measuring (and there were zero open PRs anyway).
 
@@ -213,7 +214,7 @@ health, the startup log — before concluding the deploy broke something.**
 
 **Release path itself** is `docs/DEVELOPMENT.md`; the one addition from this cut: with the auto-mode
 guard active, a direct release push to `main` is refused as a CI bypass. Routing the release commit
-through a PR (squash, the repo's usual shape) runs the seven required checks over it and lands the
+through a PR (squash, the repo's usual shape) runs the required checks over it and lands the
 same content — strictly stricter than the admin bypass the docs allow, and the better default.
 
 ### MCP server (HTTP + stdio, opt-in)
