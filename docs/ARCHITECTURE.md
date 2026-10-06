@@ -2,7 +2,7 @@
 
 See the agreed reference architecture in the external planning copy if needed, but this repository version is the source of truth for implementation.
 
-Detailed accepted decisions are tracked in [docs/adr/README.md](docs/adr/README.md).
+Detailed accepted decisions are tracked in [adr/README.md](./adr/README.md).
 
 ## Summary
 
@@ -22,18 +22,9 @@ Core principles:
 
 ## Decision Baseline
 
-The current accepted decision set includes:
-
-- [ADR-0001 Product Scope and Explicit Non-Goals](docs/adr/0001-product-scope-and-non-goals.md)
-- [ADR-0002 Operational Safety and Compliance Model](docs/adr/0002-operational-safety-and-compliance.md)
-- [ADR-0003 Device Authentication and Credentials Roadmap](docs/adr/0003-device-auth-and-credentials.md)
-- [ADR-0004 Job Concurrency and Execution Semantics](docs/adr/0004-job-concurrency-and-execution.md)
-- [ADR-0005 Data, Migration, and Compatibility Policy](docs/adr/0005-data-migrations-and-compatibility.md)
-- [ADR-0006 Backup, Export/Import, and Secret Handling](docs/adr/0006-backup-export-import-and-secrets.md)
-- [ADR-0007 UI Time and Error Presentation Policy](docs/adr/0007-ui-time-and-error-presentation.md)
-- [ADR-0008 Provision/Compliance UI Alignment and Template Management Consolidation](docs/adr/0008-provision-compliance-ui-alignment.md)
-- [ADR-0009 Firmware Auto-Update via `Schedule.*` Synthesis](docs/adr/0009-firmware-auto-update-via-schedule.md)
-- [ADR-0010 Per-Device Action Discovery via `Shelly.ListMethods`](docs/adr/0010-per-device-action-discovery-via-listmethods.md)
+The accepted decision set (ADR-0001 onward) is listed, with status, in the
+[ADR index](./adr/README.md). It is not repeated here — the copy that used to
+be here had stopped at ADR-0010.
 
 ## Layers
 
