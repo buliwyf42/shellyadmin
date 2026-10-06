@@ -55,7 +55,11 @@ vollständige aussieht). Volle Ausgabe lesen oder in eine Datei schreiben und `g
    die Flottengröße wandert. **Öffentliches Repo:** keine Tokens, keine Passwörter, keine
    `op://`-Pfade mit Inhalt; LAN-IPs/MACs stehen schon drin und sind ok.
 
-6. **Release-Doku**, falls released wurde (Ablauf: `docs/DEVELOPMENT.md`): `VERSION` +
+6. **CHANGELOG `[Unreleased]`** laufend pflegen: Features, Fixes und **CI-Gates** kommen mit
+   ihrem PR hinein (Stil: `Toolchain sync`-Eintrag, v0.6.x), nicht erst beim Release —
+   nur Dependabot-Bumps sammelt der Release-Commit. Kein Lint sieht einen fehlenden Eintrag
+   (2026-10-06: `Docs lint` wurde Pflicht-Check, ohne dass es im CHANGELOG stand).
+   **Release-Doku**, falls released wurde (Ablauf: `docs/DEVELOPMENT.md`): `VERSION` +
    `web/package.json` + Lockfile synchron, CHANGELOG-Kopf `## [X.Y.Z] - YYYY-MM-DD — Untertitel`,
    `roadmap.md` „Recently shipped" / „Now", `plans/README.md` Planned → Shipped.
    **Merge ≠ Deploy:** läuft der Container die neue Version? (CLAUDE.md §„Deploying a release").
