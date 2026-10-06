@@ -38,10 +38,11 @@ threat model and deployment expectations see [SECURITY.md](./SECURITY.md).
 > Per-release detail lives in [CHANGELOG.md](../CHANGELOG.md). Highlights
 > below; older entries kept for narrative continuity.
 
-### 2026-06-10 → 2026-10-01 (v0.5.3 → v1.2.1)
+### 2026-06-10 → 2026-10-06 (v0.5.3 → v1.2.2)
 
 One line per release; the CHANGELOG has the rest.
 
+- **v1.2.2** (2026-10-06) — SQLite driver 1.60.1, `Docs lint` required CI check.
 - **v1.2.1** (2026-10-01) — `devalue` security fix, base images re-pinned.
 - **v1.2.0** (2026-09-16) — `scan_status` carries `job_id` / `started_at`.
 - **v1.1.1** (2026-09-12) — device selection reacts again on Provision and Groups.

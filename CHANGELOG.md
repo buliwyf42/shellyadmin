@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-10-06 — SQLite driver update and a docs-lint CI gate
+
+No behaviour change. The only difference in the shipped binary is the SQLite
+driver; everything else is build tooling, CI and documentation.
+
 ### Added
 
 - **`Docs lint` CI gate.** A new required check in `test.yml` runs
@@ -17,6 +22,20 @@ All notable changes to this project will be documented in this file.
   Required checks on `main` 7 → 8. The script's branch-protection check
   needs admin read access, which `GITHUB_TOKEN` lacks; it skips in CI with a
   warning and only runs locally.
+
+### Changed
+
+- **Dependency bumps.** Go: `modernc.org/sqlite` 1.59.0 → 1.60.1. Frontend
+  dev tooling: the `npm-dev-dependencies` group (`vite` 8.3.2, `vitest` and
+  `@vitest/coverage-v8` 5.0.3, `typescript-eslint` 8.71.0), plus lockfile-only
+  bumps of `brace-expansion` 5.0.12, `source-map-js` 1.2.2 and
+  `postcss-selector-parser` 7.1.6.
+- **Documentation drift fixed.** 13 relative links in `docs/ARCHITECTURE.md`
+  and `docs/DEPLOYMENT.md` that resolved nowhere on GitHub, a roadmap still
+  describing the 1.0 cut, and a German README that lacked the Known Issues
+  section and still named v0.6.3. The Known Issues list itself was brought up
+  to date: the subnet-scan miss is a measured latency tail past
+  `scan_timeout`, not an unknown cause.
 
 ## [1.2.1] - 2026-10-01 — devalue security fix and refreshed base images
 
