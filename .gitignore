@@ -4,7 +4,9 @@ web/dist/
 secrets/
 .DS_Store
 .devlogs/
-.claude/
+# .claude/ is local (settings, worktrees) — except the project skills
+.claude/*
+!.claude/skills/
 web/node_modules/
 web/test-results/
 web/playwright-report/
