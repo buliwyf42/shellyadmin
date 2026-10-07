@@ -337,9 +337,27 @@ cosign verify --certificate-identity-regexp 'https://github.com/buliwyf42/shelly
 **Expect exactly two signatures**, one per tag the workflow signs (`vX.Y.Z`
 and `latest`) at the same digest. v0.6.4 and v0.6.5 carry **three**, because
 `metadata-action` emitted `latest` twice until the duplicate `type=raw` line
-was removed. The next release after that fix is the first one that proves it —
-count them, and if it is still three the raw line is back or `flavor.latest`
-changed. `cosign verify` prints one JSON object per signature.
+was removed. v1.2.2 (2026-10-06) carries two, so the fix holds — keep counting,
+and if it is ever three again the raw line is back or `flavor.latest` changed.
+`cosign verify` prints one JSON object per signature.
+
+Without `cosign`, the count and the identity can be read straight from the
+registry — cosign stores the signatures as a manifest tagged
+`sha256-<digest>.sig`, one layer per signature, each carrying its Fulcio
+certificate:
+
+```bash
+D=<digest without the sha256: prefix>   # from check 3 above
+curl -s -H "Authorization: Bearer $T" -H "Accept: application/vnd.oci.image.manifest.v1+json" \
+  "https://ghcr.io/v2/buliwyf42/shellyadmin/manifests/sha256-$D.sig" \
+  | python3 -c "import sys,json; [open(f'/tmp/sig{i}.pem','w').write(l['annotations']['dev.sigstore.cosign/certificate']) for i,l in enumerate(json.load(sys.stdin)['layers'])]"
+for f in /tmp/sig*.pem; do openssl x509 -in "$f" -noout -ext subjectAltName | tail -1; done
+```
+
+Each SAN must read `…/publish-image.yml@refs/tags/vX.Y.Z`, and the
+certificate's `1.3.6.1.4.1.57264.1.3` extension carries the release commit.
+This checks count, identity and commit — **not** the signature itself against
+Rekor; that half still needs `cosign verify`.
 
 `cosign` is not installed on the dev machine; download the pinned release and
 check it against sigstore's own signed checksums before trusting it (identity
