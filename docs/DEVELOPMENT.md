@@ -272,9 +272,19 @@ UI on the Docker host. The stack files live on the host under
 
 ### Pre-deploy snapshot (rollback point)
 
-Before recreating the stack on a release, copy the SQLite file:
-`cp <data-dir>/shellyctl.db <data-dir>/shellyctl.db.pre-vX.Y.Z-$(date +%s)`.
-These pile up by design as rollback points.
+Before recreating the stack on a release, snapshot the SQLite database:
+
+```bash
+SHELLYADMIN_DATA_DIR=<data-dir> scripts/snapshot-prod-db.sh <user@host> vX.Y.Z
+```
+
+The script runs `sqlite3 .backup` on the host, checks the copy with
+`PRAGMA integrity_check`, and writes `shellyctl.db.pre-vX.Y.Z-<epoch>`. These
+pile up by design as rollback points. **Do not use `cp` instead** — the
+database runs in WAL mode, so copying `shellyctl.db` alone leaves out
+everything since the last checkpoint (on 2026-10-06 the `-wal` file was five
+hours newer than the `.db`). Snapshots taken with `cp` before 2026-10-07 may be
+missing that tail.
 
 ### Historical (pre-v0.2.8)
 
