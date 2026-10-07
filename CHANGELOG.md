@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`scripts/snapshot-prod-db.sh` took incomplete snapshots.** It copied
+  `shellyctl.db` with `cp`, but the database runs in WAL mode, so everything
+  since the last checkpoint stayed behind in `shellyctl.db-wal` — on
+  2026-10-06 that was five hours of writes. The script now uses
+  `sqlite3 .backup` (SQLite's online-backup API, consistent while the
+  container keeps writing), switches the copy to a self-contained single file,
+  and fails unless `PRAGMA integrity_check` returns `ok`. Needs `sqlite3` on
+  the Docker host; no `sudo`. `docs/DEVELOPMENT.md` and `docs/DEPLOYMENT.md`
+  no longer offer a `cp` one-liner as the alternative.
+
 ## [1.2.2] - 2026-10-06 — SQLite driver update and a docs-lint CI gate
 
 No behaviour change. The only difference in the shipped binary is the SQLite

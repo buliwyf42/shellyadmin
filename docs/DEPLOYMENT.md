@@ -243,12 +243,16 @@ scripts/snapshot-prod-db.sh user@your-docker-host v0.3.6
 # -> <data-dir>/shellyctl.db.pre-v0.3.6-<epoch>
 ```
 
-or run the equivalent directly on the host:
+or run the equivalent directly on the host (needs `sqlite3` there):
 
 ```bash
-cp <data-dir>/shellyctl.db \
-   <data-dir>/shellyctl.db.pre-v0.3.6-$(date +%s)
+sqlite3 -readonly <data-dir>/shellyctl.db \
+  ".backup '<data-dir>/shellyctl.db.pre-v0.3.6-$(date +%s)'"
 ```
+
+Not `cp`: the database runs in WAL mode, and a copy of `shellyctl.db` alone
+misses everything since the last checkpoint. `.backup` reads through the WAL
+and is consistent while the container keeps writing.
 
 These accumulate by design as rollback points. The snapshot mainly guards
 releases that carry a DB migration; a pure frontend/CI release does not
