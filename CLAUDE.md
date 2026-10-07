@@ -203,6 +203,10 @@ The chain that actually holds: container `Image` → `list_images` entry with th
 🩸 **The image is not the point — the answer is.** A green build proves the build. Finish with a
 read-only call that exercises the new code: for v1.2.0 that was `scan_status` returning `job_id` /
 `started_at`, absent before the deploy and present after. No scan needs to be started for this.
+For a release with no behaviour change (v1.2.2, 2026-10-06: only the SQLite driver moved), the
+already-connected MCP client was dead (next bullet) and no token was at hand; the public
+`GET /api/setup/status` answered `{"configured":true}` — it reads `admin_credentials` through the
+new binary and driver, which is the change under test. Pick the probe for what the release changed.
 
 🩸 **An MCP client's session dies with the container it was talking to, and the error looks like an
 outage.** After the recreate, every `scan_status` through the already-connected MCP client returned

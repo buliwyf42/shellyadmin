@@ -52,7 +52,10 @@ vollständige aussieht). Volle Ausgabe lesen oder in eine Datei schreiben und `g
    übertragbaren Teil, **was es NICHT belegt** ausdrücklich. Veraltetes **korrigieren statt
    anhängen**; widerlegte Aussagen als widerlegt markieren, nicht löschen (siehe OTA-Abschnitt).
    Flüchtige Werte (IPs, Gerätezahl, Versionen der Flotte) als **Prüfbefehl** oder mit Datum —
-   die Flottengröße wandert. **Öffentliches Repo:** keine Tokens, keine Passwörter, keine
+   die Flottengröße wandert. **Jeder Befehl, der in die Doku kommt, wird vorher genau so
+   ausgeführt, wie er dort steht** — nicht die Fassung, die man vorher getippt hat
+   (2026-10-07: ein für `DEVELOPMENT.md` umformuliertes `awk` scheiterte an macOS-`awk`).
+   **Öffentliches Repo:** keine Tokens, keine Passwörter, keine
    `op://`-Pfade mit Inhalt; LAN-IPs/MACs stehen schon drin und sind ok.
 
 6. **CHANGELOG `[Unreleased]`** laufend pflegen: Features, Fixes und **CI-Gates** kommen mit
