@@ -216,7 +216,7 @@ jobs:
       # added go1.27 support (golangci/golangci-lint#6642).
       - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9
         with:
-          version: v2.13.2
+          version: v2.14.0
 
   # Smoke-build the production image on every PR + push. None of the
   # other jobs touch docker/Dockerfile, so a breaking base-image bump
