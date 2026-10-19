@@ -8,7 +8,7 @@ require (
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	golang.org/x/crypto v0.58.0
 	golang.org/x/mod v0.42.0
-	golang.org/x/net v0.60.0
+	golang.org/x/net v0.61.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	modernc.org/sqlite v1.60.1
 )
