@@ -1,4 +1,4 @@
-FROM node:26-alpine@sha256:0b36e8c136b94cd4fcf02188228e76c31ad5872eef3fec8cbd2eee500cfd9e80 AS frontend
+FROM node:26-alpine@sha256:c6ad9e9c1d80f6eb607c26b4b0a132ff7a2344fad1c78ea3baa2a7d4c8de6d94 AS frontend
 WORKDIR /app/web
 COPY web/package*.json ./
 # --ignore-scripts blocks malicious postinstall hooks in compromised npm deps;
@@ -8,7 +8,7 @@ RUN npm ci --ignore-scripts
 COPY web/ .
 RUN npm run build
 
-FROM golang:1.27-alpine@sha256:8a5910f31396cd4d89662f56c68b3ae31d374308270a1c3bd96672ee5ed43414 AS backend
+FROM golang:1.27-alpine@sha256:d200d2dd76b03a99b52651fd1325aff7dcd35422c35c01bac56571b0507f3deb AS backend
 WORKDIR /app
 ARG VERSION
 ARG VCS_REF=unknown
@@ -20,7 +20,7 @@ COPY --from=frontend /app/web/dist ./cmd/shellyctl/dist
 RUN V=${VERSION:-$(cat VERSION 2>/dev/null || echo "dev")} && \
     go build -ldflags="-s -w -X main.AppVersion=${V} -X main.CommitHash=${VCS_REF}" -o /shellyadmin ./cmd/shellyctl
 
-FROM alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
+FROM alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a
 # `apk upgrade` before the install: the base image is digest-pinned, so it
 # freezes whatever package versions Alpine baked in at build time — and Alpine
 # does not rebuild a point-release image for every package CVE. v0.6.4's
