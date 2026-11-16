@@ -281,7 +281,6 @@
     let unresolved = 0;
     // Local dedup-only Set; not reactive state — the IIFE returns a plain
     // object whose `credentialRefs` is the spread of this set's entries.
-    // eslint-disable-next-line svelte/prefer-svelte-reactivity
     const credentials = new Set<string>();
     for (const device of chosenDevices) {
       const groupName = deviceGroupAssignments[device.mac];
