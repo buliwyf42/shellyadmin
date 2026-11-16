@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Device-side config backup and custom default config are visible
+  (read-only).** Firmware 2.2.0 reports `sys.backup` and `sys.default_config`
+  in `Shelly.GetStatus`. ShellyAdmin derives a `config_backup` field from the
+  cached status (no extra RPC, no migration) and shows it in `/api/devices`,
+  the MCP `list_devices` / `get_device` tools and as `backup` /
+  `backup failed` / `custom default` badges on the Firmware page. Creating,
+  downloading or restoring backups is not wired.
+
 ### Fixed
 
 - **`scripts/snapshot-prod-db.sh` took incomplete snapshots.** It copied

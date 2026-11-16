@@ -83,6 +83,8 @@ type DeviceListView struct {
 	// FWFrozen mirrors Device.FWFrozen — see Device for the source-of-truth doc
 	// comment and the Firmware Update Policy citation.
 	FWFrozen bool `json:"fw_frozen,omitempty"`
+	// ConfigBackup mirrors Device.ConfigBackup (firmware 2.2.0+, read-only).
+	ConfigBackup *ConfigBackupState `json:"config_backup,omitempty"`
 }
 
 // ToListView projects a full Device down to the slim DeviceListView
@@ -148,6 +150,7 @@ func (d Device) ToListView() DeviceListView {
 		LightCount:         d.LightCount,
 		FWAlt:              d.FWAlt,
 		FWFrozen:           d.FWFrozen,
+		ConfigBackup:       d.ConfigBackup,
 	}
 }
 

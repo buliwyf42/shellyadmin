@@ -99,15 +99,33 @@ type Device struct {
 	Provisioning map[string]any `json:"provisioning,omitempty"`
 	// FWFrozen: firmware.IsFeatureFrozen(Model) — derived at GetDevices time, not
 	// persisted, same pattern as FWAlt/Provisioning. Informational only (ADR-0002).
-	FWFrozen  bool   `json:"fw_frozen,omitempty"`
-	RawConfig string `json:"-"`
-	RawStatus string `json:"-"`
+	FWFrozen bool `json:"fw_frozen,omitempty"`
+	// ConfigBackup mirrors Shelly.GetStatus → sys.backup / sys.default_config
+	// (firmware 2.2.0+). Derived from RawStatus, not persisted. nil = firmware
+	// does not report either key (older firmware or a model without the feature).
+	// Read-only: creating/restoring backups is not wired.
+	ConfigBackup *ConfigBackupState `json:"config_backup,omitempty"`
+	RawConfig    string             `json:"-"`
+	string       `json:"-"`
+	RawStatus    string `json:"-"`
 }
 
 // AltFirmwareVariant describes one alternative firmware build a device can run
 // (e.g. a Zigbee or Matter variant of the same hardware), flattened from the
 // Shelly.GetStatus → sys.alt map. Stable/Beta hold the available version
 // strings for that variant's channels (empty when the variant offers none).
+// ConfigBackupState is the device-side backup / custom-default-config state
+// (Sys.CreateBackup, Sys.CreateDefaultConfig; firmware 2.2.0+).
+type ConfigBackupState struct {
+	// BackupCreated is sys.backup.created (Unix seconds); 0 = no backup on the device.
+	BackupCreated int64 `json:"backup_created,omitempty"`
+	// BackupError is sys.backup.error: the last backup attempt failed.
+	BackupError string `json:"backup_error,omitempty"`
+	// DefaultConfig is sys.default_config.exists: a custom default is installed
+	// and will be re-applied on factory reset.
+	DefaultConfig bool `json:"default_config"`
+}
+
 type AltFirmwareVariant struct {
 	ID     string `json:"id"`
 	Name   string `json:"name"`

@@ -54,3 +54,19 @@ func TestSysProvisioning(t *testing.T) {
 		t.Errorf("want nil when provisioning absent, got %+v", p)
 	}
 }
+
+func TestSysConfigBackup(t *testing.T) {
+	t.Parallel()
+	dev := models.Device{RawStatus: `{"sys":{"backup":{"href":"/backup.zip","created":1758267551},"default_config":{"exists":true}}}`}
+	got := sysConfigBackup(dev)
+	if got == nil || got.BackupCreated != 1758267551 || !got.DefaultConfig || got.BackupError != "" {
+		t.Errorf("want created+default, got %+v", got)
+	}
+	got = sysConfigBackup(models.Device{RawStatus: `{"sys":{"backup":{"error":"no space"},"default_config":{"exists":false}}}`})
+	if got == nil || got.BackupError != "no space" || got.DefaultConfig || got.BackupCreated != 0 {
+		t.Errorf("want error only, got %+v", got)
+	}
+	if got := sysConfigBackup(models.Device{RawStatus: `{"sys":{"mac":"aa"}}`}); got != nil {
+		t.Errorf("pre-2.2.0 firmware must yield nil, got %+v", got)
+	}
+}
