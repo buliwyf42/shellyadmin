@@ -352,6 +352,7 @@ func (s *AppService) GetDevices() ([]models.Device, error) {
 		devices[i].LightCount = len(componentInstances(devices[i], "light"))
 		devices[i].FWAlt = sysAltVariants(devices[i])
 		devices[i].Provisioning = sysProvisioning(devices[i])
+		devices[i].ConfigBackup = sysConfigBackup(devices[i])
 		devices[i].FWFrozen = fwFrozen(devices[i])
 		// FWFrozen must be set before Evaluate — the flag_frozen_firmware rule reads it.
 		devices[i].Compliant, devices[i].ComplianceIssues = compliance.Evaluate(devices[i], settings.Compliance)

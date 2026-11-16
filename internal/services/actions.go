@@ -497,6 +497,23 @@ func sysProvisioning(device models.Device) map[string]any {
 	return obj
 }
 
+// sysConfigBackup reads sys.backup / sys.default_config (firmware 2.2.0+)
+// from the cached RawStatus. nil when the device reports neither key.
+func sysConfigBackup(device models.Device) *models.ConfigBackupState {
+	backup, hasBackup := sysSubObject(device.RawStatus, "backup")
+	def, hasDefault := sysSubObject(device.RawStatus, "default_config")
+	if !hasBackup && !hasDefault {
+		return nil
+	}
+	out := &models.ConfigBackupState{}
+	if created, ok := backup["created"].(float64); ok {
+		out.BackupCreated = int64(created)
+	}
+	out.BackupError = stringField(backup["error"])
+	out.DefaultConfig, _ = def["exists"].(bool)
+	return out
+}
+
 // fwFrozen reports whether device.Model is on the static feature-frozen allowlist
 // (see firmware.IsFeatureFrozen).
 func fwFrozen(device models.Device) bool {

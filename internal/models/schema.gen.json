@@ -644,6 +644,15 @@
           "tag": "compliant"
         },
         {
+          "name": "ConfigBackup",
+          "json_name": "config_backup",
+          "go_type": "*shellyadmin/internal/models.ConfigBackupState",
+          "tag": "config_backup,omitempty",
+          "options": [
+            "omitempty"
+          ]
+        },
+        {
           "name": "ConsecutiveMisses",
           "json_name": "consecutive_misses",
           "go_type": "int",

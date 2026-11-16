@@ -1,5 +1,13 @@
 // AltFirmwareVariant is one alternative firmware build a device can run
 // (e.g. a Zigbee or Matter variant of the same hardware), from sys.alt.
+export interface ConfigBackupState {
+  /** Unix seconds; absent = no backup on the device. */
+  backup_created?: number;
+  backup_error?: string;
+  /** A custom default config is installed (re-applied on factory reset). */
+  default_config: boolean;
+}
+
 export interface AltFirmwareVariant {
   id: string;
   name: string;
@@ -93,6 +101,9 @@ export interface Device {
    * Firmware Update Policy (will never receive 2.0.0+). Derived server-side —
    * informational only, never blocks the install action. */
   fw_frozen?: boolean;
+  /** Device-side config backup / custom default config (firmware 2.2.0+).
+   * Read-only. Absent when the firmware reports neither. */
+  config_backup?: ConfigBackupState;
   serial: string;
   is_new?: boolean;
   compliant: boolean;

@@ -236,6 +236,7 @@
         lightCount: d.light_count,
         fwAlt: d.fw_alt ?? [],
         fwFrozen: d.fw_frozen ?? false,
+        configBackup: d.config_backup,
         currentVer: d.fw,
         stableVer,
         betaVer,
@@ -568,6 +569,26 @@
                 alt: {alt.id}
               </span>
             {/each}
+            {#if row.configBackup?.backup_error}
+              <span
+                class="badge bg-danger ms-1"
+                title={`Last device backup failed: ${row.configBackup.backup_error}`}
+                >backup failed</span
+              >
+            {:else if row.configBackup?.backup_created}
+              <span
+                class="badge bg-secondary ms-1"
+                title={`Device-side config backup created ${new Date(row.configBackup.backup_created * 1000).toLocaleString()} (read-only)`}
+                >backup</span
+              >
+            {/if}
+            {#if row.configBackup?.default_config}
+              <span
+                class="badge bg-info text-dark ms-1"
+                title="Custom default config installed — re-applied on factory reset (read-only)"
+                >custom default</span
+              >
+            {/if}
           </td>
           <td
             ><a href={`http://${row.ip}/`} target="_blank" rel="noreferrer noopener">{row.ip}</a
