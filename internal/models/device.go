@@ -106,14 +106,9 @@ type Device struct {
 	// Read-only: creating/restoring backups is not wired.
 	ConfigBackup *ConfigBackupState `json:"config_backup,omitempty"`
 	RawConfig    string             `json:"-"`
-	string       `json:"-"`
-	RawStatus    string `json:"-"`
+	RawStatus    string             `json:"-"`
 }
 
-// AltFirmwareVariant describes one alternative firmware build a device can run
-// (e.g. a Zigbee or Matter variant of the same hardware), flattened from the
-// Shelly.GetStatus → sys.alt map. Stable/Beta hold the available version
-// strings for that variant's channels (empty when the variant offers none).
 // ConfigBackupState is the device-side backup / custom-default-config state
 // (Sys.CreateBackup, Sys.CreateDefaultConfig; firmware 2.2.0+).
 type ConfigBackupState struct {
@@ -126,6 +121,10 @@ type ConfigBackupState struct {
 	DefaultConfig bool `json:"default_config"`
 }
 
+// AltFirmwareVariant describes one alternative firmware build a device can run
+// (e.g. a Zigbee or Matter variant of the same hardware), flattened from the
+// Shelly.GetStatus → sys.alt map. Stable/Beta hold the available version
+// strings for that variant's channels (empty when the variant offers none).
 type AltFirmwareVariant struct {
 	ID     string `json:"id"`
 	Name   string `json:"name"`
