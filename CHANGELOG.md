@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-11-16 — config backup status
+
 ### Added
 
 - **Device-side config backup and custom default config are visible
