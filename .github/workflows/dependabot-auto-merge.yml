@@ -10,7 +10,10 @@ name: Dependabot auto-merge
 #   - A branch protection rule on `main` requiring the Test workflow,
 #     otherwise `gh pr merge --auto` errors with "Branch is not protected".
 
-on: pull_request_target
+# `pull_request`, not `pull_request_target`: GitHub blocks the latter by default
+# in public repos (brownouts 2026-11-09/-16, enforced from 2026-12-02). For
+# Dependabot PRs the `permissions:` below still lift GITHUB_TOKEN to write.
+on: pull_request
 
 permissions:
   contents: write
@@ -32,7 +35,7 @@ jobs:
       # previous-version = `<sha>` (its own backtick formatting for a digest) while
       # new-version stays the tag. A genuine major bump has a plain version in both.
       # ponytail: string check instead of diffing the Dockerfile — checking out an
-      # untrusted PR ref under pull_request_target costs more than it buys, and if
+      # untrusted PR ref with a write token costs more than it buys, and if
       # fetch-metadata ever drops the backticks these bumps just stop auto-merging.
       - name: Enable auto-merge for patch + minor + docker digest
         if: >-

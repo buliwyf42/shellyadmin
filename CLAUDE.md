@@ -40,7 +40,16 @@ Re-add `typescript` to the group once a `typescript-eslint` release accepts TS 7
 
 ### Docker digest bumps look like major bumps (2026-09-02)
 
-`dependabot/fetch-metadata` has no version to compare on a digest-only bump — the tag is unchanged, only the `@sha256` pin moves — so it reports `update-type: version-update:semver-major` with `previous-version` = `` `<sha>` `` and `new-version` = the tag. The patch+minor gate in `.github/workflows/dependabot-auto-merge.yml` skipped those, and they sat green-but-open (PR #107 for a day). The gate now also accepts `package-ecosystem == 'docker' && contains(previous-version, '`')` — the backtick is fetch-metadata's own formatting for a digest, and a real major image bump (`26-alpine` → `27-alpine`) carries a plain version in both fields, so it still goes to manual review. If that formatting ever changes, digest bumps stop auto-merging (fails safe); the fallback is diffing the Dockerfile, which costs a checkout of the untrusted PR ref under `pull_request_target`.
+`dependabot/fetch-metadata` has no version to compare on a digest-only bump — the tag is unchanged, only the `@sha256` pin moves — so it reports `update-type: version-update:semver-major` with `previous-version` = `` `<sha>` `` and `new-version` = the tag. The patch+minor gate in `.github/workflows/dependabot-auto-merge.yml` skipped those, and they sat green-but-open (PR #107 for a day). The gate now also accepts `package-ecosystem == 'docker' && contains(previous-version, '`')` — the backtick is fetch-metadata's own formatting for a digest, and a real major image bump (`26-alpine` → `27-alpine`) carries a plain version in both fields, so it still goes to manual review. If that formatting ever changes, digest bumps stop auto-merging (fails safe); the fallback is diffing the Dockerfile, which costs a checkout of the untrusted PR ref with a write token.
+
+### `startup_failure` on auto-merge = GitHub's `pull_request_target` block (2026-11-16)
+
+GitHub blocks `pull_request_target` by default in public repos: brownout windows on 2026-11-09 and
+2026-11-16 (both ending 18:00 UTC, both swallowing the Monday 17:45 UTC Dependabot run), enforced
+from 2026-12-02. Symptom: `Dependabot auto-merge` ends in `startup_failure` with zero jobs while the
+workflow file is unchanged, and green minor/patch PRs stay open. **The reason is only on the run's
+web page (Annotations), not in `gh run view` or the API.** The workflow now triggers on
+`pull_request`; missed runs are not replayed — `@dependabot rebase` re-triggers them.
 
 ### A grouped PR inherits the HIGHEST update-type — one major blocks the whole group (2026-09-11)
 
