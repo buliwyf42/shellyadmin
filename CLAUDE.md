@@ -961,6 +961,49 @@ see the rollout note above) and installs the new build the moment the rollout re
 
 Persisted on the Device row as `fw_auto_update` with values `""` (never read) | `off` | `stable` | `beta`. Read during every firmware check job. Bulk-settable via the Firmware page's "Auto → Off / Stable / Beta" buttons (action `set_auto_update`). Surfaced in compliance via the `auto_update_stage` rule.
 
+### Device backups (firmware 2.2.0+): an unencrypted backup leaks the fleet's secrets (2026-11-16)
+
+Firmware 2.2.0 added `Sys.CreateBackup` / `DownloadBackup` / `UploadBackup` / `RestoreBackup`,
+`GET /backup.zip`, and a custom default config (`Sys.CreateDefaultConfig` / `Upload…` / `Apply…` /
+`ClearDefaultConfig`). ShellyAdmin v1.3.0 only **shows** the state (`config_backup`, derived from
+`sys.backup` / `sys.default_config`); nothing creates or restores. Keep it that way until the points
+below are designed in.
+
+🩸 **An unencrypted backup is the fleet's credentials in plain text, served without auth.** Measured
+on `shelly-terasse-licht` (`.87`, Mini1PMG3, 2.2.1, `auth_en: false`): `backup.zip` is a 4 KB zip of
+nine files; `conf9.json` holds the non-default config **including both Wi-Fi PSKs, the MQTT user and
+password and the Shelly Cloud token in clear**, and the device serves it to anyone on the IoT VLAN with
+a bare `curl`. `Shelly.GetConfig` never returns those values — the backup opens a read path that did
+not exist before. Per the Shelly docs `/backup.zip` needs digest auth only when `http.auth_domain` /
+`rpc.auth_domain` is set, which is not the case on this fleet.
+
+🩸 **There is no delete.** `Shelly.ListMethods` on 2.2.1 lists Create/Download/Upload/Restore and the
+four default-config methods, nothing that removes a backup. The only ways out are a factory reset or
+overwriting: `Sys.CreateBackup {"encrypt": true}` → `Shelly.Reboot` (the old backup stays downloadable
+until the reboot; `sys.backup.created` changes afterwards). Verified on `.87`: after that,
+`manifest.json` is still clear (`"encrypt": true`, model, fw, device name), every other entry is an
+encrypted zip member. With `encrypt: true` the **device generates** the password (AES-128, returned once
+as `key`, not stored on the device) — there is no caller-supplied password, so a discarded `key` makes
+the backup unrestorable. That was intended on `.87`.
+
+**What this means for any future backup feature:**
+- Always `encrypt: true`; store the returned `key` sealed with `secretbox` and add the column to
+  `RotateSealedColumns`. Treat the downloaded zip the same way — it is plaintext once decrypted.
+- Creation needs a reboot to take effect (`restart_required`), and `RestoreBackup` reboots immediately;
+  both are confirm-gated actions, not background jobs.
+- **A backup is not a provisioning template.** It is bound to the model (`manifest.model`) and carries
+  the device's identity — name, MQTT `client_id` and topics, location, the Cloud token. Restored onto
+  another unit it would clone that identity. Templates stay the fleet-wide mechanism; a backup is at
+  most a per-device rollback point before provisioning, and the custom default config a reset-survival
+  baseline after it. Whether the default config leaks the same way is **unmeasured**.
+- `config_backup` cannot tell "firmware without `sys.backup`" from "no backup created": 2.2.x reports
+  `sys.backup: {}` when empty, so every 2.2.x device carries `{"default_config": false}`. Harmless while
+  the whole fleet is on 2.2.x.
+
+🩸 **A "read-only" check created the leak.** The backup on `.87` was made by a verification session
+whose brief said read-only, to get a positive test case. On this API "create a test backup" is not a
+harmless probe — it writes credentials to an unauthenticated endpoint. Probe with what exists, or ask.
+
 ### Alternative firmware variants — `sys.alt` (firmware 2.0.0+), read-only
 
 Firmware 2.0.0-beta3 added an `alt` object: alternative firmware **variants** for the same hardware — a Zigbee or Matter build, or an add-on profile (e.g. Power Strip Gen4 → `PowerStripZB` "with Zigbee", Mini 1PM Gen4 → `Mini1PMG4ZB`, Pro 3EM → `Pro3EMProAddon`). It is a **map** keyed by variant id → `{name, desc, stable?{version,build_id}, beta?{version,build_id}}`, NOT a scalar third channel.
